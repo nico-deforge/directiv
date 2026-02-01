@@ -1,0 +1,17 @@
+{
+  "terminal": "ghostty",
+  "repos": [
+    {
+      "path": "/path/to/your/repo",
+      "issuePrefixes": ["ACQ"]
+    }
+  ],
+  "linear": {
+    "teamIds": ["TEAM_ID"],
+    "activeProject": null
+  },
+  "github": {
+    "owner": "your-org",
+    "repos": ["your-repo"]
+  }
+}
