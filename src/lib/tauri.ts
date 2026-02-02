@@ -11,15 +11,42 @@ export function worktreeCreate(
   repoPath: string,
   issueId: string,
   copyPaths?: string[],
+  baseBranch?: string,
+  fetchBefore?: boolean,
 ): Promise<WorktreeInfo> {
-  return invoke<WorktreeInfo>("worktree_create", { repoPath, issueId, copyPaths });
+  return invoke<WorktreeInfo>("worktree_create", {
+    repoPath,
+    issueId,
+    copyPaths,
+    baseBranch,
+    fetchBefore,
+  });
 }
 
 export function worktreeRemove(
   repoPath: string,
   worktreePath: string,
+  branch?: string,
+  deleteBranch?: boolean,
 ): Promise<void> {
-  return invoke<void>("worktree_remove", { repoPath, worktreePath });
+  return invoke<void>("worktree_remove", {
+    repoPath,
+    worktreePath,
+    branch,
+    deleteBranch,
+  });
+}
+
+export function worktreeCheckMerged(
+  repoPath: string,
+  branch: string,
+  baseBranch?: string,
+): Promise<boolean> {
+  return invoke<boolean>("worktree_check_merged", {
+    repoPath,
+    branch,
+    baseBranch,
+  });
 }
 
 // --- Tmux commands ---
@@ -49,7 +76,10 @@ export function tmuxCapturePane(session: string): Promise<string> {
 
 // --- Hook commands ---
 
-export function runHooks(commands: string[], workingDir: string): Promise<void> {
+export function runHooks(
+  commands: string[],
+  workingDir: string,
+): Promise<void> {
   return invoke<void>("run_hooks", { commands, workingDir });
 }
 

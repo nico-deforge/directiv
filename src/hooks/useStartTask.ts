@@ -8,6 +8,8 @@ interface StartTaskParams {
   terminal: string;
   copyPaths?: string[];
   onStart?: string[];
+  baseBranch?: string;
+  fetchBefore?: boolean;
 }
 
 export function useStartTask() {

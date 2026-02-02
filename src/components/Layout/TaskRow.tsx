@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Play, Square, Loader2, ChevronDown } from "lucide-react";
 import type { EnrichedTask, RepoConfig } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
-import { useStopTask } from "../../hooks/useStopTask";
+import { useStopTask, DirtyWorktreeError } from "../../hooks/useStopTask";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useTmuxSessions } from "../../hooks/useTmux";
 
@@ -25,6 +25,7 @@ export function TaskRow({ task, repos }: TaskRowProps) {
   const { data: sessions } = useTmuxSessions();
   const hasSession = sessions?.some((s) => s.name === task.identifier) ?? false;
   const [error, setError] = useState<string | null>(null);
+  const [confirmingStop, setConfirmingStop] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +38,10 @@ export function TaskRow({ task, repos }: TaskRowProps) {
   useEffect(() => {
     if (!dropdownOpen) return;
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setDropdownOpen(false);
       }
     }
@@ -47,11 +51,30 @@ export function TaskRow({ task, repos }: TaskRowProps) {
 
   const isLoading = startTask.isPending || stopTask.isPending;
 
-  function handleStop() {
+  useEffect(() => {
+    if (!confirmingStop) return;
+    const timer = setTimeout(() => setConfirmingStop(false), 5000);
+    return () => clearTimeout(timer);
+  }, [confirmingStop]);
+
+  function handleStop(force?: boolean) {
     setError(null);
+    setConfirmingStop(false);
     stopTask.mutate(
-      { identifier: task.identifier, repoPaths: repos.map((r) => r.path) },
-      { onError: (err) => setError(err instanceof Error ? err.message : String(err)) },
+      {
+        identifier: task.identifier,
+        repoPaths: repos.map((r) => r.path),
+        force,
+      },
+      {
+        onError: (err) => {
+          if (err instanceof DirtyWorktreeError) {
+            setConfirmingStop(true);
+          } else {
+            setError(err instanceof Error ? err.message : String(err));
+          }
+        },
+      },
     );
   }
 
@@ -60,8 +83,20 @@ export function TaskRow({ task, repos }: TaskRowProps) {
     setDropdownOpen(false);
     const repo = repos.find((r) => r.path === repoPath);
     startTask.mutate(
-      { issueId: task.id, identifier: task.identifier, repoPath, terminal, copyPaths: repo?.copyPaths, onStart: repo?.onStart },
-      { onError: (err) => setError(err instanceof Error ? err.message : String(err)) },
+      {
+        issueId: task.id,
+        identifier: task.identifier,
+        repoPath,
+        terminal,
+        copyPaths: repo?.copyPaths,
+        onStart: repo?.onStart,
+        baseBranch: repo?.baseBranch,
+        fetchBefore: repo?.fetchBefore,
+      },
+      {
+        onError: (err) =>
+          setError(err instanceof Error ? err.message : String(err)),
+      },
     );
   }
 
@@ -88,21 +123,45 @@ export function TaskRow({ task, repos }: TaskRowProps) {
           {task.identifier}
         </a>
         <span className="truncate text-sm text-zinc-300">{task.title}</span>
-        <div className="relative ml-auto shrink-0 flex items-center gap-1" ref={dropdownRef}>
-          {hasSession && (
-            <button
-              onClick={handleStop}
-              disabled={isLoading}
-              className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded hover:bg-zinc-700 disabled:opacity-50"
-              title="Stop task (kill session + remove worktree)"
-            >
-              {stopTask.isPending ? (
-                <Loader2 className="size-4 text-zinc-400 animate-spin" />
-              ) : (
-                <Square className="size-4 text-red-400" />
-              )}
-            </button>
-          )}
+        <div
+          className="relative ml-auto shrink-0 flex items-center gap-1"
+          ref={dropdownRef}
+        >
+          {hasSession &&
+            (confirmingStop ? (
+              <span className="flex items-center gap-1">
+                <span className="text-xs text-yellow-400">Dirty worktree.</span>
+                <button
+                  onClick={() => handleStop(true)}
+                  disabled={isLoading}
+                  className="text-xs text-red-400 hover:text-red-300"
+                >
+                  Force
+                </button>
+                <span className="text-xs text-zinc-600">/</span>
+                <button
+                  onClick={() => setConfirmingStop(false)}
+                  className="text-xs text-zinc-400 hover:text-zinc-200"
+                >
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button
+                onClick={() => {
+                  handleStop();
+                }}
+                disabled={isLoading}
+                className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded hover:bg-zinc-700 disabled:opacity-50"
+                title="Stop task (kill session + remove worktree)"
+              >
+                {stopTask.isPending ? (
+                  <Loader2 className="size-4 text-zinc-400 animate-spin" />
+                ) : (
+                  <Square className="size-4 text-red-400" />
+                )}
+              </button>
+            ))}
           <button
             onClick={handleClick}
             disabled={isLoading || repos.length === 0}
@@ -135,9 +194,7 @@ export function TaskRow({ task, repos }: TaskRowProps) {
           )}
         </div>
       </div>
-      {error && (
-        <p className="px-3 pb-1 text-xs text-red-400">{error}</p>
-      )}
+      {error && <p className="px-3 pb-1 text-xs text-red-400">{error}</p>}
     </div>
   );
 }
