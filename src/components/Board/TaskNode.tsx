@@ -9,12 +9,36 @@ const PRIORITY_COLORS: Record<number, string> = {
   4: "bg-blue-500", // Low
 };
 
+export type ReviewStatus =
+  | "approved"
+  | "changes_requested"
+  | "commented"
+  | "pending";
+
+const REVIEW_LABELS: Record<
+  ReviewStatus,
+  { label: string; className: string }
+> = {
+  approved: { label: "Approved", className: "bg-green-500/20 text-green-400" },
+  commented: {
+    label: "Commented",
+    className: "bg-blue-500/20 text-blue-400",
+  },
+  changes_requested: {
+    label: "Changes",
+    className: "bg-orange-500/20 text-orange-400",
+  },
+  pending: { label: "Pending", className: "bg-zinc-500/20 text-zinc-400" },
+};
+
 export type TaskNodeData = {
   identifier: string;
   title: string;
   priority: number;
   url: string;
   prUrl?: string;
+  reviewStatus?: ReviewStatus;
+  projectName?: string;
 };
 
 export type TaskNodeType = Node<TaskNodeData, "task">;
@@ -47,8 +71,20 @@ export function TaskNode({ data }: NodeProps<TaskNodeType>) {
                 <GitPullRequest className="size-3.5" />
               </a>
             )}
+            {data.reviewStatus && (
+              <span
+                className={`ml-auto rounded px-1.5 py-0.5 text-[10px] font-medium leading-none ${REVIEW_LABELS[data.reviewStatus].className}`}
+              >
+                {REVIEW_LABELS[data.reviewStatus].label}
+              </span>
+            )}
           </div>
           <p className="line-clamp-3 text-sm text-zinc-200">{data.title}</p>
+          {data.projectName && (
+            <span className="mt-1 inline-block text-xs text-zinc-500">
+              {data.projectName}
+            </span>
+          )}
         </div>
       </div>
     </div>

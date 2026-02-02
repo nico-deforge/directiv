@@ -13,11 +13,32 @@ import type {
   TmuxSession,
   PullRequestInfo,
 } from "../../types";
+import type { ReviewStatus } from "./TaskNode";
 
 const nodeTypes = { task: TaskNode, column: ColumnNode };
 
 const ROW_START_Y = 50;
-const ROW_HEIGHT = 60;
+const ROW_HEIGHT = 100;
+
+const REVIEW_STATUS_ORDER: Record<ReviewStatus, number> = {
+  approved: 0,
+  commented: 1,
+  changes_requested: 2,
+  pending: 3,
+};
+
+function getReviewStatus(pr: PullRequestInfo): ReviewStatus {
+  const hasApproval = pr.reviews.some((r) => r.state === "APPROVED");
+  const hasChangesRequested = pr.reviews.some(
+    (r) => r.state === "CHANGES_REQUESTED",
+  );
+  const hasComment = pr.reviews.some((r) => r.state === "COMMENTED");
+
+  if (hasApproval && !hasChangesRequested) return "approved";
+  if (hasChangesRequested) return "changes_requested";
+  if (hasComment) return "commented";
+  return "pending";
+}
 
 function buildNodes(
   tasks: EnrichedTask[],
@@ -39,23 +60,39 @@ function buildNodes(
     }
   }
 
-  // Tasks with active session
-  const withSession = tasks.filter((t) => sessionNames.has(t.identifier));
-
-  // In Review: has PR, not draft, at least 1 requested reviewer
-  const inReview = withSession.filter((t) => {
-    const pr = prByTask.get(t.identifier);
-    return pr && !pr.draft && pr.requestedReviewerCount >= 1;
-  });
+  // In Review: has PR, not draft, has pending reviewers OR submitted reviews
+  const inReview = tasks
+    .filter((t) => {
+      const pr = prByTask.get(t.identifier);
+      return (
+        pr &&
+        !pr.draft &&
+        (pr.requestedReviewerCount >= 1 || pr.reviews.length > 0)
+      );
+    })
+    .sort((a, b) => {
+      const prA = prByTask.get(a.identifier)!;
+      const prB = prByTask.get(b.identifier)!;
+      return (
+        REVIEW_STATUS_ORDER[getReviewStatus(prA)] -
+        REVIEW_STATUS_ORDER[getReviewStatus(prB)]
+      );
+    });
   const inReviewIds = new Set(inReview.map((t) => t.identifier));
 
-  // Personal Review: has PR but not in "In Review" (draft OR no reviewers)
-  const personalReview = withSession.filter(
+  // Personal Review: has PR but not in "In Review" (session not required)
+  const personalReview = tasks.filter(
     (t) => prByTask.has(t.identifier) && !inReviewIds.has(t.identifier),
   );
+  const personalReviewIds = new Set(personalReview.map((t) => t.identifier));
 
-  // In Dev: has session but no PR
-  const inDev = withSession.filter((t) => !prByTask.has(t.identifier));
+  // In Dev: has active session but not already in a PR column
+  const inDev = tasks.filter(
+    (t) =>
+      sessionNames.has(t.identifier) &&
+      !inReviewIds.has(t.identifier) &&
+      !personalReviewIds.has(t.identifier),
+  );
 
   const nodes: Node[] = [];
 
@@ -79,6 +116,7 @@ function buildNodes(
         title: task.title,
         priority: task.priority,
         url: task.url,
+        projectName: task.projectName ?? undefined,
       } satisfies TaskNodeData,
       draggable: false,
     });
@@ -109,6 +147,7 @@ function buildNodes(
         priority: task.priority,
         url: task.url,
         prUrl: pr?.url,
+        projectName: task.projectName ?? undefined,
       } satisfies TaskNodeData,
       draggable: false,
     });
@@ -128,7 +167,7 @@ function buildNodes(
   });
 
   inReview.forEach((task, i) => {
-    const pr = prByTask.get(task.identifier);
+    const pr = prByTask.get(task.identifier)!;
     nodes.push({
       id: task.id,
       type: "task",
@@ -138,7 +177,9 @@ function buildNodes(
         title: task.title,
         priority: task.priority,
         url: task.url,
-        prUrl: pr?.url,
+        prUrl: pr.url,
+        reviewStatus: getReviewStatus(pr),
+        projectName: task.projectName ?? undefined,
       } satisfies TaskNodeData,
       draggable: false,
     });
