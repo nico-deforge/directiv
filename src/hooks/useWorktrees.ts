@@ -30,8 +30,13 @@ export function useWorktreeCreate() {
 export function useWorktreeRemove() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ repoPath, worktreePath }: { repoPath: string; worktreePath: string }) =>
-      worktreeRemove(repoPath, worktreePath),
+    mutationFn: ({
+      repoPath,
+      worktreePath,
+    }: {
+      repoPath: string;
+      worktreePath: string;
+    }) => worktreeRemove(repoPath, worktreePath),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["worktrees"] }),
   });
 }

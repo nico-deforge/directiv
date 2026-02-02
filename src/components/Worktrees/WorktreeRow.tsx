@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { GitBranch, Trash2, Loader2, FolderOpen, Circle, Terminal } from "lucide-react";
+import {
+  GitBranch,
+  Trash2,
+  Loader2,
+  FolderOpen,
+  Circle,
+  Terminal,
+} from "lucide-react";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
 import { tmuxKillSession } from "../../lib/tauri";
 import { useQueryClient } from "@tanstack/react-query";
@@ -47,8 +54,10 @@ export function WorktreeRow({ worktree, repoPath, session }: WorktreeRowProps) {
     remove.mutate(
       { repoPath, worktreePath: path },
       {
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] }),
-        onError: (err) => setError(err instanceof Error ? err.message : String(err)),
+        onSuccess: () =>
+          queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] }),
+        onError: (err) =>
+          setError(err instanceof Error ? err.message : String(err)),
       },
     );
   }
@@ -61,7 +70,9 @@ export function WorktreeRow({ worktree, repoPath, session }: WorktreeRowProps) {
         <GitBranch className="size-3.5 shrink-0 text-zinc-500" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="block truncate text-sm text-zinc-300">{branch}</span>
+            <span className="block truncate text-sm text-zinc-300">
+              {branch}
+            </span>
             {isDirty && (
               <span title="Uncommitted changes">
                 <Circle className="size-2 shrink-0 fill-yellow-400 text-yellow-400" />
@@ -73,8 +84,12 @@ export function WorktreeRow({ worktree, repoPath, session }: WorktreeRowProps) {
             <span className="truncate">{dirName}</span>
             {(ahead > 0 || behind > 0) && (
               <span className="ml-1 flex items-center gap-1 text-[10px] text-zinc-400">
-                {ahead > 0 && <span title={`${ahead} commit(s) ahead`}>↑{ahead}</span>}
-                {behind > 0 && <span title={`${behind} commit(s) behind`}>↓{behind}</span>}
+                {ahead > 0 && (
+                  <span title={`${ahead} commit(s) ahead`}>↑{ahead}</span>
+                )}
+                {behind > 0 && (
+                  <span title={`${behind} commit(s) behind`}>↓{behind}</span>
+                )}
               </span>
             )}
           </span>

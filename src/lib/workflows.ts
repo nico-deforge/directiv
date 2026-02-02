@@ -36,7 +36,13 @@ export async function startTask({
   const worktrees = await worktreeList(repoPath);
   let worktree = worktrees.find((w) => w.branch === identifier);
   if (!worktree) {
-    worktree = await worktreeCreate(repoPath, identifier, copyPaths, baseBranch, fetchBefore);
+    worktree = await worktreeCreate(
+      repoPath,
+      identifier,
+      copyPaths,
+      baseBranch,
+      fetchBefore,
+    );
   }
 
   // 2. Reuse or create tmux session
@@ -116,7 +122,9 @@ export async function stopTask({
   }
 
   if (!removed && errors.length > 0) {
-    throw new Error(`Failed to remove worktree for ${identifier}:\n${errors.join("\n")}`);
+    throw new Error(
+      `Failed to remove worktree for ${identifier}:\n${errors.join("\n")}`,
+    );
   }
 }
 

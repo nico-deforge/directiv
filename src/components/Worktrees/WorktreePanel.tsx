@@ -3,7 +3,12 @@ import { GitBranch, Trash2, Loader2, X } from "lucide-react";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { RepoWorktreeGroup } from "./RepoWorktreeGroup";
-import { worktreeList, worktreeCheckMerged, worktreeRemove, tmuxKillSession } from "../../lib/tauri";
+import {
+  worktreeList,
+  worktreeCheckMerged,
+  worktreeRemove,
+  tmuxKillSession,
+} from "../../lib/tauri";
 import { useTmuxSessions } from "../../hooks/useTmux";
 import { useQueryClient } from "@tanstack/react-query";
 import type { StaleWorktree, TmuxSession } from "../../types";
@@ -31,9 +36,7 @@ export function WorktreePanel() {
     try {
       const stale: StaleWorktree[] = [];
       const doneIdentifiers = new Set(
-        tasks
-          .filter((t) => t.column === "done")
-          .map((t) => t.identifier),
+        tasks.filter((t) => t.column === "done").map((t) => t.identifier),
       );
 
       for (const repo of repos) {
@@ -42,14 +45,28 @@ export function WorktreePanel() {
         for (const wt of worktrees.slice(1)) {
           // Check if issue is done in Linear
           if (wt.issueId && doneIdentifiers.has(wt.issueId)) {
-            stale.push({ worktree: wt, reason: "issue_done", repoId: repo.id, repoPath: repo.path });
+            stale.push({
+              worktree: wt,
+              reason: "issue_done",
+              repoId: repo.id,
+              repoPath: repo.path,
+            });
             continue;
           }
           // Check if branch is merged into main
           try {
-            const merged = await worktreeCheckMerged(repo.path, wt.branch);
+            const merged = await worktreeCheckMerged(
+              repo.path,
+              wt.branch,
+              repo.baseBranch,
+            );
             if (merged) {
-              stale.push({ worktree: wt, reason: "branch_merged", repoId: repo.id, repoPath: repo.path });
+              stale.push({
+                worktree: wt,
+                reason: "branch_merged",
+                repoId: repo.id,
+                repoPath: repo.path,
+              });
             }
           } catch {
             // Skip branches that can't be checked
@@ -57,7 +74,9 @@ export function WorktreePanel() {
         }
       }
       setStaleWorktrees(stale);
-      setSelected(new Set(stale.map((s) => `${s.repoPath}:${s.worktree.branch}`)));
+      setSelected(
+        new Set(stale.map((s) => `${s.repoPath}:${s.worktree.branch}`)),
+      );
       setShowCleanup(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -80,7 +99,12 @@ export function WorktreePanel() {
           // Session may not exist
         }
         // Remove worktree + delete branch
-        await worktreeRemove(sw.repoPath, sw.worktree.path, sw.worktree.branch, true);
+        await worktreeRemove(
+          sw.repoPath,
+          sw.worktree.path,
+          sw.worktree.branch,
+          true,
+        );
       }
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
@@ -152,14 +176,19 @@ export function WorktreePanel() {
               {staleWorktrees.map((sw) => {
                 const key = `${sw.repoPath}:${sw.worktree.branch}`;
                 return (
-                  <label key={key} className="flex items-center gap-2 text-xs cursor-pointer">
+                  <label
+                    key={key}
+                    className="flex items-center gap-2 text-xs cursor-pointer"
+                  >
                     <input
                       type="checkbox"
                       checked={selected.has(key)}
                       onChange={() => toggleSelection(key)}
                       className="rounded border-zinc-600"
                     />
-                    <span className="truncate text-zinc-300">{sw.worktree.branch}</span>
+                    <span className="truncate text-zinc-300">
+                      {sw.worktree.branch}
+                    </span>
                     <span
                       className={`ml-auto shrink-0 rounded px-1 py-0.5 text-[10px] ${
                         sw.reason === "branch_merged"
@@ -189,13 +218,18 @@ export function WorktreePanel() {
         {repos.length === 0 ? (
           <div className="flex flex-1 items-center justify-center p-4">
             <p className="text-center text-sm text-zinc-500">
-              Configure <code className="text-zinc-400">repos</code> in settings.
+              Configure <code className="text-zinc-400">repos</code> in
+              settings.
             </p>
           </div>
         ) : (
           <div className="py-2">
             {repos.map((repo) => (
-              <RepoWorktreeGroup key={repo.id} repo={repo} sessionsByName={sessionsByName} />
+              <RepoWorktreeGroup
+                key={repo.id}
+                repo={repo}
+                sessionsByName={sessionsByName}
+              />
             ))}
           </div>
         )}
