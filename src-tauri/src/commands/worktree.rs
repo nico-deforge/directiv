@@ -58,6 +58,7 @@ async fn detect_default_branch(app: &tauri::AppHandle, repo_path: &str) -> Strin
 }
 
 #[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct WorktreeInfo {
     pub branch: String,
     pub path: String,
@@ -88,6 +89,8 @@ pub async fn worktree_list(
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     // First pass: collect basic worktree info (path + branch)
+    // Note: tauri-plugin-shell may insert extra blank lines in stdout,
+    // so we push entries when we encounter the next "worktree" line or end of input.
     struct RawWorktree {
         path: String,
         branch: String,
@@ -97,7 +100,17 @@ pub async fn worktree_list(
     let mut current_branch = String::new();
 
     for line in stdout.lines() {
+        if line.is_empty() {
+            continue;
+        }
         if let Some(path) = line.strip_prefix("worktree ") {
+            // Flush previous block if any
+            if !current_path.is_empty() {
+                raw.push(RawWorktree {
+                    path: current_path.clone(),
+                    branch: current_branch.clone(),
+                });
+            }
             current_path = path.to_string();
             current_branch = String::new();
         } else if let Some(branch_ref) = line.strip_prefix("branch ") {
@@ -106,17 +119,10 @@ pub async fn worktree_list(
                 .strip_prefix("refs/heads/")
                 .unwrap_or(branch_ref)
                 .to_string();
-        } else if line.is_empty() && !current_path.is_empty() {
-            raw.push(RawWorktree {
-                path: current_path.clone(),
-                branch: current_branch.clone(),
-            });
-            current_path = String::new();
-            current_branch = String::new();
         }
     }
 
-    // Handle last block (porcelain output may not end with blank line)
+    // Flush last block
     if !current_path.is_empty() {
         raw.push(RawWorktree {
             path: current_path,
@@ -338,6 +344,57 @@ pub async fn worktree_create(
             }
             _ => {}
         }
+    }
+
+    // Prune stale worktree entries (safe no-op if nothing to prune)
+    let _ = app
+        .shell()
+        .command("git")
+        .args(["-C", &repo_path, "worktree", "prune"])
+        .output()
+        .await;
+
+    // If the worktree path already exists with a valid checkout on the right branch, return it
+    if worktree_path.exists() {
+        let check = app
+            .shell()
+            .command("git")
+            .args([
+                "-C",
+                &worktree_path_str,
+                "rev-parse",
+                "--abbrev-ref",
+                "HEAD",
+            ])
+            .output()
+            .await;
+
+        if let Ok(out) = check {
+            if out.status.success() {
+                let current_branch = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if current_branch == issue_id {
+                    // Valid worktree on the correct branch → return directly (idempotent)
+                    let (is_dirty, ahead, behind) =
+                        get_worktree_health(&app, &worktree_path_str, &issue_id).await;
+                    return Ok(WorktreeInfo {
+                        branch: issue_id.clone(),
+                        path: worktree_path_str,
+                        issue_id: Some(issue_id),
+                        is_dirty,
+                        ahead,
+                        behind,
+                    });
+                }
+            }
+        }
+
+        // Path exists but is not a valid worktree on the expected branch → remove it
+        std::fs::remove_dir_all(&worktree_path).map_err(|e| {
+            format!(
+                "Cannot clean stale directory {}: {e}",
+                worktree_path_str
+            )
+        })?;
     }
 
     let base = match base_branch {
