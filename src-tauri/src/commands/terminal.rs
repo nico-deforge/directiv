@@ -6,18 +6,21 @@ pub async fn open_terminal(
     emulator: String,
     session: String,
 ) -> Result<(), String> {
+    let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    let tmux_cmd = format!("tmux attach -t {session}");
+
     match emulator.as_str() {
         "ghostty" => {
             app.shell()
                 .command("open")
-                .args(["-n", "-a", "Ghostty", "--args", "-e", "tmux", "attach", "-t", &session])
+                .args(["-n", "-a", "Ghostty", "--args", "-e", &user_shell, "-lc", &tmux_cmd])
                 .spawn()
                 .map_err(|e| format!("Failed to open Ghostty: {e}"))?;
         }
         "alacritty" => {
             app.shell()
                 .command("open")
-                .args(["-n", "-a", "Alacritty", "--args", "-e", "tmux", "attach", "-t", &session])
+                .args(["-n", "-a", "Alacritty", "--args", "-e", &user_shell, "-lc", &tmux_cmd])
                 .spawn()
                 .map_err(|e| format!("Failed to open Alacritty: {e}"))?;
         }

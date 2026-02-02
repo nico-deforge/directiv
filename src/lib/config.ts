@@ -27,6 +27,8 @@ export function validateConfig(config: Partial<LinairConfig>): LinairConfig {
       ...repo,
       copyPaths: repo.copyPaths ?? [],
       onStart: repo.onStart ?? [],
+      baseBranch: repo.baseBranch,
+      fetchBefore: repo.fetchBefore ?? true,
     })),
     linear: config.linear ?? defaultConfig.linear,
     github: config.github ?? defaultConfig.github,

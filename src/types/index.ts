@@ -50,6 +50,9 @@ export interface WorktreeInfo {
   branch: string;
   path: string;
   issueId: string | null;
+  isDirty: boolean;
+  ahead: number;
+  behind: number;
 }
 
 // --- GitHub ---
@@ -72,6 +75,15 @@ export interface PullRequestReview {
   submittedAt: string;
 }
 
+// --- Cleanup ---
+
+export interface StaleWorktree {
+  worktree: WorktreeInfo;
+  reason: "branch_merged" | "issue_done";
+  repoId: string;
+  repoPath: string;
+}
+
 // --- Config ---
 
 export type TerminalEmulator = "ghostty" | "iterm2" | "terminal" | "alacritty";
@@ -81,6 +93,8 @@ export interface RepoConfig {
   path: string;
   copyPaths?: string[];
   onStart?: string[];
+  baseBranch?: string;
+  fetchBefore?: boolean;
 }
 
 export interface LinearConfig {
