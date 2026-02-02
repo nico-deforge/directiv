@@ -23,7 +23,10 @@ export async function loadConfigFromDisk(): Promise<LinairConfig> {
 export function validateConfig(config: Partial<LinairConfig>): LinairConfig {
   return {
     terminal: config.terminal ?? defaultConfig.terminal,
-    repos: config.repos ?? defaultConfig.repos,
+    repos: (config.repos ?? defaultConfig.repos).map((repo) => ({
+      ...repo,
+      copyPaths: repo.copyPaths ?? [],
+    })),
     linear: config.linear ?? defaultConfig.linear,
     github: config.github ?? defaultConfig.github,
   };

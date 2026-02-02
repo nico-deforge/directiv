@@ -14,8 +14,15 @@ export function useWorktrees(repoPath: string) {
 export function useWorktreeCreate() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ repoPath, issueId }: { repoPath: string; issueId: string }) =>
-      worktreeCreate(repoPath, issueId),
+    mutationFn: ({
+      repoPath,
+      issueId,
+      copyPaths,
+    }: {
+      repoPath: string;
+      issueId: string;
+      copyPaths?: string[];
+    }) => worktreeCreate(repoPath, issueId, copyPaths),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["worktrees"] }),
   });
 }

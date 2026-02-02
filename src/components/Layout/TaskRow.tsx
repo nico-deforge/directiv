@@ -58,8 +58,9 @@ export function TaskRow({ task, repos }: TaskRowProps) {
   function handleStart(repoPath: string) {
     setError(null);
     setDropdownOpen(false);
+    const repo = repos.find((r) => r.path === repoPath);
     startTask.mutate(
-      { issueId: task.id, identifier: task.identifier, repoPath, terminal },
+      { issueId: task.id, identifier: task.identifier, repoPath, terminal, copyPaths: repo?.copyPaths },
       { onError: (err) => setError(err instanceof Error ? err.message : String(err)) },
     );
   }

@@ -10,8 +10,9 @@ export function worktreeList(repoPath: string): Promise<WorktreeInfo[]> {
 export function worktreeCreate(
   repoPath: string,
   issueId: string,
+  copyPaths?: string[],
 ): Promise<WorktreeInfo> {
-  return invoke<WorktreeInfo>("worktree_create", { repoPath, issueId });
+  return invoke<WorktreeInfo>("worktree_create", { repoPath, issueId, copyPaths });
 }
 
 export function worktreeRemove(

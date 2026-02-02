@@ -15,6 +15,7 @@ interface StartTaskParams {
   identifier: string;
   repoPath: string;
   terminal: string;
+  copyPaths?: string[];
 }
 
 export async function startTask({
@@ -22,12 +23,13 @@ export async function startTask({
   identifier,
   repoPath,
   terminal,
+  copyPaths,
 }: StartTaskParams): Promise<void> {
   // 1. Reuse or create git worktree
   const worktrees = await worktreeList(repoPath);
   let worktree = worktrees.find((w) => w.branch === identifier);
   if (!worktree) {
-    worktree = await worktreeCreate(repoPath, identifier);
+    worktree = await worktreeCreate(repoPath, identifier, copyPaths);
   }
 
   // 2. Reuse or create tmux session
