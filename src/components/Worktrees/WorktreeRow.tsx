@@ -25,6 +25,7 @@ export function WorktreeRow({ worktree, repoPath, session }: WorktreeRowProps) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [killingSession, setKillingSession] = useState(false);
 
   useEffect(() => {
     if (!confirming) return;
@@ -95,15 +96,32 @@ export function WorktreeRow({ worktree, repoPath, session }: WorktreeRowProps) {
           </span>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-1">
-          {session && (
-            <span
-              title={`tmux: ${session.attached ? "attached" : "detached"} (${session.windows} window${session.windows !== 1 ? "s" : ""})`}
-            >
-              <Terminal
-                className={`size-3.5 ${session.attached ? "text-green-400" : "text-amber-400"}`}
-              />
-            </span>
-          )}
+          {session &&
+            (killingSession ? (
+              <Loader2 className="size-3.5 animate-spin text-zinc-400" />
+            ) : (
+              <button
+                title="Kill tmux session"
+                onClick={async () => {
+                  setKillingSession(true);
+                  try {
+                    await tmuxKillSession(branch);
+                    queryClient.invalidateQueries({
+                      queryKey: ["tmux", "sessions"],
+                    });
+                  } catch {
+                    // session may already be gone
+                  } finally {
+                    setKillingSession(false);
+                  }
+                }}
+                className="cursor-pointer rounded p-0.5 hover:bg-zinc-700/60"
+              >
+                <Terminal
+                  className={`size-3.5 ${session.attached ? "text-green-400 hover:text-green-300" : "text-amber-400 hover:text-amber-300"}`}
+                />
+              </button>
+            ))}
           {confirming ? (
             <>
               <button
