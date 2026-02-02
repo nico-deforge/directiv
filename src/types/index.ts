@@ -79,7 +79,6 @@ export interface PullRequestReview {
 
 export interface StaleWorktree {
   worktree: WorktreeInfo;
-  reason: "branch_merged" | "issue_done";
   repoId: string;
   repoPath: string;
 }

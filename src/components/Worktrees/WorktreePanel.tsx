@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { GitBranch, Trash2, Loader2, X } from "lucide-react";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { useWorkflowStore } from "../../stores/workflowStore";
 import { RepoWorktreeGroup } from "./RepoWorktreeGroup";
 import {
   worktreeList,
@@ -15,7 +14,6 @@ import type { StaleWorktree, TmuxSession } from "../../types";
 
 export function WorktreePanel() {
   const repos = useSettingsStore((s) => s.config.repos);
-  const tasks = useWorkflowStore((s) => s.tasks);
   const queryClient = useQueryClient();
   const { data: tmuxSessions } = useTmuxSessions();
   const sessionsByName = useMemo(() => {
@@ -35,25 +33,11 @@ export function WorktreePanel() {
     setError(null);
     try {
       const stale: StaleWorktree[] = [];
-      const doneIdentifiers = new Set(
-        tasks.filter((t) => t.column === "done").map((t) => t.identifier),
-      );
 
       for (const repo of repos) {
         const worktrees = await worktreeList(repo.path);
         // Skip the main worktree (first entry)
         for (const wt of worktrees.slice(1)) {
-          // Check if issue is done in Linear
-          if (wt.issueId && doneIdentifiers.has(wt.issueId)) {
-            stale.push({
-              worktree: wt,
-              reason: "issue_done",
-              repoId: repo.id,
-              repoPath: repo.path,
-            });
-            continue;
-          }
-          // Check if branch is merged into main
           try {
             const merged = await worktreeCheckMerged(
               repo.path,
@@ -63,7 +47,6 @@ export function WorktreePanel() {
             if (merged) {
               stale.push({
                 worktree: wt,
-                reason: "branch_merged",
                 repoId: repo.id,
                 repoPath: repo.path,
               });
@@ -83,7 +66,7 @@ export function WorktreePanel() {
     } finally {
       setScanning(false);
     }
-  }, [repos, tasks]);
+  }, [repos]);
 
   const cleanSelected = useCallback(async () => {
     setCleaning(true);
@@ -143,7 +126,7 @@ export function WorktreePanel() {
               onClick={scanForStale}
               disabled={scanning}
               className="flex items-center gap-1 rounded px-2 py-0.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
-              title="Find stale worktrees to clean up"
+              title="Find merged worktrees to clean up"
             >
               {scanning ? (
                 <Loader2 className="size-3 animate-spin" />
@@ -161,8 +144,8 @@ export function WorktreePanel() {
           <div className="flex items-center justify-between px-4 py-2">
             <span className="text-xs font-medium text-zinc-300">
               {staleWorktrees.length === 0
-                ? "No stale worktrees found"
-                : `${staleWorktrees.length} stale worktree(s)`}
+                ? "No merged worktrees found"
+                : `${staleWorktrees.length} merged worktree(s)`}
             </span>
             <button
               onClick={() => setShowCleanup(false)}
@@ -189,14 +172,8 @@ export function WorktreePanel() {
                     <span className="truncate text-zinc-300">
                       {sw.worktree.branch}
                     </span>
-                    <span
-                      className={`ml-auto shrink-0 rounded px-1 py-0.5 text-[10px] ${
-                        sw.reason === "branch_merged"
-                          ? "bg-green-900/50 text-green-400"
-                          : "bg-blue-900/50 text-blue-400"
-                      }`}
-                    >
-                      {sw.reason === "branch_merged" ? "merged" : "done"}
+                    <span className="ml-auto shrink-0 rounded bg-green-900/50 px-1 py-0.5 text-[10px] text-green-400">
+                      merged
                     </span>
                   </label>
                 );
