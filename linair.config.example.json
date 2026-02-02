@@ -2,8 +2,10 @@
   "terminal": "ghostty",
   "repos": [
     {
+      "id": "REPO",
       "path": "/path/to/your/repo",
-      "id": "REPO"
+      "copyPaths": [".env.local"],
+      "onStart": ["bun install"]
     }
   ],
   "linear": {

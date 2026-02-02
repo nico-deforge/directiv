@@ -60,7 +60,7 @@ export function TaskRow({ task, repos }: TaskRowProps) {
     setDropdownOpen(false);
     const repo = repos.find((r) => r.path === repoPath);
     startTask.mutate(
-      { issueId: task.id, identifier: task.identifier, repoPath, terminal, copyPaths: repo?.copyPaths },
+      { issueId: task.id, identifier: task.identifier, repoPath, terminal, copyPaths: repo?.copyPaths, onStart: repo?.onStart },
       { onError: (err) => setError(err instanceof Error ? err.message : String(err)) },
     );
   }

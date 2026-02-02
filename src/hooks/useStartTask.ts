@@ -7,6 +7,7 @@ interface StartTaskParams {
   repoPath: string;
   terminal: string;
   copyPaths?: string[];
+  onStart?: string[];
 }
 
 export function useStartTask() {

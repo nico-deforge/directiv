@@ -80,6 +80,7 @@ export interface RepoConfig {
   id: string;
   path: string;
   copyPaths?: string[];
+  onStart?: string[];
 }
 
 export interface LinearConfig {
