@@ -29,6 +29,7 @@ export function Sidebar() {
   const {
     data: tasks,
     isLoading,
+    isFetching,
     isError,
     error,
     refetch,
@@ -37,7 +38,7 @@ export function Sidebar() {
   if (!linearClient) {
     return (
       <aside className="flex w-[28rem] shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
-        <Header />
+        <Header refetch={refetch} isFetching={isFetching} />
         <div className="flex flex-1 items-center justify-center p-4">
           <p className="text-center text-sm text-zinc-500">
             Set <code className="text-zinc-400">VITE_LINEAR_API_KEY</code> to
@@ -51,7 +52,7 @@ export function Sidebar() {
   if (teamIds.length === 0) {
     return (
       <aside className="flex w-[28rem] shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
-        <Header />
+        <Header refetch={refetch} isFetching={isFetching} />
         <div className="flex flex-1 items-center justify-center p-4">
           <p className="text-center text-sm text-zinc-500">
             Configure <code className="text-zinc-400">linear.teamIds</code> in
@@ -64,7 +65,7 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-[28rem] shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
-      <Header />
+      <Header refetch={refetch} isFetching={isFetching} />
       <div className="flex-1 overflow-y-auto">
         {isLoading && (
           <div className="flex items-center justify-center py-12">
@@ -98,7 +99,13 @@ export function Sidebar() {
   );
 }
 
-function Header() {
+function Header({
+  refetch,
+  isFetching,
+}: {
+  refetch: () => void;
+  isFetching: boolean;
+}) {
   const repos = useSettingsStore((s) => s.config.repos);
   const terminal = useSettingsStore((s) => s.config.terminal);
   const [open, setOpen] = useState(false);
@@ -168,15 +175,27 @@ function Header() {
     >
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-200">Tasks</h2>
-        {repos.length > 0 && (
+        <div className="flex items-center gap-1">
           <button
-            onClick={() => (open ? resetAndClose() : setOpen(true))}
-            className="rounded p-0.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
-            title="Start free task"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="rounded p-0.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
+            title="Refresh tasks"
           >
-            <Plus className="size-4" />
+            <RefreshCw
+              className={`size-3.5 ${isFetching ? "animate-spin" : ""}`}
+            />
           </button>
-        )}
+          {repos.length > 0 && (
+            <button
+              onClick={() => (open ? resetAndClose() : setOpen(true))}
+              className="rounded p-0.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+              title="Start free task"
+            >
+              <Plus className="size-4" />
+            </button>
+          )}
+        </div>
       </div>
       {open && (
         <div className="mt-2 rounded-md border border-zinc-700 bg-zinc-800 p-3">
@@ -246,9 +265,12 @@ function TaskGroups({
   tasks: EnrichedTask[];
   repos: { id: string; path: string }[];
 }) {
+  const visibleTasks = tasks.filter(
+    (t) => !t.isBlocked && !t.status.toLowerCase().includes("block"),
+  );
   const grouped = new Map<string, EnrichedTask[]>();
 
-  for (const task of tasks) {
+  for (const task of visibleTasks) {
     const key = task.projectName ?? "No Project";
     const group = grouped.get(key) ?? [];
     group.push(task);
