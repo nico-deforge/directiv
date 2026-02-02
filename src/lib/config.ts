@@ -1,6 +1,7 @@
+import { invoke } from "@tauri-apps/api/core";
 import type { LinairConfig } from "../types";
 
-const defaultConfig: LinairConfig = {
+export const defaultConfig: LinairConfig = {
   terminal: "ghostty",
   repos: [],
   linear: {
@@ -13,8 +14,10 @@ const defaultConfig: LinairConfig = {
   },
 };
 
-export function loadConfig(): LinairConfig {
-  return defaultConfig;
+export async function loadConfigFromDisk(): Promise<LinairConfig> {
+  const raw = await invoke<string>("load_config");
+  const parsed = JSON.parse(raw) as Partial<LinairConfig>;
+  return validateConfig(parsed);
 }
 
 export function validateConfig(config: Partial<LinairConfig>): LinairConfig {

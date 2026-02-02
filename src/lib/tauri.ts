@@ -3,16 +3,22 @@ import type { TmuxSession, WorktreeInfo } from "../types";
 
 // --- Worktree commands ---
 
-export function worktreeList(): Promise<WorktreeInfo[]> {
-  return invoke<WorktreeInfo[]>("worktree_list");
+export function worktreeList(repoPath: string): Promise<WorktreeInfo[]> {
+  return invoke<WorktreeInfo[]>("worktree_list", { repoPath });
 }
 
-export function worktreeCreate(issueId: string): Promise<WorktreeInfo> {
-  return invoke<WorktreeInfo>("worktree_create", { issueId });
+export function worktreeCreate(
+  repoPath: string,
+  issueId: string,
+): Promise<WorktreeInfo> {
+  return invoke<WorktreeInfo>("worktree_create", { repoPath, issueId });
 }
 
-export function worktreeRemove(branch: string): Promise<void> {
-  return invoke<void>("worktree_remove", { branch });
+export function worktreeRemove(
+  repoPath: string,
+  worktreePath: string,
+): Promise<void> {
+  return invoke<void>("worktree_remove", { repoPath, worktreePath });
 }
 
 // --- Tmux commands ---

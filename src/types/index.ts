@@ -25,6 +25,8 @@ export interface EnrichedTask {
   priority: number;
   status: string;
   assigneeId: string | null;
+  projectId: string | null;
+  projectName: string | null;
   labels: string[];
   column: WorkflowColumn;
   session: TmuxSession | null;
@@ -75,8 +77,8 @@ export interface PullRequestReview {
 export type TerminalEmulator = "ghostty" | "iterm2" | "terminal" | "alacritty";
 
 export interface RepoConfig {
+  id: string;
   path: string;
-  issuePrefixes: string[];
 }
 
 export interface LinearConfig {

@@ -62,9 +62,11 @@ cd src-tauri && cargo test
 Triggered by clicking [Start] on a backlog card:
 1. Create git worktree → `git gtr new ACQ-145`
 2. Create tmux session → `tmux new-session -d -s ACQ-145 -c /path/to/worktree`
-3. Launch Claude → `tmux send-keys -t ACQ-145 "claude" Enter`
+3. Launch Claude with context → `tmux send-keys -t ACQ-145 'claude "/linear-issue ACQ-145"' Enter`
 4. Update Linear → status to "In Progress"
 5. Refresh board → card moves to "In Dev"
+
+Claude Code starts in interactive mode with `/linear-issue <issue_id>` as the initial prompt, executing the skill immediately then remaining available for interaction.
 
 ### Pipeline board columns
 
@@ -86,4 +88,8 @@ User config lives in `linair.config.json` at project root:
 
 ## Language
 
-The architecture doc and comments may be in French. Code identifiers and commit messages should be in English.
+The architecture doc may be in French. Code identifiers, comments in code and commit messages should be in English.
+
+## Documentation
+Linear GrapQL API doc : https://studio.apollographql.com/public/Linear-API/variant/current/schema/reference
+The Linear sdk follows the Linear GraphQL API conventions.

@@ -16,25 +16,98 @@ export function useLinearMyTasks(teamId: string | undefined) {
         },
       });
 
-      return issues.nodes.map((issue) => ({
-        id: issue.id,
-        identifier: issue.identifier,
-        title: issue.title,
-        description: issue.description ?? null,
-        priority: issue.priority,
-        status: issue.state?.then((s) => s.name) as unknown as string,
-        assigneeId: issue.assignee?.then((a) => a.id) as unknown as
-          | string
-          | null,
-        labels: [],
-        column: "backlog" as const,
-        session: null,
-        worktree: null,
-        pullRequest: null,
-        url: issue.url,
-      }));
+      const tasks: EnrichedTask[] = [];
+      for (const issue of issues.nodes) {
+        const state = await issue.state;
+        const assignee = await issue.assignee;
+        const project = await issue.project;
+
+        tasks.push({
+          id: issue.id,
+          identifier: issue.identifier,
+          title: issue.title,
+          description: issue.description ?? null,
+          priority: issue.priority,
+          status: state?.name ?? "Unknown",
+          assigneeId: assignee?.id ?? null,
+          projectId: project?.id ?? null,
+          projectName: project?.name ?? null,
+          labels: [],
+          column: "backlog" as const,
+          session: null,
+          worktree: null,
+          pullRequest: null,
+          url: issue.url,
+        });
+      }
+
+      return tasks;
     },
     enabled: !!linearClient && !!teamId,
+    refetchInterval: 30_000,
+  });
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveTeamIds(keys: string[]): Promise<string[]> {
+  if (!linearClient) return [];
+
+  // If all values are already UUIDs, return as-is
+  if (keys.every((k) => UUID_RE.test(k))) return keys;
+
+  const teams = await linearClient.teams();
+  return keys.map((key) => {
+    if (UUID_RE.test(key)) return key;
+    const team = teams.nodes.find((t) => t.key === key);
+    if (!team) throw new Error(`Team key "${key}" not found in Linear`);
+    return team.id;
+  });
+}
+
+export function useLinearAllMyTasks(teamIds: string[]) {
+  return useQuery<EnrichedTask[]>({
+    queryKey: ["linear", "all-my-tasks", teamIds],
+    queryFn: async () => {
+      if (!linearClient || teamIds.length === 0) return [];
+
+      const resolvedIds = await resolveTeamIds(teamIds);
+      const me = await linearClient.viewer;
+      const issues = await me.assignedIssues({
+        filter: {
+          team: { id: { in: resolvedIds } },
+          state: { type: { nin: ["canceled", "completed"] } },
+        },
+      });
+
+      const tasks: EnrichedTask[] = [];
+      for (const issue of issues.nodes) {
+        const state = await issue.state;
+        const assignee = await issue.assignee;
+        const project = await issue.project;
+
+        tasks.push({
+          id: issue.id,
+          identifier: issue.identifier,
+          title: issue.title,
+          description: issue.description ?? null,
+          priority: issue.priority,
+          status: state?.name ?? "Unknown",
+          assigneeId: assignee?.id ?? null,
+          projectId: project?.id ?? null,
+          projectName: project?.name ?? null,
+          labels: [],
+          column: "backlog" as const,
+          session: null,
+          worktree: null,
+          pullRequest: null,
+          url: issue.url,
+        });
+      }
+
+      return tasks;
+    },
+    enabled: !!linearClient && teamIds.length > 0,
     refetchInterval: 30_000,
   });
 }
