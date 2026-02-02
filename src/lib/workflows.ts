@@ -18,6 +18,8 @@ interface StartTaskParams {
   terminal: string;
   copyPaths?: string[];
   onStart?: string[];
+  baseBranch?: string;
+  fetchBefore?: boolean;
 }
 
 export async function startTask({
@@ -27,12 +29,14 @@ export async function startTask({
   terminal,
   copyPaths,
   onStart,
+  baseBranch,
+  fetchBefore,
 }: StartTaskParams): Promise<void> {
   // 1. Reuse or create git worktree
   const worktrees = await worktreeList(repoPath);
   let worktree = worktrees.find((w) => w.branch === identifier);
   if (!worktree) {
-    worktree = await worktreeCreate(repoPath, identifier, copyPaths);
+    worktree = await worktreeCreate(repoPath, identifier, copyPaths, baseBranch, fetchBefore);
   }
 
   // 2. Reuse or create tmux session
@@ -53,6 +57,28 @@ export async function startTask({
 
   // 5. Update Linear status to "In Progress"
   await updateLinearStatusToStarted(issueId);
+}
+
+interface CheckBeforeStopResult {
+  isDirty: boolean;
+  worktreePath: string | null;
+}
+
+export async function checkBeforeStop({
+  identifier,
+  repoPaths,
+}: {
+  identifier: string;
+  repoPaths: string[];
+}): Promise<CheckBeforeStopResult> {
+  for (const repoPath of repoPaths) {
+    const worktrees = await worktreeList(repoPath);
+    const match = worktrees.find((w) => w.branch === identifier);
+    if (match) {
+      return { isDirty: match.isDirty, worktreePath: match.path };
+    }
+  }
+  return { isDirty: false, worktreePath: null };
 }
 
 interface StopTaskParams {
