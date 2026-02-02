@@ -38,7 +38,10 @@ export function TaskRow({ task, repos }: TaskRowProps) {
   useEffect(() => {
     if (!dropdownOpen) return;
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setDropdownOpen(false);
       }
     }
@@ -58,7 +61,11 @@ export function TaskRow({ task, repos }: TaskRowProps) {
     setError(null);
     setConfirmingStop(false);
     stopTask.mutate(
-      { identifier: task.identifier, repoPaths: repos.map((r) => r.path), force },
+      {
+        identifier: task.identifier,
+        repoPaths: repos.map((r) => r.path),
+        force,
+      },
       {
         onError: (err) => {
           if (err instanceof DirtyWorktreeError) {
@@ -76,8 +83,20 @@ export function TaskRow({ task, repos }: TaskRowProps) {
     setDropdownOpen(false);
     const repo = repos.find((r) => r.path === repoPath);
     startTask.mutate(
-      { issueId: task.id, identifier: task.identifier, repoPath, terminal, copyPaths: repo?.copyPaths, onStart: repo?.onStart, baseBranch: repo?.baseBranch, fetchBefore: repo?.fetchBefore },
-      { onError: (err) => setError(err instanceof Error ? err.message : String(err)) },
+      {
+        issueId: task.id,
+        identifier: task.identifier,
+        repoPath,
+        terminal,
+        copyPaths: repo?.copyPaths,
+        onStart: repo?.onStart,
+        baseBranch: repo?.baseBranch,
+        fetchBefore: repo?.fetchBefore,
+      },
+      {
+        onError: (err) =>
+          setError(err instanceof Error ? err.message : String(err)),
+      },
     );
   }
 
@@ -104,9 +123,12 @@ export function TaskRow({ task, repos }: TaskRowProps) {
           {task.identifier}
         </a>
         <span className="truncate text-sm text-zinc-300">{task.title}</span>
-        <div className="relative ml-auto shrink-0 flex items-center gap-1" ref={dropdownRef}>
-          {hasSession && (
-            confirmingStop ? (
+        <div
+          className="relative ml-auto shrink-0 flex items-center gap-1"
+          ref={dropdownRef}
+        >
+          {hasSession &&
+            (confirmingStop ? (
               <span className="flex items-center gap-1">
                 <span className="text-xs text-yellow-400">Dirty worktree.</span>
                 <button
@@ -126,7 +148,9 @@ export function TaskRow({ task, repos }: TaskRowProps) {
               </span>
             ) : (
               <button
-                onClick={() => { handleStop(); }}
+                onClick={() => {
+                  handleStop();
+                }}
                 disabled={isLoading}
                 className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity p-1 rounded hover:bg-zinc-700 disabled:opacity-50"
                 title="Stop task (kill session + remove worktree)"
@@ -137,8 +161,7 @@ export function TaskRow({ task, repos }: TaskRowProps) {
                   <Square className="size-4 text-red-400" />
                 )}
               </button>
-            )
-          )}
+            ))}
           <button
             onClick={handleClick}
             disabled={isLoading || repos.length === 0}
@@ -171,9 +194,7 @@ export function TaskRow({ task, repos }: TaskRowProps) {
           )}
         </div>
       </div>
-      {error && (
-        <p className="px-3 pb-1 text-xs text-red-400">{error}</p>
-      )}
+      {error && <p className="px-3 pb-1 text-xs text-red-400">{error}</p>}
     </div>
   );
 }

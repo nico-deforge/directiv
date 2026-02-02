@@ -10,7 +10,13 @@ export function Sidebar() {
   const teamIds = config.linear.teamIds;
   const repos = config.repos;
 
-  const { data: tasks, isLoading, isError, error, refetch } = useLinearAllMyTasks(teamIds);
+  const {
+    data: tasks,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useLinearAllMyTasks(teamIds);
 
   if (!linearClient) {
     return (
@@ -18,7 +24,8 @@ export function Sidebar() {
         <Header />
         <div className="flex flex-1 items-center justify-center p-4">
           <p className="text-center text-sm text-zinc-500">
-            Set <code className="text-zinc-400">VITE_LINEAR_API_KEY</code> to load tasks.
+            Set <code className="text-zinc-400">VITE_LINEAR_API_KEY</code> to
+            load tasks.
           </p>
         </div>
       </aside>
@@ -31,7 +38,8 @@ export function Sidebar() {
         <Header />
         <div className="flex flex-1 items-center justify-center p-4">
           <p className="text-center text-sm text-zinc-500">
-            Configure <code className="text-zinc-400">linear.teamIds</code> in settings.
+            Configure <code className="text-zinc-400">linear.teamIds</code> in
+            settings.
           </p>
         </div>
       </aside>
@@ -110,7 +118,9 @@ function TaskGroups({
       {entries.map(([projectName, projectTasks]) => (
         <div key={projectName}>
           <div className="sticky top-0 z-10 flex items-center gap-2 bg-zinc-900 px-4 py-2">
-            <span className="text-xs font-medium text-zinc-400">{projectName}</span>
+            <span className="text-xs font-medium text-zinc-400">
+              {projectName}
+            </span>
             <span className="rounded-full bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-500">
               {projectTasks.length}
             </span>

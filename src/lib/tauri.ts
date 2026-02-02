@@ -29,7 +29,12 @@ export function worktreeRemove(
   branch?: string,
   deleteBranch?: boolean,
 ): Promise<void> {
-  return invoke<void>("worktree_remove", { repoPath, worktreePath, branch, deleteBranch });
+  return invoke<void>("worktree_remove", {
+    repoPath,
+    worktreePath,
+    branch,
+    deleteBranch,
+  });
 }
 
 export function worktreeCheckMerged(
@@ -37,7 +42,11 @@ export function worktreeCheckMerged(
   branch: string,
   baseBranch?: string,
 ): Promise<boolean> {
-  return invoke<boolean>("worktree_check_merged", { repoPath, branch, baseBranch });
+  return invoke<boolean>("worktree_check_merged", {
+    repoPath,
+    branch,
+    baseBranch,
+  });
 }
 
 // --- Tmux commands ---
@@ -67,7 +76,10 @@ export function tmuxCapturePane(session: string): Promise<string> {
 
 // --- Hook commands ---
 
-export function runHooks(commands: string[], workingDir: string): Promise<void> {
+export function runHooks(
+  commands: string[],
+  workingDir: string,
+): Promise<void> {
   return invoke<void>("run_hooks", { commands, workingDir });
 }
 

@@ -2,6 +2,61 @@ use serde::Serialize;
 use std::path::{Component, Path, PathBuf};
 use tauri_plugin_shell::ShellExt;
 
+/// Auto-detect the default branch on `origin`.
+///
+/// 1. `git symbolic-ref refs/remotes/origin/HEAD` → parse branch name
+/// 2. Fallback: check if `origin/main` exists
+/// 3. Fallback: check if `origin/master` exists
+/// 4. Last resort: return `"origin/main"` (git will give a clear error)
+async fn detect_default_branch(app: &tauri::AppHandle, repo_path: &str) -> String {
+    // Try symbolic-ref first (most reliable when set)
+    if let Ok(out) = app
+        .shell()
+        .command("git")
+        .args(["-C", repo_path, "symbolic-ref", "refs/remotes/origin/HEAD"])
+        .output()
+        .await
+    {
+        if out.status.success() {
+            let raw = String::from_utf8_lossy(&out.stdout);
+            let trimmed = raw.trim();
+            // "refs/remotes/origin/main" → "origin/main"
+            if let Some(branch) = trimmed.strip_prefix("refs/remotes/") {
+                return branch.to_string();
+            }
+        }
+    }
+
+    // Fallback: check origin/main
+    if let Ok(out) = app
+        .shell()
+        .command("git")
+        .args(["-C", repo_path, "rev-parse", "--verify", "origin/main"])
+        .output()
+        .await
+    {
+        if out.status.success() {
+            return "origin/main".to_string();
+        }
+    }
+
+    // Fallback: check origin/master
+    if let Ok(out) = app
+        .shell()
+        .command("git")
+        .args(["-C", repo_path, "rev-parse", "--verify", "origin/master"])
+        .output()
+        .await
+    {
+        if out.status.success() {
+            return "origin/master".to_string();
+        }
+    }
+
+    // Last resort
+    "origin/main".to_string()
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct WorktreeInfo {
     pub branch: String,
@@ -285,7 +340,10 @@ pub async fn worktree_create(
         }
     }
 
-    let base = base_branch.as_deref().unwrap_or("origin/main");
+    let base = match base_branch {
+        Some(ref b) if !b.is_empty() => b.clone(),
+        _ => detect_default_branch(&app, &repo_path).await,
+    };
 
     // Try creating a new branch from base_branch
     let output = app
@@ -299,7 +357,7 @@ pub async fn worktree_create(
             &worktree_path_str,
             "-b",
             &issue_id,
-            base,
+            &base,
         ])
         .output()
         .await
@@ -418,7 +476,16 @@ pub async fn worktree_check_merged(
     branch: String,
     base_branch: Option<String>,
 ) -> Result<bool, String> {
-    let base = base_branch.as_deref().unwrap_or("main");
+    let base = match base_branch {
+        Some(ref b) if !b.is_empty() => b.clone(),
+        _ => {
+            let detected = detect_default_branch(&app, &repo_path).await;
+            detected
+                .strip_prefix("origin/")
+                .unwrap_or(&detected)
+                .to_string()
+        }
+    };
 
     let output = app
         .shell()
@@ -429,7 +496,7 @@ pub async fn worktree_check_merged(
             "merge-base",
             "--is-ancestor",
             &branch,
-            base,
+            &base,
         ])
         .output()
         .await
