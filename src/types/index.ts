@@ -3,6 +3,7 @@
 export type WorkflowColumn =
   | "backlog"
   | "in-dev"
+  | "personal-review"
   | "in-review"
   | "approved"
   | "done";
@@ -101,14 +102,8 @@ export interface LinearConfig {
   activeProject: string | null;
 }
 
-export interface GitHubConfig {
-  owner: string;
-  repos: string[];
-}
-
 export interface LinairConfig {
   terminal: TerminalEmulator;
   repos: RepoConfig[];
   linear: LinearConfig;
-  github: GitHubConfig;
 }
