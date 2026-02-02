@@ -10,6 +10,7 @@ interface ViewerPRNode {
   headRefName: string;
   createdAt: string;
   updatedAt: string;
+  reviewRequests: { totalCount: number };
 }
 
 interface ViewerPRsResponse {
@@ -32,6 +33,7 @@ const QUERY = `
           headRefName
           createdAt
           updatedAt
+          reviewRequests { totalCount }
         }
       }
     }
@@ -52,6 +54,7 @@ export function useGitHubMyOpenPRs() {
           url: pr.url,
           branch: pr.headRefName,
           draft: pr.isDraft,
+          requestedReviewerCount: pr.reviewRequests.totalCount,
           reviews: [],
           createdAt: pr.createdAt,
           updatedAt: pr.updatedAt,
