@@ -2,6 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { octokit } from "../lib/github";
 import type { PullRequestInfo } from "../types";
 
+interface ReviewNode {
+  author: { login: string } | null;
+  state: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "PENDING";
+  submittedAt: string;
+}
+
 interface ViewerPRNode {
   number: number;
   title: string;
@@ -11,6 +17,7 @@ interface ViewerPRNode {
   createdAt: string;
   updatedAt: string;
   reviewRequests: { totalCount: number };
+  latestReviews: { nodes: ReviewNode[] };
 }
 
 interface ViewerPRsResponse {
@@ -34,6 +41,13 @@ const QUERY = `
           createdAt
           updatedAt
           reviewRequests { totalCount }
+          latestReviews(first: 10) {
+            nodes {
+              author { login }
+              state
+              submittedAt
+            }
+          }
         }
       }
     }
@@ -55,7 +69,11 @@ export function useGitHubMyOpenPRs() {
           branch: pr.headRefName,
           draft: pr.isDraft,
           requestedReviewerCount: pr.reviewRequests.totalCount,
-          reviews: [],
+          reviews: pr.latestReviews.nodes.map((r) => ({
+            author: r.author?.login ?? "unknown",
+            state: r.state,
+            submittedAt: r.submittedAt,
+          })),
           createdAt: pr.createdAt,
           updatedAt: pr.updatedAt,
         }),
