@@ -1,13 +1,14 @@
 import { Loader2 } from "lucide-react";
 import { useWorktrees } from "../../hooks/useWorktrees";
 import { WorktreeRow } from "./WorktreeRow";
-import type { RepoConfig } from "../../types";
+import type { RepoConfig, TmuxSession } from "../../types";
 
 interface RepoWorktreeGroupProps {
   repo: RepoConfig;
+  sessionsByName: Map<string, TmuxSession>;
 }
 
-export function RepoWorktreeGroup({ repo }: RepoWorktreeGroupProps) {
+export function RepoWorktreeGroup({ repo, sessionsByName }: RepoWorktreeGroupProps) {
   const { data: worktrees, isLoading, isError, error } = useWorktrees(repo.path);
 
   // Filter out the main worktree (always first in git worktree list output)
@@ -38,7 +39,7 @@ export function RepoWorktreeGroup({ repo }: RepoWorktreeGroupProps) {
           <p className="px-3 py-2 text-xs text-zinc-500">No active worktrees</p>
         )}
         {secondary.map((w) => (
-          <WorktreeRow key={w.branch} worktree={w} repoPath={repo.path} />
+          <WorktreeRow key={w.branch} worktree={w} repoPath={repo.path} session={sessionsByName.get(w.branch) ?? null} />
         ))}
       </div>
     </div>
