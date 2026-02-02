@@ -8,10 +8,6 @@ export const defaultConfig: LinairConfig = {
     teamIds: [],
     activeProject: null,
   },
-  github: {
-    owner: "",
-    repos: [],
-  },
 };
 
 export async function loadConfigFromDisk(): Promise<LinairConfig> {
@@ -31,6 +27,5 @@ export function validateConfig(config: Partial<LinairConfig>): LinairConfig {
       fetchBefore: repo.fetchBefore ?? true,
     })),
     linear: config.linear ?? defaultConfig.linear,
-    github: config.github ?? defaultConfig.github,
   };
 }
