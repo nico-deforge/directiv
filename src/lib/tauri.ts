@@ -47,6 +47,12 @@ export function tmuxCapturePane(session: string): Promise<string> {
   return invoke<string>("tmux_capture_pane", { session });
 }
 
+// --- Hook commands ---
+
+export function runHooks(commands: string[], workingDir: string): Promise<void> {
+  return invoke<void>("run_hooks", { commands, workingDir });
+}
+
 // --- Terminal commands ---
 
 export function openTerminal(emulator: string, session: string): Promise<void> {

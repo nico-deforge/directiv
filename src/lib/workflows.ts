@@ -8,6 +8,7 @@ import {
   tmuxListSessions,
   tmuxSendKeys,
   openTerminal,
+  runHooks,
 } from "./tauri";
 
 interface StartTaskParams {
@@ -16,6 +17,7 @@ interface StartTaskParams {
   repoPath: string;
   terminal: string;
   copyPaths?: string[];
+  onStart?: string[];
 }
 
 export async function startTask({
@@ -24,6 +26,7 @@ export async function startTask({
   repoPath,
   terminal,
   copyPaths,
+  onStart,
 }: StartTaskParams): Promise<void> {
   // 1. Reuse or create git worktree
   const worktrees = await worktreeList(repoPath);
@@ -37,6 +40,10 @@ export async function startTask({
   const existingSession = sessions.find((s) => s.name === identifier);
   if (!existingSession) {
     await tmuxCreateSession(identifier, worktree.path);
+    // 2.5 Run onStart hooks in the worktree directory
+    if (onStart && onStart.length > 0) {
+      await runHooks(onStart, worktree.path);
+    }
     // 3. Launch Claude only on fresh sessions
     await tmuxSendKeys(identifier, `claude "/linear-issue ${identifier}"`);
   }
