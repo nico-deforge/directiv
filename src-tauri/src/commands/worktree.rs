@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 use tauri_plugin_shell::ShellExt;
 
 #[derive(Debug, Serialize, Clone)]
@@ -75,11 +75,77 @@ pub async fn worktree_list(
     Ok(worktrees)
 }
 
+fn validate_relative_path(rel: &str) -> Result<(), String> {
+    if rel.is_empty() {
+        return Err("copyPaths: empty path is not allowed".to_string());
+    }
+
+    let path = PathBuf::from(rel);
+
+    if path.is_absolute() {
+        return Err(format!("copyPaths: absolute path not allowed: {rel}"));
+    }
+
+    for component in path.components() {
+        if matches!(component, Component::ParentDir) {
+            return Err(format!("copyPaths: parent traversal (..) not allowed: {rel}"));
+        }
+    }
+
+    Ok(())
+}
+
+fn copy_path(src: &Path, dst: &Path) -> Result<(), String> {
+    let meta = std::fs::symlink_metadata(src)
+        .map_err(|e| format!("Failed to read metadata for {}: {e}", src.display()))?;
+
+    if meta.is_symlink() {
+        let target = std::fs::read_link(src)
+            .map_err(|e| format!("Failed to read symlink {}: {e}", src.display()))?;
+        if let Some(parent) = dst.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create directory {}: {e}", parent.display()))?;
+        }
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&target, dst)
+            .map_err(|e| format!("Failed to create symlink {}: {e}", dst.display()))?;
+        return Ok(());
+    }
+
+    if meta.is_file() {
+        if let Some(parent) = dst.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create directory {}: {e}", parent.display()))?;
+        }
+        std::fs::copy(src, dst)
+            .map_err(|e| format!("Failed to copy {} to {}: {e}", src.display(), dst.display()))?;
+        return Ok(());
+    }
+
+    if meta.is_dir() {
+        std::fs::create_dir_all(dst)
+            .map_err(|e| format!("Failed to create directory {}: {e}", dst.display()))?;
+        let entries = std::fs::read_dir(src)
+            .map_err(|e| format!("Failed to read directory {}: {e}", src.display()))?;
+        for entry in entries {
+            let entry = entry
+                .map_err(|e| format!("Failed to read entry in {}: {e}", src.display()))?;
+            let child_src = entry.path();
+            let child_dst = dst.join(entry.file_name());
+            copy_path(&child_src, &child_dst)?;
+        }
+        return Ok(());
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn worktree_create(
     app: tauri::AppHandle,
     repo_path: String,
     issue_id: String,
+    copy_paths: Option<Vec<String>>,
 ) -> Result<WorktreeInfo, String> {
     let repo = Path::new(&repo_path);
     let repo_basename = repo
@@ -96,6 +162,25 @@ pub async fn worktree_create(
         .to_str()
         .ok_or("Invalid worktree path")?
         .to_string();
+
+    // Validate all copy_paths BEFORE creating the worktree
+    let validated_paths = if let Some(ref paths) = copy_paths {
+        let mut validated = Vec::new();
+        for rel in paths {
+            validate_relative_path(rel)?;
+            let src = repo.join(rel);
+            if !src.exists() {
+                return Err(format!(
+                    "copyPaths: source does not exist: {}",
+                    src.display()
+                ));
+            }
+            validated.push(rel.clone());
+        }
+        validated
+    } else {
+        Vec::new()
+    };
 
     // Try creating a new branch first
     let output = app
@@ -141,6 +226,13 @@ pub async fn worktree_create(
         } else {
             return Err(format!("git worktree add failed: {stderr}"));
         }
+    }
+
+    // Copy validated paths into the worktree
+    for rel in &validated_paths {
+        let src = repo.join(rel);
+        let dst = worktree_path.join(rel);
+        copy_path(&src, &dst)?;
     }
 
     Ok(WorktreeInfo {

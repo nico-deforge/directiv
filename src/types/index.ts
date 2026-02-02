@@ -79,6 +79,7 @@ export type TerminalEmulator = "ghostty" | "iterm2" | "terminal" | "alacritty";
 export interface RepoConfig {
   id: string;
   path: string;
+  copyPaths?: string[];
 }
 
 export interface LinearConfig {
