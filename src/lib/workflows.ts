@@ -128,6 +128,54 @@ export async function stopTask({
   }
 }
 
+interface StartFreeTaskParams {
+  branchName: string;
+  repoPath: string;
+  terminal: string;
+  copyPaths?: string[];
+  onStart?: string[];
+  baseBranch?: string;
+  fetchBefore?: boolean;
+}
+
+export async function startFreeTask({
+  branchName,
+  repoPath,
+  terminal,
+  copyPaths,
+  onStart,
+  baseBranch,
+  fetchBefore,
+}: StartFreeTaskParams): Promise<void> {
+  // 1. Reuse or create git worktree
+  const worktrees = await worktreeList(repoPath);
+  let worktree = worktrees.find((w) => w.branch === branchName);
+  if (!worktree) {
+    worktree = await worktreeCreate(
+      repoPath,
+      branchName,
+      copyPaths,
+      baseBranch,
+      fetchBefore,
+    );
+  }
+
+  // 2. Reuse or create tmux session
+  const sessions = await tmuxListSessions();
+  const existingSession = sessions.find((s) => s.name === branchName);
+  if (!existingSession) {
+    await tmuxCreateSession(branchName, worktree.path);
+    if (onStart && onStart.length > 0) {
+      await runHooks(onStart, worktree.path);
+    }
+    // 3. Launch Claude (plain, no /linear-issue)
+    await tmuxSendKeys(branchName, "claude");
+  }
+
+  // 4. Open terminal attached to the tmux session
+  await openTerminal(terminal, branchName);
+}
+
 async function updateLinearStatusToStarted(issueId: string): Promise<void> {
   if (!linearClient) {
     throw new Error("Linear client not initialized");
