@@ -122,7 +122,7 @@ export function TaskRow({ task, repos }: TaskRowProps) {
         >
           {task.identifier}
         </a>
-        <span className="truncate text-sm text-zinc-300">{task.title}</span>
+        <span className="text-sm text-zinc-300">{task.title}</span>
         <div
           className="relative ml-auto shrink-0 flex items-center gap-1"
           ref={dropdownRef}
