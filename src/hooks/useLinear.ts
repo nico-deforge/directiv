@@ -16,30 +16,40 @@ export function useLinearMyTasks(teamId: string | undefined) {
         },
       });
 
-      const tasks: EnrichedTask[] = [];
-      for (const issue of issues.nodes) {
-        const state = await issue.state;
-        const assignee = await issue.assignee;
-        const project = await issue.project;
+      const tasks: EnrichedTask[] = await Promise.all(
+        issues.nodes.map(async (issue) => {
+          const [state, assignee, project, inverseRelations] =
+            await Promise.all([
+              issue.state,
+              issue.assignee,
+              issue.project,
+              issue.inverseRelations(),
+            ]);
 
-        tasks.push({
-          id: issue.id,
-          identifier: issue.identifier,
-          title: issue.title,
-          description: issue.description ?? null,
-          priority: issue.priority,
-          status: state?.name ?? "Unknown",
-          assigneeId: assignee?.id ?? null,
-          projectId: project?.id ?? null,
-          projectName: project?.name ?? null,
-          labels: [],
-          column: "backlog" as const,
-          session: null,
-          worktree: null,
-          pullRequest: null,
-          url: issue.url,
-        });
-      }
+          const isBlocked = inverseRelations.nodes.some(
+            (r) => r.type === "blocks",
+          );
+
+          return {
+            id: issue.id,
+            identifier: issue.identifier,
+            title: issue.title,
+            description: issue.description ?? null,
+            priority: issue.priority,
+            status: state?.name ?? "Unknown",
+            assigneeId: assignee?.id ?? null,
+            projectId: project?.id ?? null,
+            projectName: project?.name ?? null,
+            labels: [],
+            column: "backlog" as const,
+            session: null,
+            worktree: null,
+            pullRequest: null,
+            url: issue.url,
+            isBlocked,
+          };
+        }),
+      );
 
       return tasks;
     },
@@ -81,30 +91,40 @@ export function useLinearAllMyTasks(teamIds: string[]) {
         },
       });
 
-      const tasks: EnrichedTask[] = [];
-      for (const issue of issues.nodes) {
-        const state = await issue.state;
-        const assignee = await issue.assignee;
-        const project = await issue.project;
+      const tasks: EnrichedTask[] = await Promise.all(
+        issues.nodes.map(async (issue) => {
+          const [state, assignee, project, inverseRelations] =
+            await Promise.all([
+              issue.state,
+              issue.assignee,
+              issue.project,
+              issue.inverseRelations(),
+            ]);
 
-        tasks.push({
-          id: issue.id,
-          identifier: issue.identifier,
-          title: issue.title,
-          description: issue.description ?? null,
-          priority: issue.priority,
-          status: state?.name ?? "Unknown",
-          assigneeId: assignee?.id ?? null,
-          projectId: project?.id ?? null,
-          projectName: project?.name ?? null,
-          labels: [],
-          column: "backlog" as const,
-          session: null,
-          worktree: null,
-          pullRequest: null,
-          url: issue.url,
-        });
-      }
+          const isBlocked = inverseRelations.nodes.some(
+            (r) => r.type === "blocks",
+          );
+
+          return {
+            id: issue.id,
+            identifier: issue.identifier,
+            title: issue.title,
+            description: issue.description ?? null,
+            priority: issue.priority,
+            status: state?.name ?? "Unknown",
+            assigneeId: assignee?.id ?? null,
+            projectId: project?.id ?? null,
+            projectName: project?.name ?? null,
+            labels: [],
+            column: "backlog" as const,
+            session: null,
+            worktree: null,
+            pullRequest: null,
+            url: issue.url,
+            isBlocked,
+          };
+        }),
+      );
 
       return tasks;
     },

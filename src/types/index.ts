@@ -34,6 +34,7 @@ export interface EnrichedTask {
   worktree: WorktreeInfo | null;
   pullRequest: PullRequestInfo | null;
   url: string;
+  isBlocked: boolean;
 }
 
 // --- Tmux ---
@@ -65,6 +66,7 @@ export interface PullRequestInfo {
   url: string;
   branch: string;
   draft: boolean;
+  requestedReviewerCount: number;
   reviews: PullRequestReview[];
   createdAt: string;
   updatedAt: string;
