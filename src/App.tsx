@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Sidebar } from "./components/Layout/Sidebar";
+import { WorkflowBoard } from "./components/Board/WorkflowBoard";
 import { WorktreePanel } from "./components/Worktrees/WorktreePanel";
 import { useSettingsStore } from "./stores/settingsStore";
 
@@ -22,8 +23,8 @@ function App() {
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100">
       <Sidebar />
-      <main className="flex flex-1 items-center justify-center">
-        <p className="text-zinc-500">Workflow board — coming soon</p>
+      <main className="flex-1 h-full">
+        <WorkflowBoard />
       </main>
       <WorktreePanel />
     </div>
