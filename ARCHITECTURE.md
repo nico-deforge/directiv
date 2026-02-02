@@ -184,11 +184,11 @@ Séquence déclenchée par **[Start]** :
 
 1. **Créer worktree** → `git gtr new ACQ-145`
 2. **Créer session tmux** → `tmux new-session -d -s ACQ-145 -c /path/to/worktree`
-3. **Lancer Claude** → `tmux send-keys -t ACQ-145 "claude" Enter`
+3. **Lancer Claude avec contexte** → `tmux send-keys -t ACQ-145 'claude "/linear-issue ACQ-145"' Enter`
 4. **Mettre à jour Linear** → Statut → "In Progress"
 5. **Rafraîchir le board** → La carte passe en "In Dev"
 
-Le skill `/linear-issue` est exécuté automatiquement par Claude car il lit le `CLAUDE.md` au démarrage.
+Claude Code est lancé en mode interactif avec `/linear-issue <issue_id>` comme message initial. Il exécute le skill immédiatement au démarrage, puis reste disponible pour l'interaction.
 
 ---
 

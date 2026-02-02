@@ -3,7 +3,7 @@
   "repos": [
     {
       "path": "/path/to/your/repo",
-      "issuePrefixes": ["ACQ"]
+      "id": "REPO"
     }
   ],
   "linear": {

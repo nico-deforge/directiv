@@ -23,6 +23,7 @@ pub fn run() {
             commands::tmux::tmux_send_keys,
             commands::tmux::tmux_capture_pane,
             commands::terminal::open_terminal,
+            commands::config::load_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
