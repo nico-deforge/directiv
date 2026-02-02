@@ -1,5 +1,5 @@
 import type { Node, NodeProps } from "@xyflow/react";
-import { GitPullRequestDraft } from "lucide-react";
+import { GitPullRequest } from "lucide-react";
 
 const PRIORITY_COLORS: Record<number, string> = {
   0: "bg-zinc-600", // No priority
@@ -42,9 +42,9 @@ export function TaskNode({ data }: NodeProps<TaskNodeType>) {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="nodrag nopan text-zinc-500 hover:text-purple-400"
-                title="Draft PR"
+                title="Pull Request"
               >
-                <GitPullRequestDraft className="size-3.5" />
+                <GitPullRequest className="size-3.5" />
               </a>
             )}
           </div>

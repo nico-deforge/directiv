@@ -26,16 +26,15 @@ function buildNodes(
 ): Node[] {
   const sessionNames = new Set(sessions.map((s) => s.name));
 
-  // Build a map: task identifier → draft PR (first match)
-  const draftPRByTask = new Map<string, PullRequestInfo>();
+  // Build a map: task identifier → PR (first match, any state)
+  const prByTask = new Map<string, PullRequestInfo>();
   for (const pr of prs) {
-    if (!pr.draft) continue;
     for (const task of tasks) {
       if (
         pr.branch.toLowerCase().includes(task.identifier.toLowerCase()) &&
-        !draftPRByTask.has(task.identifier)
+        !prByTask.has(task.identifier)
       ) {
-        draftPRByTask.set(task.identifier, pr);
+        prByTask.set(task.identifier, pr);
       }
     }
   }
@@ -43,12 +42,20 @@ function buildNodes(
   // Tasks with active session
   const withSession = tasks.filter((t) => sessionNames.has(t.identifier));
 
-  // Personal Review: has a draft PR (priority over In Dev)
-  const personalReview = withSession.filter((t) =>
-    draftPRByTask.has(t.identifier),
+  // In Review: has PR, not draft, at least 1 requested reviewer
+  const inReview = withSession.filter((t) => {
+    const pr = prByTask.get(t.identifier);
+    return pr && !pr.draft && pr.requestedReviewerCount >= 1;
+  });
+  const inReviewIds = new Set(inReview.map((t) => t.identifier));
+
+  // Personal Review: has PR but not in "In Review" (draft OR no reviewers)
+  const personalReview = withSession.filter(
+    (t) => prByTask.has(t.identifier) && !inReviewIds.has(t.identifier),
   );
-  // In Dev: has session but no draft PR
-  const inDev = withSession.filter((t) => !draftPRByTask.has(t.identifier));
+
+  // In Dev: has session but no PR
+  const inDev = withSession.filter((t) => !prByTask.has(t.identifier));
 
   const nodes: Node[] = [];
 
@@ -91,11 +98,41 @@ function buildNodes(
   });
 
   personalReview.forEach((task, i) => {
-    const pr = draftPRByTask.get(task.identifier);
+    const pr = prByTask.get(task.identifier);
     nodes.push({
       id: task.id,
       type: "task",
       position: { x: 370, y: ROW_START_Y + i * ROW_HEIGHT },
+      data: {
+        identifier: task.identifier,
+        title: task.title,
+        priority: task.priority,
+        url: task.url,
+        prUrl: pr?.url,
+      } satisfies TaskNodeData,
+      draggable: false,
+    });
+  });
+
+  // In Review column at x=740
+  nodes.push({
+    id: "col-inreview",
+    type: "column",
+    position: { x: 740, y: 0 },
+    data: {
+      label: "In Review",
+      count: inReview.length,
+    } satisfies ColumnNodeData,
+    draggable: false,
+    selectable: false,
+  });
+
+  inReview.forEach((task, i) => {
+    const pr = prByTask.get(task.identifier);
+    nodes.push({
+      id: task.id,
+      type: "task",
+      position: { x: 740, y: ROW_START_Y + i * ROW_HEIGHT },
       data: {
         identifier: task.identifier,
         title: task.title,
