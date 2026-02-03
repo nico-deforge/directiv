@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { linearClient } from "../lib/linear";
-import type { EnrichedTask } from "../types";
+import type { EnrichedTask, BlockingIssue } from "../types";
+import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
 
 export function useLinearMyTasks(teamId: string | undefined) {
   return useQuery<EnrichedTask[]>({
@@ -26,9 +27,26 @@ export function useLinearMyTasks(teamId: string | undefined) {
               issue.inverseRelations(),
             ]);
 
-          const isBlocked = inverseRelations.nodes.some(
+          const blockingRelations = inverseRelations.nodes.filter(
             (r) => r.type === "blocks",
           );
+
+          const blockedBy: BlockingIssue[] = await Promise.all(
+            blockingRelations.map(async (relation) => {
+              const blockingIssue = await relation.issue;
+              if (!blockingIssue) return null;
+              return {
+                id: blockingIssue.id,
+                identifier: blockingIssue.identifier,
+                title: blockingIssue.title,
+                url: blockingIssue.url,
+              };
+            }),
+          ).then((results) =>
+            results.filter((r): r is BlockingIssue => r !== null),
+          );
+
+          const isBlocked = blockedBy.length > 0;
 
           return {
             id: issue.id,
@@ -47,6 +65,7 @@ export function useLinearMyTasks(teamId: string | undefined) {
             pullRequest: null,
             url: issue.url,
             isBlocked,
+            blockedBy,
           };
         }),
       );
@@ -54,7 +73,7 @@ export function useLinearMyTasks(teamId: string | undefined) {
       return tasks;
     },
     enabled: !!linearClient && !!teamId,
-    refetchInterval: 30_000,
+    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }
 
@@ -101,9 +120,26 @@ export function useLinearAllMyTasks(teamIds: string[]) {
               issue.inverseRelations(),
             ]);
 
-          const isBlocked = inverseRelations.nodes.some(
+          const blockingRelations = inverseRelations.nodes.filter(
             (r) => r.type === "blocks",
           );
+
+          const blockedBy: BlockingIssue[] = await Promise.all(
+            blockingRelations.map(async (relation) => {
+              const blockingIssue = await relation.issue;
+              if (!blockingIssue) return null;
+              return {
+                id: blockingIssue.id,
+                identifier: blockingIssue.identifier,
+                title: blockingIssue.title,
+                url: blockingIssue.url,
+              };
+            }),
+          ).then((results) =>
+            results.filter((r): r is BlockingIssue => r !== null),
+          );
+
+          const isBlocked = blockedBy.length > 0;
 
           return {
             id: issue.id,
@@ -122,6 +158,7 @@ export function useLinearAllMyTasks(teamIds: string[]) {
             pullRequest: null,
             url: issue.url,
             isBlocked,
+            blockedBy,
           };
         }),
       );
@@ -129,6 +166,6 @@ export function useLinearAllMyTasks(teamIds: string[]) {
       return tasks;
     },
     enabled: !!linearClient && teamIds.length > 0,
-    refetchInterval: 30_000,
+    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }

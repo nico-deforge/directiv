@@ -18,6 +18,13 @@ export type TaskAction =
   | "merge"
   | "archive";
 
+export interface BlockingIssue {
+  id: string;
+  identifier: string;
+  title: string;
+  url: string;
+}
+
 export interface EnrichedTask {
   id: string;
   identifier: string;
@@ -35,6 +42,7 @@ export interface EnrichedTask {
   pullRequest: PullRequestInfo | null;
   url: string;
   isBlocked: boolean;
+  blockedBy: BlockingIssue[];
 }
 
 // --- Tmux ---
