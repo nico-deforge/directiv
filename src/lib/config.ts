@@ -3,6 +3,7 @@ import type { LinairConfig } from "../types";
 
 export const defaultConfig: LinairConfig = {
   terminal: "ghostty",
+  editor: "zed",
   repos: [],
   linear: {
     teamIds: [],
@@ -20,6 +21,7 @@ export async function loadConfigFromDisk(): Promise<LinairConfig> {
 export function validateConfig(config: Partial<LinairConfig>): LinairConfig {
   return {
     terminal: config.terminal ?? defaultConfig.terminal,
+    editor: config.editor ?? defaultConfig.editor,
     repos: (config.repos ?? defaultConfig.repos).map((repo) => ({
       ...repo,
       copyPaths: repo.copyPaths ?? [],

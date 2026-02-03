@@ -8,11 +8,12 @@ import {
   Circle,
   FolderOpen,
   X,
+  Code2,
 } from "lucide-react";
 import type { WorktreeInfo, TmuxSession } from "../../types";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
-import { tmuxKillSession, openTerminal } from "../../lib/tauri";
+import { tmuxKillSession, openTerminal, openEditor } from "../../lib/tauri";
 import { useQueryClient } from "@tanstack/react-query";
 
 export type OrphanTaskNodeData = {
@@ -27,6 +28,7 @@ export type OrphanTaskNodeType = Node<OrphanTaskNodeData, "orphanTask">;
 export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const { worktree, session, repoId, repoPath } = data;
   const terminal = useSettingsStore((s) => s.config.terminal);
+  const editor = useSettingsStore((s) => s.config.editor);
   const removeWorktree = useWorktreeRemove();
   const queryClient = useQueryClient();
 
@@ -53,6 +55,14 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     if (!session) return;
     try {
       await openTerminal(terminal, session.name);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleOpenEditor() {
+    try {
+      await openEditor(editor, worktree.path);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -145,6 +155,15 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             Terminal
           </button>
         )}
+
+        {/* Editor button */}
+        <button
+          onClick={handleOpenEditor}
+          className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+        >
+          <Code2 className="size-3.5" />
+          Editor
+        </button>
 
         {/* Kill session button */}
         {hasSession && (

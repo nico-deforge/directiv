@@ -13,6 +13,7 @@ import {
   Circle,
   ExternalLink,
   ChevronLeft,
+  Code2,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -24,7 +25,12 @@ import type {
 } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { openTerminal, tmuxKillSession, worktreeRemove } from "../../lib/tauri";
+import {
+  openTerminal,
+  openEditor,
+  tmuxKillSession,
+  worktreeRemove,
+} from "../../lib/tauri";
 import { useWorktrees } from "../../hooks/useWorktrees";
 
 const PRIORITY_COLORS: Record<number, string> = {
@@ -111,6 +117,7 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
   const { task, worktree, worktreeRepoPath, session, pullRequest, repos } =
     data;
   const terminal = useSettingsStore((s) => s.config.terminal);
+  const editor = useSettingsStore((s) => s.config.editor);
   const queryClient = useQueryClient();
   const startTask = useStartTask();
 
@@ -231,6 +238,15 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
+  async function handleOpenEditor() {
+    if (!worktree) return;
+    try {
+      await openEditor(editor, worktree.path);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   return (
     <div className="nodrag nopan w-[380px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-lg relative">
       {/* ReactFlow handles for edges */}
@@ -343,6 +359,17 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
           >
             <Terminal className="size-3.5" />
             Terminal
+          </button>
+        )}
+
+        {/* Editor button */}
+        {worktree && (
+          <button
+            onClick={handleOpenEditor}
+            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+          >
+            <Code2 className="size-3.5" />
+            Editor
           </button>
         )}
 

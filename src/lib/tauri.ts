@@ -88,3 +88,9 @@ export function runHooks(
 export function openTerminal(emulator: string, session: string): Promise<void> {
   return invoke<void>("open_terminal", { emulator, session });
 }
+
+// --- Editor commands ---
+
+export function openEditor(editor: string, path: string): Promise<void> {
+  return invoke<void>("open_editor", { editor, path });
+}
