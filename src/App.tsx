@@ -1,12 +1,23 @@
-import { useEffect } from "react";
-import { Sidebar } from "./components/Layout/Sidebar";
-import { WorkflowBoard } from "./components/Board/WorkflowBoard";
-import { WorktreePanel } from "./components/Worktrees/WorktreePanel";
+import { useEffect, useState, useCallback } from "react";
+import { ProjectSelector } from "./components/Layout/ProjectSelector";
+import { DependencyGraph } from "./components/Board/DependencyGraph";
 import { useSettingsStore } from "./stores/settingsStore";
+import type { Project } from "./stores/projectStore";
 
 function App() {
   const loadFromDisk = useSettingsStore((s) => s.loadFromDisk);
   const isLoaded = useSettingsStore((s) => s.isLoaded);
+
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [hasOrphans, setHasOrphans] = useState(false);
+
+  const handleProjectsChange = useCallback(
+    (newProjects: Project[], orphans: boolean) => {
+      setProjects(newProjects);
+      setHasOrphans(orphans);
+    },
+    [],
+  );
 
   useEffect(() => {
     loadFromDisk();
@@ -22,11 +33,10 @@ function App() {
 
   return (
     <div className="flex h-screen bg-zinc-950 text-zinc-100">
-      <Sidebar />
+      <ProjectSelector projects={projects} hasOrphans={hasOrphans} />
       <main className="flex-1 h-full">
-        <WorkflowBoard />
+        <DependencyGraph onProjectsChange={handleProjectsChange} />
       </main>
-      <WorktreePanel />
     </div>
   );
 }

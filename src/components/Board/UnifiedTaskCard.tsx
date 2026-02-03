@@ -1,0 +1,442 @@
+import { useState, useEffect, useRef } from "react";
+import type { Node, NodeProps } from "@xyflow/react";
+import { Handle, Position } from "@xyflow/react";
+import {
+  Play,
+  Square,
+  Terminal,
+  Loader2,
+  ChevronDown,
+  GitBranch,
+  GitPullRequest,
+  Circle,
+  ExternalLink,
+  ChevronLeft,
+} from "lucide-react";
+import type {
+  EnrichedTask,
+  PullRequestInfo,
+  WorktreeInfo,
+  TmuxSession,
+  RepoConfig,
+} from "../../types";
+import { useStartTask } from "../../hooks/useStartTask";
+import { useStopTask, DirtyWorktreeError } from "../../hooks/useStopTask";
+import { useSettingsStore } from "../../stores/settingsStore";
+import { openTerminal } from "../../lib/tauri";
+import { useWorktrees } from "../../hooks/useWorktrees";
+
+const PRIORITY_COLORS: Record<number, string> = {
+  0: "bg-zinc-600",
+  1: "bg-red-500",
+  2: "bg-orange-500",
+  3: "bg-yellow-500",
+  4: "bg-blue-500",
+};
+
+type WorkflowStatus =
+  | "todo"
+  | "in-dev"
+  | "personal-review"
+  | "in-review"
+  | "to-deploy";
+
+const WORKFLOW_LABELS: Record<
+  WorkflowStatus,
+  { label: string; className: string }
+> = {
+  todo: { label: "To Do", className: "bg-zinc-500/20 text-zinc-400" },
+  "in-dev": { label: "In Dev", className: "bg-blue-500/20 text-blue-400" },
+  "personal-review": {
+    label: "Personal Review",
+    className: "bg-purple-500/20 text-purple-400",
+  },
+  "in-review": {
+    label: "In Review",
+    className: "bg-amber-500/20 text-amber-400",
+  },
+  "to-deploy": {
+    label: "To Deploy",
+    className: "bg-green-500/20 text-green-400",
+  },
+};
+
+function getWorkflowStatus(
+  session: TmuxSession | null,
+  pr: PullRequestInfo | null,
+): WorkflowStatus {
+  if (!pr) {
+    return session ? "in-dev" : "todo";
+  }
+
+  // Has PR - check review status
+  const hasApproval = pr.reviews.some((r) => r.state === "APPROVED");
+  const hasChangesRequested = pr.reviews.some(
+    (r) => r.state === "CHANGES_REQUESTED",
+  );
+
+  if (hasApproval && !hasChangesRequested) {
+    return "to-deploy";
+  }
+
+  // Check if PR has reviewers requested or has reviews
+  const hasReviewers = pr.requestedReviewerCount > 0 || pr.reviews.length > 0;
+
+  if (hasReviewers) {
+    return "in-review";
+  }
+
+  return "personal-review";
+}
+
+export type UnifiedTaskNodeData = {
+  task: EnrichedTask;
+  worktree: WorktreeInfo | null;
+  session: TmuxSession | null;
+  pullRequest: PullRequestInfo | null;
+  repos: RepoConfig[];
+};
+
+export type UnifiedTaskNodeType = Node<UnifiedTaskNodeData, "unifiedTask">;
+
+export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
+  const { task, worktree, session, pullRequest, repos } = data;
+  const terminal = useSettingsStore((s) => s.config.terminal);
+  const startTask = useStartTask();
+  const stopTask = useStopTask();
+
+  const [error, setError] = useState<string | null>(null);
+  const [confirmingStop, setConfirmingStop] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [selectedRepo, setSelectedRepo] = useState<RepoConfig | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const priorityColor = PRIORITY_COLORS[task.priority] ?? "bg-zinc-600";
+  const hasSession = session !== null;
+  const isLoading = startTask.isPending || stopTask.isPending;
+  const workflowStatus = getWorkflowStatus(session, pullRequest);
+  const statusLabel = WORKFLOW_LABELS[workflowStatus];
+
+  useEffect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => setError(null), 5000);
+    return () => clearTimeout(timer);
+  }, [error]);
+
+  useEffect(() => {
+    if (!confirmingStop) return;
+    const timer = setTimeout(() => setConfirmingStop(false), 5000);
+    return () => clearTimeout(timer);
+  }, [confirmingStop]);
+
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as globalThis.Node)
+      ) {
+        setDropdownOpen(false);
+        setSelectedRepo(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dropdownOpen]);
+
+  function handleStop(force?: boolean) {
+    setError(null);
+    setConfirmingStop(false);
+    stopTask.mutate(
+      {
+        identifier: task.identifier,
+        repoPaths: repos.map((r) => r.path),
+        force,
+      },
+      {
+        onError: (err) => {
+          if (err instanceof DirtyWorktreeError) {
+            setConfirmingStop(true);
+          } else {
+            setError(err instanceof Error ? err.message : String(err));
+          }
+        },
+      },
+    );
+  }
+
+  function handleStart(repoPath: string, baseBranch?: string) {
+    setError(null);
+    setDropdownOpen(false);
+    setSelectedRepo(null);
+    const repo = repos.find((r) => r.path === repoPath);
+    startTask.mutate(
+      {
+        issueId: task.id,
+        identifier: task.identifier,
+        repoPath,
+        terminal,
+        copyPaths: repo?.copyPaths,
+        onStart: repo?.onStart,
+        baseBranch: baseBranch ?? repo?.baseBranch,
+        fetchBefore: repo?.fetchBefore,
+      },
+      {
+        onError: (err) =>
+          setError(err instanceof Error ? err.message : String(err)),
+      },
+    );
+  }
+
+  async function handleOpenTerminal() {
+    if (!session) return;
+    try {
+      await openTerminal(terminal, session.name);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  return (
+    <div className="nodrag nopan w-[380px] rounded-lg border border-zinc-700 bg-zinc-800 shadow-lg relative">
+      {/* ReactFlow handles for edges */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!bg-amber-500/60 !w-2 !h-2 !border-0"
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!bg-amber-500/60 !w-2 !h-2 !border-0"
+      />
+
+      {/* Header: Task info with workflow status */}
+      <div className="border-b border-zinc-700 px-3 py-2">
+        <div className="flex items-start gap-2">
+          <span
+            className={`mt-1.5 size-2 shrink-0 rounded-full ${priorityColor}`}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusLabel.className}`}
+              >
+                {statusLabel.label}
+              </span>
+              <a
+                href={task.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300"
+              >
+                {task.identifier}
+                <ExternalLink className="size-3" />
+              </a>
+            </div>
+            <p className="mt-1 line-clamp-2 text-sm text-zinc-200">
+              {task.title}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* PR Section */}
+      {pullRequest && (
+        <div className="flex items-center gap-2 border-b border-zinc-700 px-3 py-2">
+          <GitPullRequest className="size-4 shrink-0 text-purple-400" />
+          <a
+            href={pullRequest.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="min-w-0 flex-1 truncate text-sm text-zinc-300 hover:text-zinc-100"
+          >
+            PR #{pullRequest.number}
+          </a>
+        </div>
+      )}
+
+      {/* Worktree Section */}
+      {worktree && (
+        <div className="flex items-center gap-2 border-b border-zinc-700 px-3 py-2">
+          <GitBranch className="size-4 shrink-0 text-green-400" />
+          <span className="truncate text-sm text-zinc-300">
+            {worktree.branch}
+          </span>
+          {worktree.isDirty && (
+            <span title="Uncommitted changes">
+              <Circle className="size-2 fill-yellow-400 text-yellow-400" />
+            </span>
+          )}
+          {(worktree.ahead > 0 || worktree.behind > 0) && (
+            <span className="flex items-center gap-1 text-xs text-zinc-400">
+              {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
+              {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="relative flex items-center gap-2 px-3 py-2" ref={dropdownRef}>
+        {/* Start button with dropdown */}
+        {!hasSession && (
+          <button
+            onClick={() => setDropdownOpen((prev) => !prev)}
+            disabled={isLoading || repos.length === 0}
+            className="flex items-center gap-1 rounded bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-500 disabled:opacity-50"
+          >
+            {startTask.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <>
+                <Play className="size-3.5" />
+                Start
+                <ChevronDown className="size-3" />
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Stop button */}
+        {hasSession && !confirmingStop && (
+          <button
+            onClick={() => handleStop()}
+            disabled={isLoading}
+            className="flex items-center gap-1 rounded bg-red-600/80 px-2 py-1 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
+          >
+            {stopTask.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <>
+                <Square className="size-3.5" />
+                Stop
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Dirty worktree confirmation */}
+        {confirmingStop && (
+          <span className="flex items-center gap-2 text-xs">
+            <span className="text-yellow-400">Dirty worktree!</span>
+            <button
+              onClick={() => handleStop(true)}
+              className="text-red-400 hover:text-red-300"
+            >
+              Force
+            </button>
+            <span className="text-zinc-600">/</span>
+            <button
+              onClick={() => setConfirmingStop(false)}
+              className="text-zinc-400 hover:text-zinc-200"
+            >
+              Cancel
+            </button>
+          </span>
+        )}
+
+        {/* Terminal button */}
+        {hasSession && (
+          <button
+            onClick={handleOpenTerminal}
+            className="flex items-center gap-1 rounded bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-200 hover:bg-zinc-600"
+          >
+            <Terminal className="size-3.5" />
+            Terminal
+          </button>
+        )}
+
+        {/* Dropdown for repo/branch selection */}
+        {dropdownOpen && (
+          <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
+            {repos.length === 1 ? (
+              <BranchSelector
+                repoPath={repos[0].path}
+                onSelect={(baseBranch) => handleStart(repos[0].path, baseBranch)}
+              />
+            ) : selectedRepo ? (
+              <BranchSelector
+                repoPath={selectedRepo.path}
+                repoId={selectedRepo.id}
+                onSelect={(baseBranch) =>
+                  handleStart(selectedRepo.path, baseBranch)
+                }
+                onBack={() => setSelectedRepo(null)}
+              />
+            ) : (
+              <div className="min-w-40">
+                {repos.map((repo) => (
+                  <button
+                    key={repo.id}
+                    onClick={() => setSelectedRepo(repo)}
+                    className="block w-full px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-700"
+                  >
+                    {repo.id}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Error message */}
+      {error && <p className="px-3 pb-2 text-xs text-red-400">{error}</p>}
+    </div>
+  );
+}
+
+// Inline BranchSelector for the card
+function BranchSelector({
+  repoPath,
+  repoId,
+  onSelect,
+  onBack,
+}: {
+  repoPath: string;
+  repoId?: string;
+  onSelect: (baseBranch?: string) => void;
+  onBack?: () => void;
+}) {
+  const { data: worktrees } = useWorktrees(repoPath);
+  const availableBranches =
+    worktrees?.slice(1).map((wt) => wt.branch).filter(Boolean) ?? [];
+
+  return (
+    <div className="min-w-48">
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
+        >
+          <ChevronLeft className="size-3" />
+          {repoId ?? "Back"}
+        </button>
+      )}
+      <button
+        onClick={() => onSelect(undefined)}
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-700"
+      >
+        <GitBranch className="size-3 text-zinc-500" />
+        Default (main)
+      </button>
+      {availableBranches.length > 0 && (
+        <>
+          <div className="mx-2 my-1 border-t border-zinc-700" />
+          <div className="px-2 py-1 text-xs text-zinc-500">From worktree</div>
+          {availableBranches.map((branch) => (
+            <button
+              key={branch}
+              onClick={() => onSelect(branch)}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-700"
+            >
+              <GitBranch className="size-3 text-green-500" />
+              <span className="truncate">{branch}</span>
+            </button>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
