@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { octokit } from "../lib/github";
 import type { PullRequestInfo } from "../types";
+import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
 
 interface ReviewNode {
   author: { login: string } | null;
@@ -80,6 +81,6 @@ export function useGitHubMyOpenPRs() {
       );
     },
     enabled: !!octokit,
-    refetchInterval: 30_000,
+    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }
