@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { worktreeList, worktreeCreate, worktreeRemove } from "../lib/tauri";
 import type { WorktreeInfo } from "../types";
+import { LOCAL_REFRESH_INTERVAL_SLOW } from "../constants/intervals";
 
 export function useWorktrees(repoPath: string) {
   return useQuery<WorktreeInfo[]>({
     queryKey: ["worktrees", repoPath],
     queryFn: () => worktreeList(repoPath),
     enabled: !!repoPath,
-    refetchInterval: 10_000,
+    refetchInterval: LOCAL_REFRESH_INTERVAL_SLOW,
   });
 }
 

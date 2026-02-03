@@ -6,12 +6,13 @@ import {
   tmuxCapturePane,
 } from "../lib/tauri";
 import type { TmuxSession } from "../types";
+import { LOCAL_REFRESH_INTERVAL } from "../constants/intervals";
 
 export function useTmuxSessions() {
   return useQuery<TmuxSession[]>({
     queryKey: ["tmux", "sessions"],
     queryFn: tmuxListSessions,
-    refetchInterval: 5_000,
+    refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
 }
 
@@ -39,6 +40,6 @@ export function useTmuxCapturePane(session: string | undefined) {
     queryKey: ["tmux", "capture", session],
     queryFn: () => tmuxCapturePane(session!),
     enabled: !!session,
-    refetchInterval: 5_000,
+    refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
 }
