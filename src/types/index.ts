@@ -86,6 +86,17 @@ export interface PullRequestReview {
   submittedAt: string;
 }
 
+export interface ReviewRequestedPR {
+  number: number;
+  title: string;
+  url: string;
+  repoName: string;
+  authorLogin: string;
+  createdAt: string;
+  updatedAt: string;
+  isDraft: boolean;
+}
+
 // --- Orphan Worktrees ---
 
 export interface OrphanWorktree {

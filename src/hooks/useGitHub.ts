@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { octokit } from "../lib/github";
-import type { PullRequestInfo } from "../types";
+import type { PullRequestInfo, ReviewRequestedPR } from "../types";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
 
 interface ReviewNode {
@@ -79,6 +79,72 @@ export function useGitHubMyOpenPRs() {
           updatedAt: pr.updatedAt,
         }),
       );
+    },
+    enabled: !!octokit,
+    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
+  });
+}
+
+// --- Review Requests ---
+
+interface ReviewRequestNode {
+  number: number;
+  title: string;
+  url: string;
+  isDraft: boolean;
+  createdAt: string;
+  updatedAt: string;
+  repository: { nameWithOwner: string };
+  author: { login: string } | null;
+}
+
+interface ReviewRequestsResponse {
+  search: {
+    nodes: ReviewRequestNode[];
+  };
+}
+
+const REVIEW_REQUESTS_QUERY = `
+  query {
+    search(query: "is:open is:pr review-requested:@me", type: ISSUE, first: 25) {
+      nodes {
+        ... on PullRequest {
+          number
+          title
+          url
+          isDraft
+          createdAt
+          updatedAt
+          repository { nameWithOwner }
+          author { login }
+        }
+      }
+    }
+  }
+`;
+
+export function useGitHubReviewRequests() {
+  return useQuery<ReviewRequestedPR[]>({
+    queryKey: ["github", "review-requests"],
+    queryFn: async () => {
+      if (!octokit) return [];
+      const data = await octokit.graphql<ReviewRequestsResponse>(
+        REVIEW_REQUESTS_QUERY,
+      );
+      return data.search.nodes
+        .filter((node) => node.number !== undefined)
+        .map(
+          (pr): ReviewRequestedPR => ({
+            number: pr.number,
+            title: pr.title,
+            url: pr.url,
+            repoName: pr.repository.nameWithOwner,
+            authorLogin: pr.author?.login ?? "unknown",
+            createdAt: pr.createdAt,
+            updatedAt: pr.updatedAt,
+            isDraft: pr.isDraft,
+          }),
+        );
     },
     enabled: !!octokit,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
