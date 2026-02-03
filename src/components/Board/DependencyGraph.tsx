@@ -14,15 +14,13 @@ import { useTmuxSessions } from "../../hooks/useTmux";
 import { useGitHubMyOpenPRs } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { useProjectStore, ORPHAN_PROJECT_ID, type Project } from "../../stores/projectStore";
 import {
-  UnifiedTaskCard,
-  type UnifiedTaskNodeData,
-} from "./UnifiedTaskCard";
-import {
-  OrphanTaskCard,
-  type OrphanTaskNodeData,
-} from "./OrphanTaskCard";
+  useProjectStore,
+  ORPHAN_PROJECT_ID,
+  type Project,
+} from "../../stores/projectStore";
+import { UnifiedTaskCard, type UnifiedTaskNodeData } from "./UnifiedTaskCard";
+import { OrphanTaskCard, type OrphanTaskNodeData } from "./OrphanTaskCard";
 import {
   calculatePositions,
   calculateEdges,
@@ -49,6 +47,7 @@ interface DependencyGraphProps {
 
 export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
   const config = useSettingsStore((s) => s.config);
+  const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
   const teamIds = config.linear.teamIds;
   const repos = config.repos;
 
@@ -235,15 +234,17 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
 
     // Calculate edges for blocking relationships
     const edgeData = calculateEdges(filteredTasks);
+    // Use static amber color that matches our accent
+    const edgeColor = resolvedTheme === "dark" ? "#f59e0b" : "#d97706";
     const taskEdges: Edge[] = edgeData.map((e, index) => ({
       id: `edge-${index}`,
       source: e.source,
       target: e.target,
       type: "smoothstep",
-      style: { stroke: "#f59e0b", strokeWidth: 2 },
+      style: { stroke: edgeColor, strokeWidth: 2 },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: "#f59e0b",
+        color: edgeColor,
       },
     }));
 
@@ -256,6 +257,7 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
     prByBranch,
     sessionByName,
     repos,
+    resolvedTheme,
   ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -276,9 +278,9 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
       defaultEdgeOptions={{
         type: "smoothstep",
       }}
-      colorMode="dark"
+      colorMode={resolvedTheme}
       fitView
-      fitViewOptions={{ padding: 0.2 }}
+      fitViewOptions={{ padding: 0.1, minZoom: 0.8, maxZoom: 1.2 }}
       proOptions={{ hideAttribution: true }}
       panOnScroll
       zoomOnDoubleClick={false}

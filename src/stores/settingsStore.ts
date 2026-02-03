@@ -2,19 +2,47 @@ import { create } from "zustand";
 import type { LinairConfig, TerminalEmulator } from "../types";
 import { defaultConfig, loadConfigFromDisk } from "../lib/config";
 
+function getSystemTheme(): "light" | "dark" {
+  if (typeof window === "undefined") return "dark";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+function resolveTheme(theme: LinairConfig["theme"]): "light" | "dark" {
+  if (theme === "system") {
+    return getSystemTheme();
+  }
+  return theme;
+}
+
+function applyThemeToDOM(resolvedTheme: "light" | "dark") {
+  if (resolvedTheme === "dark") {
+    document.documentElement.classList.add("dark");
+  } else {
+    document.documentElement.classList.remove("dark");
+  }
+}
+
 interface SettingsState {
   config: LinairConfig;
   isLoaded: boolean;
+  resolvedTheme: "light" | "dark";
   setConfig: (config: LinairConfig) => void;
   updateTerminal: (terminal: TerminalEmulator) => void;
   loadFromDisk: () => Promise<void>;
 }
 
-export const useSettingsStore = create<SettingsState>()((set) => ({
+export const useSettingsStore = create<SettingsState>()((set, get) => ({
   config: defaultConfig,
   isLoaded: false,
+  resolvedTheme: resolveTheme(defaultConfig.theme),
 
-  setConfig: (config) => set({ config, isLoaded: true }),
+  setConfig: (config) => {
+    const resolved = resolveTheme(config.theme);
+    applyThemeToDOM(resolved);
+    set({ config, isLoaded: true, resolvedTheme: resolved });
+  },
 
   updateTerminal: (terminal) =>
     set((state) => ({
@@ -24,10 +52,28 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   loadFromDisk: async () => {
     try {
       const config = await loadConfigFromDisk();
-      set({ config, isLoaded: true });
+      const resolved = resolveTheme(config.theme);
+      applyThemeToDOM(resolved);
+      set({ config, isLoaded: true, resolvedTheme: resolved });
+
+      // Listen for system theme changes when theme is "system"
+      if (config.theme === "system") {
+        const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+        const handleChange = () => {
+          const current = get().config;
+          if (current.theme === "system") {
+            const newResolved = resolveTheme("system");
+            applyThemeToDOM(newResolved);
+            set({ resolvedTheme: newResolved });
+          }
+        };
+        mediaQuery.addEventListener("change", handleChange);
+      }
     } catch (err) {
       console.warn("Failed to load linair.config.json:", err);
-      set({ isLoaded: true });
+      const resolved = resolveTheme(defaultConfig.theme);
+      applyThemeToDOM(resolved);
+      set({ isLoaded: true, resolvedTheme: resolved });
     }
   },
 }));

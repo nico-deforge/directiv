@@ -1,1 +1,53 @@
 @import "tailwindcss";
+
+/* Light theme (default) - soft/muted for eye comfort */
+:root {
+  --bg-primary: #f8f8f6;
+  --bg-secondary: #f0f0ed;
+  --bg-tertiary: #e8e8e4;
+  --bg-elevated: #ddddd8;
+
+  --text-primary: #1a1a18;
+  --text-secondary: #52524e;
+  --text-muted: #8a8a84;
+
+  --border-default: #d8d8d2;
+  --border-subtle: #e4e4de;
+
+  /* Accents - slightly muted for light mode harmony */
+  --accent-green: #15803d;
+  --accent-red: #b91c1c;
+  --accent-blue: #1d4ed8;
+  --accent-purple: #7c3aed;
+  --accent-amber: #b45309;
+  --accent-yellow: #a16207;
+  --accent-orange: #c2410c;
+}
+
+/* Dark theme */
+.dark {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #141414;
+  --bg-tertiary: #1c1c1c;
+  --bg-elevated: #262626;
+
+  --text-primary: #fafafa;
+  --text-secondary: #a3a3a3;
+  --text-muted: #737373;
+
+  --border-default: #262626;
+  --border-subtle: #1c1c1c;
+
+  --accent-green: #22c55e;
+  --accent-red: #ef4444;
+  --accent-blue: #3b82f6;
+  --accent-purple: #a855f7;
+  --accent-amber: #f59e0b;
+  --accent-yellow: #eab308;
+  --accent-orange: #f97316;
+}
+
+html {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}

@@ -27,7 +27,7 @@ import { openTerminal } from "../../lib/tauri";
 import { useWorktrees } from "../../hooks/useWorktrees";
 
 const PRIORITY_COLORS: Record<number, string> = {
-  0: "bg-zinc-600",
+  0: "bg-neutral-400",
   1: "bg-red-500",
   2: "bg-orange-500",
   3: "bg-yellow-500",
@@ -45,19 +45,25 @@ const WORKFLOW_LABELS: Record<
   WorkflowStatus,
   { label: string; className: string }
 > = {
-  todo: { label: "To Do", className: "bg-zinc-500/20 text-zinc-400" },
-  "in-dev": { label: "In Dev", className: "bg-blue-500/20 text-blue-400" },
+  todo: {
+    label: "To Do",
+    className: "bg-neutral-500/20 text-[var(--text-muted)]",
+  },
+  "in-dev": {
+    label: "In Dev",
+    className: "bg-[var(--accent-blue)]/20 text-[var(--accent-blue)]",
+  },
   "personal-review": {
     label: "Personal Review",
-    className: "bg-purple-500/20 text-purple-400",
+    className: "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)]",
   },
   "in-review": {
     label: "In Review",
-    className: "bg-amber-500/20 text-amber-400",
+    className: "bg-[var(--accent-amber)]/20 text-[var(--accent-amber)]",
   },
   "to-deploy": {
     label: "To Deploy",
-    className: "bg-green-500/20 text-green-400",
+    className: "bg-[var(--accent-green)]/20 text-[var(--accent-green)]",
   },
 };
 
@@ -111,7 +117,7 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
   const [selectedRepo, setSelectedRepo] = useState<RepoConfig | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const priorityColor = PRIORITY_COLORS[task.priority] ?? "bg-zinc-600";
+  const priorityColor = PRIORITY_COLORS[task.priority] ?? "bg-neutral-400";
   const hasSession = session !== null;
   const isLoading = startTask.isPending || stopTask.isPending;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
@@ -198,21 +204,21 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
   }
 
   return (
-    <div className="nodrag nopan w-[380px] rounded-lg border border-zinc-700 bg-zinc-800 shadow-lg relative">
+    <div className="nodrag nopan w-[380px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-lg relative">
       {/* ReactFlow handles for edges */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!bg-amber-500/60 !w-2 !h-2 !border-0"
+        className="!bg-[var(--accent-amber)]/60 !w-2 !h-2 !border-0"
       />
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!bg-amber-500/60 !w-2 !h-2 !border-0"
+        className="!bg-[var(--accent-amber)]/60 !w-2 !h-2 !border-0"
       />
 
       {/* Header: Task info with workflow status */}
-      <div className="border-b border-zinc-700 px-3 py-2">
+      <div className="border-b border-[var(--border-default)] px-3 py-2">
         <div className="flex items-start gap-2">
           <span
             className={`mt-1.5 size-2 shrink-0 rounded-full ${priorityColor}`}
@@ -228,13 +234,13 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
                 href={task.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300"
+                className="flex items-center gap-1 text-xs font-medium text-[var(--accent-blue)] hover:opacity-80"
               >
                 {task.identifier}
                 <ExternalLink className="size-3" />
               </a>
             </div>
-            <p className="mt-1 line-clamp-2 text-sm text-zinc-200">
+            <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
               {task.title}
             </p>
           </div>
@@ -243,13 +249,13 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
 
       {/* PR Section */}
       {pullRequest && (
-        <div className="flex items-center gap-2 border-b border-zinc-700 px-3 py-2">
-          <GitPullRequest className="size-4 shrink-0 text-purple-400" />
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+          <GitPullRequest className="size-4 shrink-0 text-[var(--accent-purple)]" />
           <a
             href={pullRequest.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="min-w-0 flex-1 truncate text-sm text-zinc-300 hover:text-zinc-100"
+            className="min-w-0 flex-1 truncate text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             PR #{pullRequest.number}
           </a>
@@ -258,18 +264,18 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
 
       {/* Worktree Section */}
       {worktree && (
-        <div className="flex items-center gap-2 border-b border-zinc-700 px-3 py-2">
-          <GitBranch className="size-4 shrink-0 text-green-400" />
-          <span className="truncate text-sm text-zinc-300">
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+          <GitBranch className="size-4 shrink-0 text-[var(--accent-green)]" />
+          <span className="truncate text-sm text-[var(--text-secondary)]">
             {worktree.branch}
           </span>
           {worktree.isDirty && (
             <span title="Uncommitted changes">
-              <Circle className="size-2 fill-yellow-400 text-yellow-400" />
+              <Circle className="size-2 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
             </span>
           )}
           {(worktree.ahead > 0 || worktree.behind > 0) && (
-            <span className="flex items-center gap-1 text-xs text-zinc-400">
+            <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
               {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
               {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
             </span>
@@ -278,13 +284,16 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
       )}
 
       {/* Actions */}
-      <div className="relative flex items-center gap-2 px-3 py-2" ref={dropdownRef}>
+      <div
+        className="relative flex items-center gap-2 px-3 py-2"
+        ref={dropdownRef}
+      >
         {/* Start button with dropdown */}
         {!hasSession && (
           <button
             onClick={() => setDropdownOpen((prev) => !prev)}
             disabled={isLoading || repos.length === 0}
-            className="flex items-center gap-1 rounded bg-green-600 px-2 py-1 text-xs font-medium text-white hover:bg-green-500 disabled:opacity-50"
+            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {startTask.isPending ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -303,7 +312,7 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
           <button
             onClick={() => handleStop()}
             disabled={isLoading}
-            className="flex items-center gap-1 rounded bg-red-600/80 px-2 py-1 text-xs font-medium text-white hover:bg-red-500 disabled:opacity-50"
+            className="flex items-center gap-1 rounded bg-[var(--accent-red)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
           >
             {stopTask.isPending ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -319,17 +328,17 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
         {/* Dirty worktree confirmation */}
         {confirmingStop && (
           <span className="flex items-center gap-2 text-xs">
-            <span className="text-yellow-400">Dirty worktree!</span>
+            <span className="text-[var(--accent-yellow)]">Dirty worktree!</span>
             <button
               onClick={() => handleStop(true)}
-              className="text-red-400 hover:text-red-300"
+              className="text-[var(--accent-red)] hover:opacity-80"
             >
               Force
             </button>
-            <span className="text-zinc-600">/</span>
+            <span className="text-[var(--text-muted)]">/</span>
             <button
               onClick={() => setConfirmingStop(false)}
-              className="text-zinc-400 hover:text-zinc-200"
+              className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
               Cancel
             </button>
@@ -340,7 +349,7 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
         {hasSession && (
           <button
             onClick={handleOpenTerminal}
-            className="flex items-center gap-1 rounded bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-200 hover:bg-zinc-600"
+            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
           >
             <Terminal className="size-3.5" />
             Terminal
@@ -349,11 +358,13 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
 
         {/* Dropdown for repo/branch selection */}
         {dropdownOpen && (
-          <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-zinc-700 bg-zinc-800 py-1 shadow-lg">
+          <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
             {repos.length === 1 ? (
               <BranchSelector
                 repoPath={repos[0].path}
-                onSelect={(baseBranch) => handleStart(repos[0].path, baseBranch)}
+                onSelect={(baseBranch) =>
+                  handleStart(repos[0].path, baseBranch)
+                }
               />
             ) : selectedRepo ? (
               <BranchSelector
@@ -370,7 +381,7 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
                   <button
                     key={repo.id}
                     onClick={() => setSelectedRepo(repo)}
-                    className="block w-full px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-700"
+                    className="block w-full px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                   >
                     {repo.id}
                   </button>
@@ -382,7 +393,9 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
       </div>
 
       {/* Error message */}
-      {error && <p className="px-3 pb-2 text-xs text-red-400">{error}</p>}
+      {error && (
+        <p className="px-3 pb-2 text-xs text-[var(--accent-red)]">{error}</p>
+      )}
     </div>
   );
 }
@@ -401,14 +414,17 @@ function BranchSelector({
 }) {
   const { data: worktrees } = useWorktrees(repoPath);
   const availableBranches =
-    worktrees?.slice(1).map((wt) => wt.branch).filter(Boolean) ?? [];
+    worktrees
+      ?.slice(1)
+      .map((wt) => wt.branch)
+      .filter(Boolean) ?? [];
 
   return (
     <div className="min-w-48">
       {onBack && (
         <button
           onClick={onBack}
-          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
+          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
         >
           <ChevronLeft className="size-3" />
           {repoId ?? "Back"}
@@ -416,22 +432,24 @@ function BranchSelector({
       )}
       <button
         onClick={() => onSelect(undefined)}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-700"
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
       >
-        <GitBranch className="size-3 text-zinc-500" />
+        <GitBranch className="size-3 text-[var(--text-muted)]" />
         Default (main)
       </button>
       {availableBranches.length > 0 && (
         <>
-          <div className="mx-2 my-1 border-t border-zinc-700" />
-          <div className="px-2 py-1 text-xs text-zinc-500">From worktree</div>
+          <div className="mx-2 my-1 border-t border-[var(--border-default)]" />
+          <div className="px-2 py-1 text-xs text-[var(--text-muted)]">
+            From worktree
+          </div>
           {availableBranches.map((branch) => (
             <button
               key={branch}
               onClick={() => onSelect(branch)}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-700"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
             >
-              <GitBranch className="size-3 text-green-500" />
+              <GitBranch className="size-3 text-[var(--accent-green)]" />
               <span className="truncate">{branch}</span>
             </button>
           ))}
