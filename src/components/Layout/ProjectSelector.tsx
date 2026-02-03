@@ -3,10 +3,12 @@ import {
   Folder,
   FolderOpen,
   GitBranch,
+  GitPullRequest,
   RefreshCw,
   Trash2,
   Loader2,
   X,
+  ExternalLink,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -21,7 +23,8 @@ import {
   worktreeRemove,
   tmuxKillSession,
 } from "../../lib/tauri";
-import type { StaleWorktree } from "../../types";
+import type { StaleWorktree, ReviewRequestedPR } from "../../types";
+import { useGitHubReviewRequests } from "../../hooks/useGitHub";
 
 interface ProjectSelectorProps {
   projects: Project[];
@@ -114,8 +117,62 @@ export function ProjectSelector({
           </>
         )}
       </div>
+      <ReviewRequestsSection />
       <CleanupSection />
     </aside>
+  );
+}
+
+function ReviewRequestsSection() {
+  const { data: reviewRequests = [] } = useGitHubReviewRequests();
+
+  if (reviewRequests.length === 0) return null;
+
+  return (
+    <div className="shrink-0 border-t border-[var(--border-default)]">
+      <div className="flex items-center justify-between px-4 py-2">
+        <div className="flex items-center gap-1.5">
+          <GitPullRequest className="size-3.5 text-[var(--accent-purple)]" />
+          <span className="text-xs font-medium text-[var(--text-secondary)]">
+            Review Requests
+          </span>
+        </div>
+        <span className="shrink-0 rounded-full bg-[var(--accent-purple)]/20 px-1.5 py-0.5 text-xs text-[var(--accent-purple)]">
+          {reviewRequests.length}
+        </span>
+      </div>
+      <div className="max-h-48 overflow-y-auto px-2 pb-2">
+        {reviewRequests.map((pr) => (
+          <ReviewRequestItem key={`${pr.repoName}-${pr.number}`} pr={pr} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReviewRequestItem({ pr }: { pr: ReviewRequestedPR }) {
+  return (
+    <a
+      href={pr.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group flex flex-col gap-0.5 rounded px-2 py-1.5 hover:bg-[var(--bg-elevated)]"
+      title={pr.title}
+    >
+      <div className="flex items-start gap-1.5">
+        <span className="min-w-0 flex-1 truncate text-xs text-[var(--text-primary)]">
+          {pr.isDraft && (
+            <span className="mr-1 text-[var(--text-muted)]">[Draft]</span>
+          )}
+          {pr.title}
+        </span>
+        <ExternalLink className="size-3 shrink-0 text-[var(--text-muted)] opacity-0 transition-opacity group-hover:opacity-100" />
+      </div>
+      <div className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
+        <span className="truncate">{pr.repoName}</span>
+        <span>#{pr.number}</span>
+      </div>
+    </a>
   );
 }
 
