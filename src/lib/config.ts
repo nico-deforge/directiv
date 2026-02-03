@@ -8,6 +8,7 @@ export const defaultConfig: LinairConfig = {
     teamIds: [],
     activeProject: null,
   },
+  theme: "dark",
 };
 
 export async function loadConfigFromDisk(): Promise<LinairConfig> {
@@ -27,5 +28,6 @@ export function validateConfig(config: Partial<LinairConfig>): LinairConfig {
       fetchBefore: repo.fetchBefore ?? true,
     })),
     linear: config.linear ?? defaultConfig.linear,
+    theme: config.theme ?? defaultConfig.theme,
   };
 }

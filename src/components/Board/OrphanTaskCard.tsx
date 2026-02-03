@@ -100,34 +100,34 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const dirName = worktree.path.split("/").pop() ?? worktree.path;
 
   return (
-    <div className="nodrag nopan w-[380px] rounded-lg border border-zinc-700 bg-zinc-800 shadow-lg">
+    <div className="nodrag nopan w-[380px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-lg">
       {/* Header: Branch info */}
-      <div className="border-b border-zinc-700 px-3 py-2">
+      <div className="border-b border-[var(--border-default)] px-3 py-2">
         <div className="flex items-start gap-2">
-          <GitBranch className="mt-0.5 size-4 shrink-0 text-green-400" />
+          <GitBranch className="mt-0.5 size-4 shrink-0 text-[var(--accent-green)]" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="font-medium text-sm text-zinc-200">
+              <span className="font-medium text-sm text-[var(--text-primary)]">
                 {worktree.branch}
               </span>
               {worktree.isDirty && (
                 <span title="Uncommitted changes">
-                  <Circle className="size-2 fill-yellow-400 text-yellow-400" />
+                  <Circle className="size-2 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1 text-xs text-zinc-500">
+            <div className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
               <FolderOpen className="size-3" />
               <span className="truncate">{dirName}</span>
               {(worktree.ahead > 0 || worktree.behind > 0) && (
-                <span className="ml-1 flex items-center gap-1 text-zinc-400">
+                <span className="ml-1 flex items-center gap-1 text-[var(--text-muted)]">
                   {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
                   {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
                 </span>
               )}
             </div>
           </div>
-          <span className="shrink-0 rounded bg-zinc-700 px-1.5 py-0.5 text-[10px] text-zinc-400">
+          <span className="shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
             {repoId}
           </span>
         </div>
@@ -139,7 +139,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         {hasSession && (
           <button
             onClick={handleOpenTerminal}
-            className="flex items-center gap-1 rounded bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-200 hover:bg-zinc-600"
+            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
           >
             <Terminal className="size-3.5" />
             Terminal
@@ -151,7 +151,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           <button
             onClick={handleKillSession}
             disabled={killingSession}
-            className="flex items-center gap-1 rounded bg-zinc-700 px-2 py-1 text-xs font-medium text-zinc-200 hover:bg-zinc-600 disabled:opacity-50"
+            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80 disabled:opacity-50"
             title="Kill tmux session"
           >
             {killingSession ? (
@@ -169,14 +169,14 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             <button
               onClick={handleDelete}
               disabled={isDeleting}
-              className="text-red-400 hover:text-red-300"
+              className="text-[var(--accent-red)] hover:opacity-80"
             >
               {isDeleting ? "Deleting..." : "Confirm"}
             </button>
-            <span className="text-zinc-600">/</span>
+            <span className="text-[var(--text-muted)]">/</span>
             <button
               onClick={() => setConfirmingDelete(false)}
-              className="text-zinc-400 hover:text-zinc-200"
+              className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
               Cancel
             </button>
@@ -185,7 +185,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           <button
             onClick={handleDelete}
             disabled={isDeleting}
-            className="flex items-center gap-1 rounded bg-red-600/50 px-2 py-1 text-xs font-medium text-red-200 hover:bg-red-600/70 disabled:opacity-50"
+            className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
           >
             {isDeleting ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -198,7 +198,9 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       </div>
 
       {/* Error message */}
-      {error && <p className="px-3 pb-2 text-xs text-red-400">{error}</p>}
+      {error && (
+        <p className="px-3 pb-2 text-xs text-[var(--accent-red)]">{error}</p>
+      )}
     </div>
   );
 }

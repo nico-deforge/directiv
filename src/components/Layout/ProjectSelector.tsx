@@ -28,7 +28,10 @@ interface ProjectSelectorProps {
   hasOrphans: boolean;
 }
 
-export function ProjectSelector({ projects, hasOrphans }: ProjectSelectorProps) {
+export function ProjectSelector({
+  projects,
+  hasOrphans,
+}: ProjectSelectorProps) {
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
   const selectProject = useProjectStore((s) => s.selectProject);
   const setProjects = useProjectStore((s) => s.setProjects);
@@ -60,14 +63,16 @@ export function ProjectSelector({ projects, hasOrphans }: ProjectSelectorProps) 
   }
 
   return (
-    <aside className="flex w-[200px] shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
-      <div className="shrink-0 border-b border-zinc-800 px-4 py-3">
+    <aside className="flex w-[200px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-secondary)]">
+      <div className="shrink-0 border-b border-[var(--border-default)] px-4 py-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-zinc-200">Projects</h2>
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+            Projects
+          </h2>
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="rounded p-0.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
+            className="rounded p-0.5 text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
             title="Refresh all data"
           >
             <RefreshCw
@@ -78,7 +83,9 @@ export function ProjectSelector({ projects, hasOrphans }: ProjectSelectorProps) 
       </div>
       <div className="flex-1 overflow-y-auto py-2">
         {projects.length === 0 && !hasOrphans && (
-          <p className="px-4 py-2 text-sm text-zinc-500">No projects found</p>
+          <p className="px-4 py-2 text-sm text-[var(--text-muted)]">
+            No projects found
+          </p>
         )}
         {projects.map((project) => (
           <ProjectItem
@@ -91,14 +98,14 @@ export function ProjectSelector({ projects, hasOrphans }: ProjectSelectorProps) 
         {hasOrphans && (
           <>
             {projects.length > 0 && (
-              <div className="mx-3 my-2 border-t border-zinc-800" />
+              <div className="mx-3 my-2 border-t border-[var(--border-default)]" />
             )}
             <button
               onClick={() => selectProject(ORPHAN_PROJECT_ID)}
               className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
                 selectedProjectId === ORPHAN_PROJECT_ID
-                  ? "bg-zinc-800 text-zinc-100"
-                  : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+                  ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                  : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
               }`}
             >
               <GitBranch className="size-4 shrink-0" />
@@ -211,20 +218,20 @@ function CleanupSection() {
   if (repos.length === 0) return null;
 
   return (
-    <div className="shrink-0 border-t border-zinc-800">
+    <div className="shrink-0 border-t border-[var(--border-default)]">
       {showCleanup ? (
         <div className="p-2">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-zinc-300">
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
               {staleWorktrees.length === 0
                 ? "No merged worktrees"
                 : `${staleWorktrees.length} merged`}
             </span>
             <button
               onClick={() => setShowCleanup(false)}
-              className="p-0.5 rounded hover:bg-zinc-700"
+              className="p-0.5 rounded hover:bg-[var(--bg-elevated)]"
             >
-              <X className="size-3 text-zinc-400" />
+              <X className="size-3 text-[var(--text-muted)]" />
             </button>
           </div>
           {staleWorktrees.length > 0 && (
@@ -240,9 +247,9 @@ function CleanupSection() {
                       type="checkbox"
                       checked={selected.has(key)}
                       onChange={() => toggleSelection(key)}
-                      className="rounded border-zinc-600"
+                      className="rounded border-[var(--border-default)]"
                     />
-                    <span className="truncate text-zinc-300">
+                    <span className="truncate text-[var(--text-secondary)]">
                       {sw.worktree.branch}
                     </span>
                   </label>
@@ -251,19 +258,21 @@ function CleanupSection() {
               <button
                 onClick={cleanSelected}
                 disabled={cleaning || selected.size === 0}
-                className="mt-1 w-full rounded bg-red-900/50 px-2 py-1 text-xs text-red-300 hover:bg-red-900/70 disabled:opacity-50"
+                className="mt-1 w-full rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
               >
                 {cleaning ? "Cleaning..." : `Delete (${selected.size})`}
               </button>
             </div>
           )}
-          {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
+          {error && (
+            <p className="mt-1 text-xs text-[var(--accent-red)]">{error}</p>
+          )}
         </div>
       ) : (
         <button
           onClick={scanForStale}
           disabled={scanning}
-          className="flex w-full items-center justify-center gap-1.5 px-4 py-2 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-1.5 px-4 py-2 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
         >
           {scanning ? (
             <Loader2 className="size-3 animate-spin" />
@@ -293,13 +302,13 @@ function ProjectItem({
       onClick={onSelect}
       className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
         isSelected
-          ? "bg-zinc-800 text-zinc-100"
-          : "text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200"
+          ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+          : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
       }`}
     >
       <Icon className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
-      <span className="shrink-0 rounded-full bg-zinc-700 px-1.5 py-0.5 text-xs text-zinc-400">
+      <span className="shrink-0 rounded-full bg-[var(--bg-elevated)] px-1.5 py-0.5 text-xs text-[var(--text-muted)]">
         {project.taskCount}
       </span>
     </button>

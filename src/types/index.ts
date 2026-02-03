@@ -106,6 +106,7 @@ export interface StaleWorktree {
 // --- Config ---
 
 export type TerminalEmulator = "ghostty" | "iterm2" | "terminal" | "alacritty";
+export type Theme = "light" | "dark" | "system";
 
 export interface RepoConfig {
   id: string;
@@ -125,4 +126,5 @@ export interface LinairConfig {
   terminal: TerminalEmulator;
   repos: RepoConfig[];
   linear: LinearConfig;
+  theme: Theme;
 }

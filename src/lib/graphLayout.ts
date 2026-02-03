@@ -114,11 +114,13 @@ export function calculatePositions(tasks: EnrichedTask[]): NodePosition[] {
     // Sort: prioritize tasks that have blockers already positioned
     levelTasks.sort((a, b) => {
       const aHasBlocker = a.blockedBy.some((bl) => {
-        const blocker = taskById.get(bl.id) ?? taskByIdentifier.get(bl.identifier);
+        const blocker =
+          taskById.get(bl.id) ?? taskByIdentifier.get(bl.identifier);
         return blocker && positions.has(blocker.id);
       });
       const bHasBlocker = b.blockedBy.some((bl) => {
-        const blocker = taskById.get(bl.id) ?? taskByIdentifier.get(bl.identifier);
+        const blocker =
+          taskById.get(bl.id) ?? taskByIdentifier.get(bl.identifier);
         return blocker && positions.has(blocker.id);
       });
       if (aHasBlocker && !bHasBlocker) return -1;
@@ -137,7 +139,9 @@ export function calculatePositions(tasks: EnrichedTask[]): NodePosition[] {
           const blockerPos = positions.get(blockerTask.id);
           if (blockerPos) {
             // Try to use the same x as the blocker
-            const blockerXIndex = Math.round(blockerPos.x / (CARD_WIDTH + H_GAP));
+            const blockerXIndex = Math.round(
+              blockerPos.x / (CARD_WIDTH + H_GAP),
+            );
             if (!usedX.has(blockerXIndex)) {
               targetX = blockerXIndex;
               break;
@@ -148,7 +152,10 @@ export function calculatePositions(tasks: EnrichedTask[]): NodePosition[] {
                 targetX = blockerXIndex + offset;
                 break;
               }
-              if (!usedX.has(blockerXIndex - offset) && blockerXIndex - offset >= 0) {
+              if (
+                !usedX.has(blockerXIndex - offset) &&
+                blockerXIndex - offset >= 0
+              ) {
                 targetX = blockerXIndex - offset;
                 break;
               }

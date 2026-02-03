@@ -25,14 +25,14 @@ function App() {
 
   if (!isLoaded) {
     return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950 text-zinc-500">
+      <div className="flex h-screen items-center justify-center bg-[var(--bg-primary)] text-[var(--text-muted)]">
         Loading...
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <ProjectSelector projects={projects} hasOrphans={hasOrphans} />
       <main className="flex-1 h-full">
         <DependencyGraph onProjectsChange={handleProjectsChange} />
