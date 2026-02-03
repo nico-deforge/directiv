@@ -9,6 +9,7 @@ import {
   Loader2,
   X,
   ExternalLink,
+  Terminal,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -22,8 +23,13 @@ import {
   worktreeCheckMerged,
   worktreeRemove,
   tmuxKillSession,
+  tmuxListSessions,
 } from "../../lib/tauri";
-import type { StaleWorktree, ReviewRequestedPR } from "../../types";
+import type {
+  StaleWorktree,
+  ReviewRequestedPR,
+  TmuxSession,
+} from "../../types";
 import { useGitHubReviewRequests } from "../../hooks/useGitHub";
 
 interface ProjectSelectorProps {
@@ -118,6 +124,7 @@ export function ProjectSelector({
         )}
       </div>
       <ReviewRequestsSection />
+      <OrphanSessionsSection />
       <CleanupSection />
     </aside>
   );
@@ -173,6 +180,156 @@ function ReviewRequestItem({ pr }: { pr: ReviewRequestedPR }) {
         <span>#{pr.number}</span>
       </div>
     </a>
+  );
+}
+
+function OrphanSessionsSection() {
+  const repos = useSettingsStore((s) => s.config.repos);
+  const queryClient = useQueryClient();
+
+  const [orphanSessions, setOrphanSessions] = useState<TmuxSession[]>([]);
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(
+    new Set(),
+  );
+  const [scanning, setScanning] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [showCleanup, setShowCleanup] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const scanForOrphanSessions = useCallback(async () => {
+    setScanning(true);
+    setError(null);
+    try {
+      // 1. Collect all branches from worktrees
+      const allBranches = new Set<string>();
+      for (const repo of repos) {
+        try {
+          const worktrees = await worktreeList(repo.path);
+          // Skip main worktree (index 0)
+          for (const wt of worktrees.slice(1)) {
+            allBranches.add(wt.branch.toLowerCase());
+          }
+        } catch {
+          // Skip repos that fail
+        }
+      }
+
+      // 2. Get all tmux sessions
+      const sessions = await tmuxListSessions();
+
+      // 3. Find orphan sessions (sessions without corresponding worktree)
+      const orphans = sessions.filter(
+        (s) => !allBranches.has(s.name.toLowerCase()),
+      );
+
+      setOrphanSessions(orphans);
+      setSelectedSessions(new Set(orphans.map((s) => s.name)));
+      setShowCleanup(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setScanning(false);
+    }
+  }, [repos]);
+
+  const cleanSelectedSessions = useCallback(async () => {
+    setCleaning(true);
+    setError(null);
+    try {
+      for (const session of orphanSessions) {
+        if (!selectedSessions.has(session.name)) continue;
+        await tmuxKillSession(session.name);
+      }
+      queryClient.invalidateQueries({ queryKey: ["tmux"] });
+      setShowCleanup(false);
+      setOrphanSessions([]);
+      setSelectedSessions(new Set());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCleaning(false);
+    }
+  }, [orphanSessions, selectedSessions, queryClient]);
+
+  function toggleSessionSelection(name: string) {
+    setSelectedSessions((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  }
+
+  if (repos.length === 0) return null;
+
+  return (
+    <div className="shrink-0 border-t border-[var(--border-default)]">
+      {showCleanup ? (
+        <div className="p-2">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
+              {orphanSessions.length === 0
+                ? "No orphan sessions"
+                : `${orphanSessions.length} orphan`}
+            </span>
+            <button
+              onClick={() => setShowCleanup(false)}
+              className="rounded p-0.5 hover:bg-[var(--bg-elevated)]"
+            >
+              <X className="size-3 text-[var(--text-muted)]" />
+            </button>
+          </div>
+          {orphanSessions.length > 0 && (
+            <div className="space-y-1">
+              {orphanSessions.map((session) => (
+                <label
+                  key={session.name}
+                  className="flex cursor-pointer items-center gap-2 text-xs"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedSessions.has(session.name)}
+                    onChange={() => toggleSessionSelection(session.name)}
+                    className="rounded border-[var(--border-default)]"
+                  />
+                  <span className="truncate text-[var(--text-secondary)]">
+                    {session.name}
+                  </span>
+                </label>
+              ))}
+              <button
+                onClick={cleanSelectedSessions}
+                disabled={cleaning || selectedSessions.size === 0}
+                className="mt-1 w-full rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
+              >
+                {cleaning
+                  ? "Killing..."
+                  : `Kill sessions (${selectedSessions.size})`}
+              </button>
+            </div>
+          )}
+          {error && (
+            <p className="mt-1 text-xs text-[var(--accent-red)]">{error}</p>
+          )}
+        </div>
+      ) : (
+        <button
+          onClick={scanForOrphanSessions}
+          disabled={scanning}
+          className="flex w-full items-center justify-center gap-1.5 px-4 py-2 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
+        >
+          {scanning ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Terminal className="size-3" />
+          )}
+          Clean orphan sessions
+        </button>
+      )}
+    </div>
   );
 }
 

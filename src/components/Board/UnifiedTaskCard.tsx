@@ -3,7 +3,8 @@ import type { Node, NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import {
   Play,
-  Square,
+  X,
+  Trash2,
   Terminal,
   Loader2,
   ChevronDown,
@@ -13,6 +14,7 @@ import {
   ExternalLink,
   ChevronLeft,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import type {
   EnrichedTask,
   PullRequestInfo,
@@ -21,9 +23,8 @@ import type {
   RepoConfig,
 } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
-import { useStopTask, DirtyWorktreeError } from "../../hooks/useStopTask";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { openTerminal } from "../../lib/tauri";
+import { openTerminal, tmuxKillSession, worktreeRemove } from "../../lib/tauri";
 import { useWorktrees } from "../../hooks/useWorktrees";
 
 const PRIORITY_COLORS: Record<number, string> = {
@@ -98,6 +99,7 @@ function getWorkflowStatus(
 export type UnifiedTaskNodeData = {
   task: EnrichedTask;
   worktree: WorktreeInfo | null;
+  worktreeRepoPath: string | null;
   session: TmuxSession | null;
   pullRequest: PullRequestInfo | null;
   repos: RepoConfig[];
@@ -106,20 +108,23 @@ export type UnifiedTaskNodeData = {
 export type UnifiedTaskNodeType = Node<UnifiedTaskNodeData, "unifiedTask">;
 
 export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
-  const { task, worktree, session, pullRequest, repos } = data;
+  const { task, worktree, worktreeRepoPath, session, pullRequest, repos } =
+    data;
   const terminal = useSettingsStore((s) => s.config.terminal);
+  const queryClient = useQueryClient();
   const startTask = useStartTask();
-  const stopTask = useStopTask();
 
   const [error, setError] = useState<string | null>(null);
-  const [confirmingStop, setConfirmingStop] = useState(false);
+  const [killingSession, setKillingSession] = useState(false);
+  const [deletingWorktree, setDeletingWorktree] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<RepoConfig | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const priorityColor = PRIORITY_COLORS[task.priority] ?? "bg-neutral-400";
   const hasSession = session !== null;
-  const isLoading = startTask.isPending || stopTask.isPending;
+  const isLoading = startTask.isPending || killingSession || deletingWorktree;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
 
@@ -130,10 +135,10 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
   }, [error]);
 
   useEffect(() => {
-    if (!confirmingStop) return;
-    const timer = setTimeout(() => setConfirmingStop(false), 5000);
+    if (!confirmingDelete) return;
+    const timer = setTimeout(() => setConfirmingDelete(false), 5000);
     return () => clearTimeout(timer);
-  }, [confirmingStop]);
+  }, [confirmingDelete]);
 
   useEffect(() => {
     if (!dropdownOpen) return;
@@ -150,25 +155,48 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownOpen]);
 
-  function handleStop(force?: boolean) {
+  async function handleKillSession() {
+    if (!session) return;
+    setKillingSession(true);
     setError(null);
-    setConfirmingStop(false);
-    stopTask.mutate(
-      {
-        identifier: task.identifier,
-        repoPaths: repos.map((r) => r.path),
-        force,
-      },
-      {
-        onError: (err) => {
-          if (err instanceof DirtyWorktreeError) {
-            setConfirmingStop(true);
-          } else {
-            setError(err instanceof Error ? err.message : String(err));
-          }
-        },
-      },
-    );
+    try {
+      await tmuxKillSession(session.name);
+      queryClient.invalidateQueries({ queryKey: ["tmux"] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setKillingSession(false);
+    }
+  }
+
+  async function handleDeleteWorktree() {
+    if (!worktree || !worktreeRepoPath) return;
+    setDeletingWorktree(true);
+    setConfirmingDelete(false);
+    setError(null);
+    try {
+      // Kill session if it exists
+      if (session) {
+        try {
+          await tmuxKillSession(session.name);
+        } catch {
+          // Session may already be dead
+        }
+      }
+      // Remove worktree and delete branch
+      await worktreeRemove(
+        worktreeRepoPath,
+        worktree.path,
+        worktree.branch,
+        true,
+      );
+      queryClient.invalidateQueries({ queryKey: ["worktrees"] });
+      queryClient.invalidateQueries({ queryKey: ["tmux"] });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingWorktree(false);
+    }
   }
 
   function handleStart(repoPath: string, baseBranch?: string) {
@@ -307,44 +335,6 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
           </button>
         )}
 
-        {/* Stop button */}
-        {hasSession && !confirmingStop && (
-          <button
-            onClick={() => handleStop()}
-            disabled={isLoading}
-            className="flex items-center gap-1 rounded bg-[var(--accent-red)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {stopTask.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <>
-                <Square className="size-3.5" />
-                Stop
-              </>
-            )}
-          </button>
-        )}
-
-        {/* Dirty worktree confirmation */}
-        {confirmingStop && (
-          <span className="flex items-center gap-2 text-xs">
-            <span className="text-[var(--accent-yellow)]">Dirty worktree!</span>
-            <button
-              onClick={() => handleStop(true)}
-              className="text-[var(--accent-red)] hover:opacity-80"
-            >
-              Force
-            </button>
-            <span className="text-[var(--text-muted)]">/</span>
-            <button
-              onClick={() => setConfirmingStop(false)}
-              className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            >
-              Cancel
-            </button>
-          </span>
-        )}
-
         {/* Terminal button */}
         {hasSession && (
           <button
@@ -354,6 +344,55 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
             <Terminal className="size-3.5" />
             Terminal
           </button>
+        )}
+
+        {/* Kill Session button */}
+        {hasSession && !confirmingDelete && (
+          <button
+            onClick={handleKillSession}
+            disabled={isLoading}
+            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
+            title="Kill tmux session (keeps worktree)"
+          >
+            {killingSession ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <X className="size-3.5" />
+            )}
+          </button>
+        )}
+
+        {/* Delete Worktree button */}
+        {worktree && !confirmingDelete && (
+          <button
+            onClick={() => setConfirmingDelete(true)}
+            disabled={isLoading}
+            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
+            title="Delete worktree and branch"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        )}
+
+        {/* Delete confirmation */}
+        {confirmingDelete && (
+          <span className="flex items-center gap-2 text-xs">
+            <span className="text-[var(--text-muted)]">Delete worktree?</span>
+            <button
+              onClick={handleDeleteWorktree}
+              disabled={deletingWorktree}
+              className="text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
+            >
+              {deletingWorktree ? "Deleting..." : "Yes"}
+            </button>
+            <span className="text-[var(--text-muted)]">/</span>
+            <button
+              onClick={() => setConfirmingDelete(false)}
+              className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            >
+              No
+            </button>
+          </span>
         )}
 
         {/* Dropdown for repo/branch selection */}
