@@ -1,5 +1,6 @@
 {
   "terminal": "ghostty",
+  "editor": "zed",
   "repos": [
     {
       "id": "REPO",
@@ -15,5 +16,6 @@
   "github": {
     "owner": "your-org",
     "repos": ["your-repo"]
-  }
+  },
+  "theme": "system"
 }

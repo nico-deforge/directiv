@@ -55,3 +55,36 @@ end tell"#
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn open_editor(
+    app: tauri::AppHandle,
+    editor: String,
+    path: String,
+) -> Result<(), String> {
+    match editor.as_str() {
+        "zed" => {
+            app.shell()
+                .command("zed")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("Failed to open Zed: {e}"))?;
+        }
+        "cursor" => {
+            app.shell()
+                .command("cursor")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("Failed to open Cursor: {e}"))?;
+        }
+        "vscode" | "code" => {
+            app.shell()
+                .command("code")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("Failed to open VS Code: {e}"))?;
+        }
+        _ => return Err(format!("Unknown editor: {editor}")),
+    }
+    Ok(())
+}
