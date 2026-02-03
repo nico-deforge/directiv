@@ -86,6 +86,15 @@ export interface PullRequestReview {
   submittedAt: string;
 }
 
+// --- Orphan Worktrees ---
+
+export interface OrphanWorktree {
+  worktree: WorktreeInfo;
+  repoId: string;
+  repoPath: string;
+  session: TmuxSession | null;
+}
+
 // --- Cleanup ---
 
 export interface StaleWorktree {
