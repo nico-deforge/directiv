@@ -266,7 +266,7 @@ function TaskGroups({
   repos: { id: string; path: string }[];
 }) {
   const visibleTasks = tasks.filter(
-    (t) => !t.isBlocked && !t.status.toLowerCase().includes("block"),
+    (t) => !t.status.toLowerCase().includes("block"),
   );
   const grouped = new Map<string, EnrichedTask[]>();
 
