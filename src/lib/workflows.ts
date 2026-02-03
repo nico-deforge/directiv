@@ -2,9 +2,7 @@ import { linearClient } from "./linear";
 import {
   worktreeCreate,
   worktreeList,
-  worktreeRemove,
   tmuxCreateSession,
-  tmuxKillSession,
   tmuxListSessions,
   tmuxSendKeys,
   openTerminal,
@@ -63,69 +61,6 @@ export async function startTask({
 
   // 5. Update Linear status to "In Progress"
   await updateLinearStatusToStarted(issueId);
-}
-
-interface CheckBeforeStopResult {
-  isDirty: boolean;
-  worktreePath: string | null;
-}
-
-export async function checkBeforeStop({
-  identifier,
-  repoPaths,
-}: {
-  identifier: string;
-  repoPaths: string[];
-}): Promise<CheckBeforeStopResult> {
-  for (const repoPath of repoPaths) {
-    const worktrees = await worktreeList(repoPath);
-    const match = worktrees.find((w) => w.branch === identifier);
-    if (match) {
-      return { isDirty: match.isDirty, worktreePath: match.path };
-    }
-  }
-  return { isDirty: false, worktreePath: null };
-}
-
-interface StopTaskParams {
-  identifier: string;
-  repoPaths: string[];
-}
-
-export async function stopTask({
-  identifier,
-  repoPaths,
-}: StopTaskParams): Promise<void> {
-  // 1. Kill tmux session
-  try {
-    await tmuxKillSession(identifier);
-  } catch {
-    // Session may not exist
-  }
-
-  // 2. Remove worktree (try each repo, only one will have it)
-  // Worktree path follows the convention: {repoParent}/{repoBasename}-{identifier}
-  const errors: string[] = [];
-  let removed = false;
-  for (const repoPath of repoPaths) {
-    const parts = repoPath.split("/");
-    const repoBasename = parts[parts.length - 1];
-    const repoParent = parts.slice(0, -1).join("/");
-    const worktreePath = `${repoParent}/${repoBasename}-${identifier}`;
-    try {
-      await worktreeRemove(repoPath, worktreePath);
-      removed = true;
-      break;
-    } catch (e) {
-      errors.push(`${repoPath}: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-
-  if (!removed && errors.length > 0) {
-    throw new Error(
-      `Failed to remove worktree for ${identifier}:\n${errors.join("\n")}`,
-    );
-  }
 }
 
 interface StartFreeTaskParams {

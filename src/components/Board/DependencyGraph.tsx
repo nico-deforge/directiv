@@ -224,6 +224,7 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
         data: {
           task,
           worktree: wtInfo?.worktree ?? null,
+          worktreeRepoPath: wtInfo?.repoPath ?? null,
           session: sessionByName.get(task.identifier) ?? null,
           pullRequest: pr ?? null,
           repos,
