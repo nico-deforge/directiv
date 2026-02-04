@@ -49,6 +49,10 @@ export function worktreeCheckMerged(
   });
 }
 
+export function gitFetchPrune(repoPath: string): Promise<void> {
+  return invoke<void>("git_fetch_prune", { repoPath });
+}
+
 // --- Tmux commands ---
 
 export function tmuxListSessions(): Promise<TmuxSession[]> {

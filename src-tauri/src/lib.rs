@@ -18,6 +18,7 @@ pub fn run() {
             commands::worktree::worktree_create,
             commands::worktree::worktree_remove,
             commands::worktree::worktree_check_merged,
+            commands::worktree::git_fetch_prune,
             commands::tmux::tmux_list_sessions,
             commands::tmux::tmux_create_session,
             commands::tmux::tmux_kill_session,
