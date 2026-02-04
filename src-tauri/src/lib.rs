@@ -28,6 +28,8 @@ pub fn run() {
             commands::terminal::open_editor,
             commands::hooks::run_hooks,
             commands::config::load_config,
+            commands::skills::list_skills,
+            commands::skills::read_skill_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

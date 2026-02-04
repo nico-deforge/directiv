@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { TmuxSession, WorktreeInfo } from "../types";
+import type { TmuxSession, WorktreeInfo, SkillsResult } from "../types";
 
 // --- Worktree commands ---
 
@@ -97,4 +97,19 @@ export function openTerminal(emulator: string, session: string): Promise<void> {
 
 export function openEditor(editor: string, path: string): Promise<void> {
   return invoke<void>("open_editor", { editor, path });
+}
+
+// --- Skills commands ---
+
+export function listSkills(
+  repoPaths: [string, string][],
+): Promise<SkillsResult> {
+  return invoke<SkillsResult>("list_skills", { repoPaths });
+}
+
+export function readSkillFile(
+  skillPath: string,
+  filename: string,
+): Promise<string> {
+  return invoke<string>("read_skill_file", { skillPath, filename });
 }

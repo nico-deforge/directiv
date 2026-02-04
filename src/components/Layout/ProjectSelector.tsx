@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   Folder,
   FolderOpen,
@@ -11,6 +12,7 @@ import {
   ExternalLink,
   Terminal,
   Plus,
+  Settings,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -130,6 +132,15 @@ export function ProjectSelector({
       <NewWorktreeSection />
       <CleanupSection />
       <OrphanSessionsSection />
+      <div className="shrink-0 border-t border-[var(--border-default)]">
+        <Link
+          to="/config"
+          className="flex w-full items-center justify-center gap-1.5 px-4 py-2 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+        >
+          <Settings className="size-3" />
+          Settings
+        </Link>
+      </div>
     </aside>
   );
 }

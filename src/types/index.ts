@@ -114,6 +114,25 @@ export interface StaleWorktree {
   repoPath: string;
 }
 
+// --- Skills ---
+
+export type SkillSource =
+  | { type: "global" }
+  | { type: "repo"; repoId: string };
+
+export interface SkillInfo {
+  name: string;
+  description: string | null;
+  path: string;
+  source: SkillSource;
+  files: string[];
+}
+
+export interface SkillsResult {
+  globalSkills: SkillInfo[];
+  repoSkills: SkillInfo[];
+}
+
 // --- Config ---
 
 export type TerminalEmulator = "ghostty" | "iterm2" | "terminal" | "alacritty";
