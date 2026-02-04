@@ -153,7 +153,7 @@ export interface LinearConfig {
   activeProject: string | null;
 }
 
-export interface LinairConfig {
+export interface DirectivConfig {
   terminal: TerminalEmulator;
   editor: CodeEditor;
   repos: RepoConfig[];

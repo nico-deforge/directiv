@@ -15,7 +15,7 @@ dist-ssr
 # Environment and config
 .env
 .env.local
-linair.config.json
+directiv.config.json
 
 # Editor directories and files
 .vscode/*

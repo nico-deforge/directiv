@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Linair** (codename "linair") is a unified dev workflow cockpit — a Tauri 2.0 desktop app that orchestrates AI-assisted development by integrating Linear, GitHub, tmux, and git worktrees into a single pipeline board.
+**Directiv** is a unified dev workflow cockpit — a Tauri 2.0 desktop app that orchestrates AI-assisted development by integrating Linear, GitHub, tmux, and git worktrees into a single pipeline board.
 
 The app does NOT emulate a terminal. It delegates to the user's preferred terminal (Ghostty, iTerm2, Terminal.app, Alacritty) and uses tmux for session persistence.
 
@@ -80,7 +80,7 @@ Claude Code starts in interactive mode with `/linear-issue <issue_id>` as the in
 
 ## Configuration
 
-User config lives in `linair.config.json` at project root:
+User config lives in `directiv.config.json` at project root:
 - `terminal`: preferred emulator (ghostty, iterm2, terminal, alacritty)
 - `repos`: list of repos with path and issue prefixes
 - `linear`: team IDs, active project

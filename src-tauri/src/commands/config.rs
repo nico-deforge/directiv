@@ -10,10 +10,10 @@ pub async fn load_config() -> Result<String, String> {
 fn find_config_file() -> Result<PathBuf, String> {
     let cwd = std::env::current_dir().map_err(|e| format!("Cannot get cwd: {e}"))?;
 
-    // Walk up from cwd to find linair.config.json
+    // Walk up from cwd to find directiv.config.json
     let mut dir = cwd.as_path();
     loop {
-        let candidate = dir.join("linair.config.json");
+        let candidate = dir.join("directiv.config.json");
         if candidate.exists() {
             return Ok(candidate);
         }
@@ -23,5 +23,5 @@ fn find_config_file() -> Result<PathBuf, String> {
         }
     }
 
-    Err("linair.config.json not found".into())
+    Err("directiv.config.json not found".into())
 }
