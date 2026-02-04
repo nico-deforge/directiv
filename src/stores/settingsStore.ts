@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { LinairConfig, TerminalEmulator } from "../types";
+import type { DirectivConfig, TerminalEmulator } from "../types";
 import { defaultConfig, loadConfigFromDisk } from "../lib/config";
 
 function getSystemTheme(): "light" | "dark" {
@@ -9,7 +9,7 @@ function getSystemTheme(): "light" | "dark" {
     : "light";
 }
 
-function resolveTheme(theme: LinairConfig["theme"]): "light" | "dark" {
+function resolveTheme(theme: DirectivConfig["theme"]): "light" | "dark" {
   if (theme === "system") {
     return getSystemTheme();
   }
@@ -25,10 +25,10 @@ function applyThemeToDOM(resolvedTheme: "light" | "dark") {
 }
 
 interface SettingsState {
-  config: LinairConfig;
+  config: DirectivConfig;
   isLoaded: boolean;
   resolvedTheme: "light" | "dark";
-  setConfig: (config: LinairConfig) => void;
+  setConfig: (config: DirectivConfig) => void;
   updateTerminal: (terminal: TerminalEmulator) => void;
   loadFromDisk: () => Promise<void>;
 }
@@ -70,7 +70,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         mediaQuery.addEventListener("change", handleChange);
       }
     } catch (err) {
-      console.warn("Failed to load linair.config.json:", err);
+      console.warn("Failed to load directiv.config.json:", err);
       const resolved = resolveTheme(defaultConfig.theme);
       applyThemeToDOM(resolved);
       set({ isLoaded: true, resolvedTheme: resolved });

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { LinairConfig } from "../types";
+import type { DirectivConfig } from "../types";
 
-export const defaultConfig: LinairConfig = {
+export const defaultConfig: DirectivConfig = {
   terminal: "ghostty",
   editor: "zed",
   repos: [],
@@ -12,13 +12,13 @@ export const defaultConfig: LinairConfig = {
   theme: "dark",
 };
 
-export async function loadConfigFromDisk(): Promise<LinairConfig> {
+export async function loadConfigFromDisk(): Promise<DirectivConfig> {
   const raw = await invoke<string>("load_config");
-  const parsed = JSON.parse(raw) as Partial<LinairConfig>;
+  const parsed = JSON.parse(raw) as Partial<DirectivConfig>;
   return validateConfig(parsed);
 }
 
-export function validateConfig(config: Partial<LinairConfig>): LinairConfig {
+export function validateConfig(config: Partial<DirectivConfig>): DirectivConfig {
   return {
     terminal: config.terminal ?? defaultConfig.terminal,
     editor: config.editor ?? defaultConfig.editor,

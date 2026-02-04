@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "linair",
+  "productName": "directiv",
   "version": "0.1.0",
-  "identifier": "com.linair.app",
+  "identifier": "com.directiv.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Linair",
+        "title": "Directiv",
         "width": 800,
         "height": 600,
         "resizable": true,

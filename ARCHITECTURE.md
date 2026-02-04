@@ -1,4 +1,4 @@
-# Linair - Dev Workflow Cockpit
+# Directiv - Dev Workflow Cockpit
 
 ## Vision
 
@@ -69,7 +69,7 @@ pilot/
 │   └── types/
 │       └── index.ts
 ├── package.json
-└── linair.config.json                # Config utilisateur (repos, terminal, teams)
+└── directiv.config.json              # Config utilisateur (repos, terminal, teams)
 ```
 
 ---
@@ -102,19 +102,19 @@ pilot/
 | `list-sessions` | Afficher sessions actives |
 | `new-session` | Créer session pour une tâche |
 | `send-keys` | Lancer `claude` dans la session |
-| `capture-pane` | Afficher les logs dans Linair |
+| `capture-pane` | Afficher les logs dans Directiv |
 | `kill-session` | Nettoyer après merge |
 
 ### Terminal externe
 
-Linair ne fait **pas** d'émulation de terminal. Il délègue à ton terminal préféré :
+Directiv ne fait **pas** d'émulation de terminal. Il délègue à ton terminal préféré :
 
 | Action | Comportement |
 |--------|--------------|
 | **[Attach]** | Ouvre Ghostty (ou autre) attaché à la session tmux |
-| **[Logs]** | Affiche `capture-pane` dans une modal Linair |
+| **[Logs]** | Affiche `capture-pane` dans une modal Directiv |
 
-Configuration du terminal dans `linair.config.json` (Ghostty, iTerm2, Terminal.app, Alacritty).
+Configuration du terminal dans `directiv.config.json` (Ghostty, iTerm2, Terminal.app, Alacritty).
 
 ---
 
@@ -131,7 +131,7 @@ Configuration du terminal dans `linair.config.json` (Ghostty, iTerm2, Terminal.a
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  🎯 Linair                                    [Settings] [Refresh] [+ Task]  │
+│  🎯 Directiv                                  [Settings] [Refresh] [+ Task]  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐     │
@@ -194,7 +194,7 @@ Claude Code est lancé en mode interactif avec `/linear-issue <issue_id>` comme 
 
 ## Configuration utilisateur
 
-Fichier `linair.config.json` :
+Fichier `directiv.config.json` :
 
 | Section | Contenu |
 |---------|---------|
