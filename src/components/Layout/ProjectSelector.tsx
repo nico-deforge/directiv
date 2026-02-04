@@ -10,6 +10,7 @@ import {
   X,
   ExternalLink,
   Terminal,
+  Plus,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -31,6 +32,7 @@ import type {
   TmuxSession,
 } from "../../types";
 import { useGitHubReviewRequests } from "../../hooks/useGitHub";
+import { useStartFreeTask } from "../../hooks/useStartTask";
 
 interface ProjectSelectorProps {
   projects: Project[];
@@ -124,9 +126,130 @@ export function ProjectSelector({
         )}
       </div>
       <ReviewRequestsSection />
-      <OrphanSessionsSection />
+      <NewWorktreeSection />
       <CleanupSection />
+      <OrphanSessionsSection />
     </aside>
+  );
+}
+
+function NewWorktreeSection() {
+  const repos = useSettingsStore((s) => s.config.repos);
+  const terminal = useSettingsStore((s) => s.config.terminal);
+  const startFreeTask = useStartFreeTask();
+
+  const [showForm, setShowForm] = useState(false);
+  const [branchName, setBranchName] = useState("");
+  const [selectedRepoIndex, setSelectedRepoIndex] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+
+  const isValidBranchName = (name: string) =>
+    /^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(name);
+
+  const canCreate =
+    branchName.trim().length > 0 &&
+    isValidBranchName(branchName.trim()) &&
+    !startFreeTask.isPending;
+
+  async function handleCreate() {
+    const repo = repos[selectedRepoIndex];
+    startFreeTask.mutate(
+      {
+        branchName: branchName.trim(),
+        repoPath: repo.path,
+        terminal,
+        copyPaths: repo.copyPaths,
+        onStart: repo.onStart,
+        baseBranch: repo.baseBranch,
+        fetchBefore: repo.fetchBefore,
+      },
+      {
+        onSuccess: () => {
+          setShowForm(false);
+          setBranchName("");
+          setError(null);
+        },
+        onError: (err) => {
+          setError(err instanceof Error ? err.message : String(err));
+        },
+      },
+    );
+  }
+
+  if (repos.length === 0) return null;
+
+  return (
+    <div className="shrink-0 border-t border-[var(--border-default)]">
+      {showForm ? (
+        <div className="p-2">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
+              New worktree
+            </span>
+            <button
+              onClick={() => {
+                setShowForm(false);
+                setError(null);
+              }}
+              className="rounded p-0.5 hover:bg-[var(--bg-elevated)]"
+            >
+              <X className="size-3 text-[var(--text-muted)]" />
+            </button>
+          </div>
+          {repos.length > 1 && (
+            <select
+              value={selectedRepoIndex}
+              onChange={(e) => setSelectedRepoIndex(Number(e.target.value))}
+              className="mb-2 w-full rounded border border-[var(--border-default)] bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)]"
+            >
+              {repos.map((repo, idx) => (
+                <option key={repo.id} value={idx}>
+                  {repo.id}
+                </option>
+              ))}
+            </select>
+          )}
+          <input
+            type="text"
+            value={branchName}
+            onChange={(e) => setBranchName(e.target.value)}
+            placeholder="branch-name"
+            className="mb-2 w-full rounded border border-[var(--border-default)] bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && canCreate) {
+                handleCreate();
+              }
+            }}
+            autoFocus
+          />
+          <button
+            onClick={handleCreate}
+            disabled={!canCreate}
+            className="w-full rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30 disabled:opacity-50"
+          >
+            {startFreeTask.isPending ? (
+              <span className="flex items-center justify-center gap-1.5">
+                <Loader2 className="size-3 animate-spin" />
+                Creating...
+              </span>
+            ) : (
+              "Create & Open"
+            )}
+          </button>
+          {error && (
+            <p className="mt-1 text-xs text-[var(--accent-red)]">{error}</p>
+          )}
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowForm(true)}
+          className="flex w-full items-center justify-center gap-1.5 px-4 py-2 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+        >
+          <Plus className="size-3" />
+          New worktree
+        </button>
+      )}
+    </div>
   );
 }
 
