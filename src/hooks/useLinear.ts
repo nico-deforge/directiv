@@ -40,6 +40,7 @@ export function useLinearMyTasks(teamId: string | undefined) {
                 identifier: blockingIssue.identifier,
                 title: blockingIssue.title,
                 url: blockingIssue.url,
+                relationId: relation.id,
               };
             }),
           ).then((results) =>
@@ -133,6 +134,7 @@ export function useLinearAllMyTasks(teamIds: string[]) {
                 identifier: blockingIssue.identifier,
                 title: blockingIssue.title,
                 url: blockingIssue.url,
+                relationId: relation.id,
               };
             }),
           ).then((results) =>

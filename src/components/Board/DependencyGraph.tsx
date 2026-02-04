@@ -1,10 +1,13 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ReactFlow,
   useNodesState,
   useEdgesState,
+  ConnectionMode,
   type Node,
   type Edge,
+  type Connection,
+  type EdgeMouseHandler,
   MarkerType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -13,6 +16,10 @@ import { useLinearAllMyTasks } from "../../hooks/useLinear";
 import { useTmuxSessions } from "../../hooks/useTmux";
 import { useGitHubMyOpenPRs } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
+import {
+  useCreateBlockedBy,
+  useDeleteBlockedBy,
+} from "../../hooks/useBlockedByMutations";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
   useProjectStore,
@@ -21,6 +28,7 @@ import {
 } from "../../stores/projectStore";
 import { UnifiedTaskCard, type UnifiedTaskNodeData } from "./UnifiedTaskCard";
 import { OrphanTaskCard, type OrphanTaskNodeData } from "./OrphanTaskCard";
+import { ConfirmDialog } from "../ConfirmDialog";
 import {
   calculatePositions,
   calculateEdges,
@@ -35,6 +43,10 @@ import type {
   WorktreeInfo,
   OrphanWorktree,
 } from "../../types";
+
+interface EdgeWithRelation extends Edge {
+  data?: { relationId: string; targetIssueId: string };
+}
 
 const nodeTypes = {
   unifiedTask: UnifiedTaskCard,
@@ -57,6 +69,13 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
   const { data: sessions } = useTmuxSessions();
   const { data: prs } = useGitHubMyOpenPRs();
   const { data: allWorktrees } = useAllWorktrees(repos);
+
+  const createBlockedBy = useCreateBlockedBy();
+  const deleteBlockedBy = useDeleteBlockedBy();
+
+  const [edgeToDelete, setEdgeToDelete] = useState<EdgeWithRelation | null>(
+    null,
+  );
 
   // Build lookup maps
   const sessionByName = useMemo(() => {
@@ -237,12 +256,13 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
     const edgeData = calculateEdges(filteredTasks);
     // Use static amber color that matches our accent
     const edgeColor = resolvedTheme === "dark" ? "#f59e0b" : "#d97706";
-    const taskEdges: Edge[] = edgeData.map((e, index) => ({
+    const taskEdges: EdgeWithRelation[] = edgeData.map((e, index) => ({
       id: `edge-${index}`,
       source: e.source,
       target: e.target,
+      data: { relationId: e.relationId, targetIssueId: e.target },
       type: "smoothstep",
-      style: { stroke: edgeColor, strokeWidth: 2 },
+      style: { stroke: edgeColor, strokeWidth: 2, cursor: "pointer" },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: edgeColor,
@@ -269,24 +289,88 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
     setEdges(nextEdges);
   }, [nextNodes, nextEdges, setNodes, setEdges]);
 
+  // Build task lookup for optimistic updates
+  const taskById = useMemo(() => {
+    const map = new Map<string, (typeof filteredTasks)[0]>();
+    for (const task of filteredTasks) {
+      map.set(task.id, task);
+    }
+    return map;
+  }, [filteredTasks]);
+
+  // Handle new connections (create blocked-by relation)
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      // Prevent self-connection
+      if (connection.source === connection.target) return;
+
+      const blockerTask = taskById.get(connection.source);
+      if (!blockerTask) return;
+
+      // source = blocker, target = blocked
+      createBlockedBy.mutate({
+        blockerIssueId: connection.source,
+        targetIssueId: connection.target,
+        blockerInfo: {
+          id: blockerTask.id,
+          identifier: blockerTask.identifier,
+          title: blockerTask.title,
+          url: blockerTask.url,
+        },
+      });
+    },
+    [createBlockedBy, taskById],
+  );
+
+  // Handle edge click (delete blocked-by relation with confirmation)
+  const onEdgeClick: EdgeMouseHandler = useCallback((_event, edge) => {
+    setEdgeToDelete(edge as EdgeWithRelation);
+  }, []);
+
+  const confirmDeleteEdge = useCallback(() => {
+    if (!edgeToDelete?.data?.relationId || !edgeToDelete?.data?.targetIssueId)
+      return;
+    // Close dialog immediately (optimistic)
+    setEdgeToDelete(null);
+    deleteBlockedBy.mutate({
+      relationId: edgeToDelete.data.relationId,
+      targetIssueId: edgeToDelete.data.targetIssueId,
+    });
+  }, [edgeToDelete, deleteBlockedBy]);
+
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      nodeTypes={nodeTypes}
-      defaultEdgeOptions={{
-        type: "smoothstep",
-      }}
-      colorMode={resolvedTheme}
-      fitView
-      fitViewOptions={{ padding: 0.1, minZoom: 0.8, maxZoom: 1.2 }}
-      proOptions={{ hideAttribution: true }}
-      panOnScroll
-      zoomOnDoubleClick={false}
-      minZoom={0.3}
-      maxZoom={1.5}
-    />
+    <>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onEdgeClick={onEdgeClick}
+        nodeTypes={nodeTypes}
+        connectionMode={ConnectionMode.Loose}
+        defaultEdgeOptions={{
+          type: "smoothstep",
+        }}
+        colorMode={resolvedTheme}
+        fitView
+        fitViewOptions={{ padding: 0.1, minZoom: 0.8, maxZoom: 1.2 }}
+        proOptions={{ hideAttribution: true }}
+        panOnScroll
+        zoomOnDoubleClick={false}
+        minZoom={0.3}
+        maxZoom={1.5}
+      />
+      {edgeToDelete && (
+        <ConfirmDialog
+          title="Remove blocking link?"
+          message="Remove the 'blocks' relationship between these issues?"
+          confirmLabel="Remove"
+          onConfirm={confirmDeleteEdge}
+          onCancel={() => setEdgeToDelete(null)}
+        />
+      )}
+    </>
   );
 }

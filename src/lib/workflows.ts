@@ -1,3 +1,4 @@
+import { IssueRelationType } from "@linear/sdk";
 import { linearClient } from "./linear";
 import {
   worktreeCreate,
@@ -131,4 +132,23 @@ async function updateLinearStatusToStarted(issueId: string): Promise<void> {
   }
 
   await linearClient.updateIssue(issueId, { stateId: startedState.id });
+}
+
+export async function createBlockedByRelation(
+  targetIssueId: string,
+  blockerIssueId: string,
+): Promise<void> {
+  if (!linearClient) throw new Error("Linear client not initialized");
+  await linearClient.createIssueRelation({
+    issueId: blockerIssueId,
+    relatedIssueId: targetIssueId,
+    type: IssueRelationType.Blocks,
+  });
+}
+
+export async function deleteBlockedByRelation(
+  relationId: string,
+): Promise<void> {
+  if (!linearClient) throw new Error("Linear client not initialized");
+  await linearClient.deleteIssueRelation(relationId);
 }
