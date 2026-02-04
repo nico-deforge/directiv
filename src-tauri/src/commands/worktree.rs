@@ -526,6 +526,27 @@ pub async fn worktree_remove(
     Ok(())
 }
 
+/// Fetch and prune remote tracking branches
+#[tauri::command]
+pub async fn git_fetch_prune(app: tauri::AppHandle, repo_path: String) -> Result<(), String> {
+    let output = app
+        .shell()
+        .command("git")
+        .args(["-C", &repo_path, "fetch", "--prune", "origin"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run git fetch --prune: {e}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "git fetch --prune failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn worktree_check_merged(
     app: tauri::AppHandle,
@@ -533,6 +554,23 @@ pub async fn worktree_check_merged(
     branch: String,
     base_branch: Option<String>,
 ) -> Result<bool, String> {
+    // Method 1: Check if the remote tracking branch has been deleted
+    // This handles squash-and-merge workflows where the commit hash changes
+    let remote_branch = format!("origin/{}", branch);
+    let remote_check = app
+        .shell()
+        .command("git")
+        .args(["-C", &repo_path, "rev-parse", "--verify", &remote_branch])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run git: {e}"))?;
+
+    // If remote branch doesn't exist, it was likely deleted after merge
+    if !remote_check.status.success() {
+        return Ok(true);
+    }
+
+    // Method 2: Fallback to merge-base check for regular merges
     let base = match base_branch {
         Some(ref b) if !b.is_empty() => b.clone(),
         _ => {

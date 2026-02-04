@@ -25,6 +25,7 @@ import {
   worktreeRemove,
   tmuxKillSession,
   tmuxListSessions,
+  gitFetchPrune,
 } from "../../lib/tauri";
 import type {
   StaleWorktree,
@@ -474,6 +475,13 @@ function CleanupSection() {
       const stale: StaleWorktree[] = [];
 
       for (const repo of repos) {
+        // Fetch and prune to detect deleted remote branches (merged PRs)
+        try {
+          await gitFetchPrune(repo.path);
+        } catch {
+          // Continue even if fetch fails (e.g., offline)
+        }
+
         const worktrees = await worktreeList(repo.path);
         // Skip the main worktree (first entry)
         for (const wt of worktrees.slice(1)) {
