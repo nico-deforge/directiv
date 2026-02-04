@@ -1,5 +1,20 @@
 import { Octokit } from "@octokit/rest";
+import { getGitHubToken } from "./tauri";
 
-const token = import.meta.env.VITE_GITHUB_TOKEN as string | undefined;
+let cachedOctokit: Octokit | null = null;
+let tokenFetchFailed = false;
 
-export const octokit = token ? new Octokit({ auth: token }) : null;
+export async function getOctokit(): Promise<Octokit | null> {
+  if (cachedOctokit) return cachedOctokit;
+  if (tokenFetchFailed) return null;
+
+  try {
+    const token = await getGitHubToken();
+    cachedOctokit = new Octokit({ auth: token });
+    return cachedOctokit;
+  } catch (error) {
+    console.warn("GitHub CLI auth not available:", error);
+    tokenFetchFailed = true;
+    return null;
+  }
+}

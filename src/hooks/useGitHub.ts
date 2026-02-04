@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { octokit } from "../lib/github";
+import { getOctokit } from "../lib/github";
 import type { PullRequestInfo, ReviewRequestedPR } from "../types";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
 
@@ -59,6 +59,7 @@ export function useGitHubMyOpenPRs() {
   return useQuery<PullRequestInfo[]>({
     queryKey: ["github", "my-open-prs"],
     queryFn: async () => {
+      const octokit = await getOctokit();
       if (!octokit) return [];
       const data = await octokit.graphql<ViewerPRsResponse>(QUERY);
       return data.viewer.pullRequests.nodes.map(
@@ -80,7 +81,6 @@ export function useGitHubMyOpenPRs() {
         }),
       );
     },
-    enabled: !!octokit,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }
@@ -127,6 +127,7 @@ export function useGitHubReviewRequests() {
   return useQuery<ReviewRequestedPR[]>({
     queryKey: ["github", "review-requests"],
     queryFn: async () => {
+      const octokit = await getOctokit();
       if (!octokit) return [];
       const data = await octokit.graphql<ReviewRequestsResponse>(
         REVIEW_REQUESTS_QUERY,
@@ -146,7 +147,6 @@ export function useGitHubReviewRequests() {
           }),
         );
     },
-    enabled: !!octokit,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }

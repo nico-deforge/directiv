@@ -94,3 +94,9 @@ export function openTerminal(emulator: string, session: string): Promise<void> {
 export function openEditor(editor: string, path: string): Promise<void> {
   return invoke<void>("open_editor", { editor, path });
 }
+
+// --- GitHub commands ---
+
+export function getGitHubToken(): Promise<string> {
+  return invoke<string>("get_github_token");
+}
