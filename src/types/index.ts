@@ -23,6 +23,7 @@ export interface BlockingIssue {
   identifier: string;
   title: string;
   url: string;
+  relationId: string;
 }
 
 export interface EnrichedTask {
