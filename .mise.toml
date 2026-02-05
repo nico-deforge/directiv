@@ -1,0 +1,8 @@
+[tools]
+bun = "latest"
+rust = "1.93"
+github-cli = "latest"
+
+[env]
+# Load .env file if it exists
+_.file = ".env"
