@@ -82,14 +82,13 @@ function getWorkflowStatus(
     return session ? "in-dev" : "todo";
   }
 
-  // Has PR - check review status
-  const hasApproval = pr.reviews.some((r) => r.state === "APPROVED");
-  const hasChangesRequested = pr.reviews.some(
-    (r) => r.state === "CHANGES_REQUESTED",
-  );
-
-  if (hasApproval && !hasChangesRequested) {
+  // Use GitHub's reviewDecision as source of truth
+  if (pr.reviewDecision === "APPROVED") {
     return "to-deploy";
+  }
+
+  if (pr.reviewDecision === "CHANGES_REQUESTED") {
+    return "in-dev"; // Back to dev to address changes
   }
 
   // Check if PR has reviewers requested or has reviews

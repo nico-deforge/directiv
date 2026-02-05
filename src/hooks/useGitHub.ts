@@ -17,6 +17,7 @@ interface ViewerPRNode {
   headRefName: string;
   createdAt: string;
   updatedAt: string;
+  reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
   reviewRequests: { totalCount: number };
   latestReviews: { nodes: ReviewNode[] };
 }
@@ -41,6 +42,7 @@ const QUERY = `
           headRefName
           createdAt
           updatedAt
+          reviewDecision
           reviewRequests { totalCount }
           latestReviews(first: 10) {
             nodes {
@@ -69,6 +71,7 @@ export function useGitHubMyOpenPRs() {
           url: pr.url,
           branch: pr.headRefName,
           draft: pr.isDraft,
+          reviewDecision: pr.reviewDecision,
           requestedReviewerCount: pr.reviewRequests.totalCount,
           reviews: pr.latestReviews.nodes.map((r) => ({
             author: r.author?.login ?? "unknown",
