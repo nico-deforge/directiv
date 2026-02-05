@@ -74,6 +74,7 @@ export interface PullRequestInfo {
   url: string;
   branch: string;
   draft: boolean;
+  reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
   requestedReviewerCount: number;
   reviews: PullRequestReview[];
   createdAt: string;
