@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { Node, NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import {
@@ -109,13 +109,26 @@ export type UnifiedTaskNodeData = {
   session: TmuxSession | null;
   pullRequest: PullRequestInfo | null;
   repos: RepoConfig[];
+  onDragStart?: (nodeId: string, e: React.MouseEvent) => void;
+  isBeingTargeted?: boolean;
 };
 
 export type UnifiedTaskNodeType = Node<UnifiedTaskNodeData, "unifiedTask">;
 
-export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
-  const { task, worktree, worktreeRepoPath, session, pullRequest, repos } =
-    data;
+export function UnifiedTaskCard({
+  id,
+  data,
+}: NodeProps<UnifiedTaskNodeType>) {
+  const {
+    task,
+    worktree,
+    worktreeRepoPath,
+    session,
+    pullRequest,
+    repos,
+    onDragStart,
+    isBeingTargeted,
+  } = data;
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
   const queryClient = useQueryClient();
@@ -247,18 +260,46 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.closest("button") ||
+        target.closest("a") ||
+        target.closest('[role="menu"]') ||
+        target.closest('[role="listbox"]') ||
+        target.closest("input")
+      ) {
+        return;
+      }
+      e.preventDefault();
+      onDragStart?.(id, e);
+    },
+    [id, onDragStart],
+  );
+
   return (
-    <div className="nodrag nopan w-[380px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-lg relative">
-      {/* ReactFlow handles for edges */}
+    <div
+      className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative cursor-grab active:cursor-grabbing ${
+        isBeingTargeted
+          ? "border-[var(--accent-amber)] ring-2 ring-[var(--accent-amber)]"
+          : "border-[var(--border-default)]"
+      }`}
+      onMouseDown={handleMouseDown}
+    >
+      {/* Hidden target handle for edge connections */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!bg-[var(--accent-amber)]/60 !w-2 !h-2 !border-0"
+        className="!opacity-0 !pointer-events-none"
       />
+      {/* Visual drag handle indicator - non-interactive, drag is handled by card body */}
+      <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[var(--accent-amber)] border-2 border-[var(--bg-tertiary)] hover:scale-125 transition-transform" />
+      {/* Hidden source handle for edge connections */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!bg-[var(--accent-amber)]/60 !w-2 !h-2 !border-0"
+        className="!opacity-0 !pointer-events-none"
       />
 
       {/* Header: Task info with workflow status */}

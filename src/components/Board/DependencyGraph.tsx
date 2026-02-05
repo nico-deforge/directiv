@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
   ReactFlow,
+  ReactFlowProvider,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   ConnectionMode,
   type Node,
   type Edge,
@@ -28,7 +31,7 @@ import {
 } from "../../stores/projectStore";
 import { UnifiedTaskCard, type UnifiedTaskNodeData } from "./UnifiedTaskCard";
 import { OrphanTaskCard, type OrphanTaskNodeData } from "./OrphanTaskCard";
-import { ConfirmDialog } from "../ConfirmDialog";
+import { DragConnectionLine } from "./DragConnectionLine";
 import {
   calculatePositions,
   calculateEdges,
@@ -45,7 +48,19 @@ import type {
 } from "../../types";
 
 interface EdgeWithRelation extends Edge {
-  data?: { relationId: string; targetIssueId: string };
+  data?: {
+    relationId: string;
+    targetIssueId: string;
+    sourceIdentifier: string;
+    targetIdentifier: string;
+  };
+}
+
+interface DragState {
+  sourceNodeId: string;
+  sourcePosition: { x: number; y: number };
+  currentPosition: { x: number; y: number };
+  targetNodeId: string | null;
 }
 
 const nodeTypes = {
@@ -57,7 +72,15 @@ interface DependencyGraphProps {
   onProjectsChange: (projects: Project[], hasOrphans: boolean) => void;
 }
 
-export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
+export function DependencyGraph(props: DependencyGraphProps) {
+  return (
+    <ReactFlowProvider>
+      <DependencyGraphInner {...props} />
+    </ReactFlowProvider>
+  );
+}
+
+function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
   const config = useSettingsStore((s) => s.config);
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
   const teamIds = config.linear.teamIds;
@@ -73,9 +96,15 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
   const createBlockedBy = useCreateBlockedBy();
   const deleteBlockedBy = useDeleteBlockedBy();
 
-  const [edgeToDelete, setEdgeToDelete] = useState<EdgeWithRelation | null>(
-    null,
-  );
+  const [deleteMenu, setDeleteMenu] = useState<{
+    x: number;
+    y: number;
+    edges: EdgeWithRelation[];
+  } | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+
+  const { screenToFlowPosition, getIntersectingNodes } = useReactFlow();
 
   // Build lookup maps
   const sessionByName = useMemo(() => {
@@ -254,18 +283,28 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
 
     // Calculate edges for blocking relationships
     const edgeData = calculateEdges(filteredTasks);
+    // Build identifier lookup
+    const identifierById = new Map(filteredTasks.map((t) => [t.id, t.identifier]));
     // Use static amber color that matches our accent
     const edgeColor = resolvedTheme === "dark" ? "#f59e0b" : "#d97706";
-    const taskEdges: EdgeWithRelation[] = edgeData.map((e, index) => ({
-      id: `edge-${index}`,
+    const taskEdges: EdgeWithRelation[] = edgeData.map((e) => ({
+      id: e.relationId,
       source: e.source,
       target: e.target,
-      data: { relationId: e.relationId, targetIssueId: e.target },
+      data: {
+        relationId: e.relationId,
+        targetIssueId: e.target,
+        sourceIdentifier: identifierById.get(e.source) ?? "?",
+        targetIdentifier: identifierById.get(e.target) ?? "?",
+      },
       type: "smoothstep",
-      style: { stroke: edgeColor, strokeWidth: 2, cursor: "pointer" },
+      interactionWidth: 40, // Large clickable area
+      style: { stroke: edgeColor, strokeWidth: 3, cursor: "pointer" },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: edgeColor,
+        width: 20,
+        height: 20,
       },
     }));
 
@@ -286,8 +325,31 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
 
   useEffect(() => {
     setNodes(nextNodes);
-    setEdges(nextEdges);
-  }, [nextNodes, nextEdges, setNodes, setEdges]);
+  }, [nextNodes, setNodes]);
+
+  // Update edges with highlight for hovered edge
+  useEffect(() => {
+    const edgeColor = resolvedTheme === "dark" ? "#f59e0b" : "#d97706";
+    const highlightColor = "#ef4444"; // red-500
+
+    setEdges(
+      nextEdges.map((edge) => ({
+        ...edge,
+        style: {
+          ...edge.style,
+          stroke: edge.id === hoveredEdgeId ? highlightColor : edgeColor,
+          strokeWidth: edge.id === hoveredEdgeId ? 5 : 3,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: edge.id === hoveredEdgeId ? highlightColor : edgeColor,
+          width: 20,
+          height: 20,
+        },
+        animated: edge.id === hoveredEdgeId,
+      })),
+    );
+  }, [nextEdges, setEdges, hoveredEdgeId, resolvedTheme]);
 
   // Build task lookup for optimistic updates
   const taskById = useMemo(() => {
@@ -323,26 +385,188 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
     [createBlockedBy, taskById],
   );
 
-  // Handle edge click (delete blocked-by relation with confirmation)
-  const onEdgeClick: EdgeMouseHandler = useCallback((_event, edge) => {
-    setEdgeToDelete(edge as EdgeWithRelation);
-  }, []);
+  // Handle edge click - show menu for all edges at click location
+  const onEdgeClick: EdgeMouseHandler = useCallback(
+    (event, edge) => {
+      const clickedEdge = edge as EdgeWithRelation;
 
-  const confirmDeleteEdge = useCallback(() => {
-    if (!edgeToDelete?.data?.relationId || !edgeToDelete?.data?.targetIssueId)
-      return;
-    // Close dialog immediately (optimistic)
-    setEdgeToDelete(null);
-    deleteBlockedBy.mutate({
-      relationId: edgeToDelete.data.relationId,
-      targetIssueId: edgeToDelete.data.targetIssueId,
+      // Use document.elementsFromPoint to find all edge elements at click location
+      const elementsAtPoint = document.elementsFromPoint(event.clientX, event.clientY);
+
+      // Find all edge IDs at this point
+      const edgeIdsAtPoint = new Set<string>();
+      for (const el of elementsAtPoint) {
+        // ReactFlow edge interaction zones have this class
+        if (el.classList.contains('react-flow__edge-interaction')) {
+          const edgeGroup = el.closest('.react-flow__edge');
+          if (edgeGroup) {
+            const edgeId = edgeGroup.getAttribute('data-id');
+            if (edgeId) {
+              edgeIdsAtPoint.add(edgeId);
+            }
+          }
+        }
+      }
+
+      // Always include the clicked edge as fallback
+      edgeIdsAtPoint.add(clickedEdge.id);
+
+      // Get full edge objects from the edges array
+      const edgesAtPoint = edges.filter(
+        (e) => edgeIdsAtPoint.has(e.id)
+      ) as EdgeWithRelation[];
+
+      setDeleteMenu({
+        x: event.clientX,
+        y: event.clientY,
+        edges: edgesAtPoint.length > 0 ? edgesAtPoint : [clickedEdge],
+      });
+    },
+    [edges],
+  );
+
+  const handleDeleteEdge = useCallback(
+    (edge: EdgeWithRelation) => {
+      if (!edge.data?.relationId || !edge.data?.targetIssueId) return;
+      // Prevent deleting temporary edges (created optimistically, not yet synced)
+      if (edge.data.relationId.startsWith("temp-")) {
+        toast.error("Please wait for the link to sync before deleting");
+        setDeleteMenu(null);
+        return;
+      }
+      setDeleteMenu(null);
+      setHoveredEdgeId(null);
+      deleteBlockedBy.mutate({
+        relationId: edge.data.relationId,
+        targetIssueId: edge.data.targetIssueId,
+      });
+    },
+    [deleteBlockedBy],
+  );
+
+  // Handle card drag start for creating dependencies
+  const handleCardDragStart = useCallback(
+    (nodeId: string, e: React.MouseEvent) => {
+      // Disable drag in orphan view
+      if (selectedProjectId === ORPHAN_PROJECT_ID) return;
+
+      const sourceNode = nodes.find((n) => n.id === nodeId);
+      if (!sourceNode) return;
+
+      // Get center-bottom of the source node for the connection start point
+      const sourceX = sourceNode.position.x + CARD_WIDTH / 2;
+      const sourceY = sourceNode.position.y + CARD_HEIGHT;
+
+      const flowPosition = screenToFlowPosition({
+        x: e.clientX,
+        y: e.clientY,
+      });
+
+      setDragState({
+        sourceNodeId: nodeId,
+        sourcePosition: { x: sourceX, y: sourceY },
+        currentPosition: flowPosition,
+        targetNodeId: null,
+      });
+    },
+    [nodes, screenToFlowPosition, selectedProjectId],
+  );
+
+  // Handle mouse move during drag
+  useEffect(() => {
+    if (!dragState) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const flowPosition = screenToFlowPosition({
+        x: e.clientX,
+        y: e.clientY,
+      });
+
+      // Find intersecting nodes at cursor position
+      const intersecting = getIntersectingNodes({
+        x: flowPosition.x,
+        y: flowPosition.y,
+        width: 1,
+        height: 1,
+      });
+
+      // Filter out source node and find valid target
+      const validTarget = intersecting.find(
+        (n) => n.id !== dragState.sourceNodeId && n.type === "unifiedTask",
+      );
+
+      setDragState((prev) =>
+        prev
+          ? {
+              ...prev,
+              currentPosition: flowPosition,
+              targetNodeId: validTarget?.id ?? null,
+            }
+          : null,
+      );
+    };
+
+    const handleMouseUp = () => {
+      if (dragState.targetNodeId) {
+        const blockerTask = taskById.get(dragState.sourceNodeId);
+        if (blockerTask) {
+          createBlockedBy.mutate({
+            blockerIssueId: dragState.sourceNodeId,
+            targetIssueId: dragState.targetNodeId,
+            blockerInfo: {
+              id: blockerTask.id,
+              identifier: blockerTask.identifier,
+              title: blockerTask.title,
+              url: blockerTask.url,
+            },
+          });
+        }
+      }
+      setDragState(null);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDragState(null);
+      }
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    dragState,
+    screenToFlowPosition,
+    getIntersectingNodes,
+    taskById,
+    createBlockedBy,
+  ]);
+
+  // Build nodes with drag handlers
+  const nodesWithDragHandlers = useMemo(() => {
+    return nodes.map((node) => {
+      if (node.type !== "unifiedTask") return node;
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          onDragStart: handleCardDragStart,
+          isBeingTargeted: dragState?.targetNodeId === node.id,
+        },
+      };
     });
-  }, [edgeToDelete, deleteBlockedBy]);
+  }, [nodes, handleCardDragStart, dragState?.targetNodeId]);
 
   return (
     <>
       <ReactFlow
-        nodes={nodes}
+        nodes={nodesWithDragHandlers}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
@@ -361,15 +585,56 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
         zoomOnDoubleClick={false}
         minZoom={0.3}
         maxZoom={1.5}
-      />
-      {edgeToDelete && (
-        <ConfirmDialog
-          title="Remove blocking link?"
-          message="Remove the 'blocks' relationship between these issues?"
-          confirmLabel="Remove"
-          onConfirm={confirmDeleteEdge}
-          onCancel={() => setEdgeToDelete(null)}
-        />
+      >
+        {dragState && (
+          <DragConnectionLine
+            fromX={dragState.sourcePosition.x}
+            fromY={dragState.sourcePosition.y}
+            toX={dragState.currentPosition.x}
+            toY={dragState.currentPosition.y}
+            hasValidTarget={dragState.targetNodeId !== null}
+          />
+        )}
+      </ReactFlow>
+      {deleteMenu && (
+        <>
+          {/* Backdrop to close menu */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => {
+              setDeleteMenu(null);
+              setHoveredEdgeId(null);
+            }}
+          />
+          {/* Dropdown menu */}
+          <div
+            className="fixed z-50 overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-xl"
+            style={{ left: deleteMenu.x, top: deleteMenu.y }}
+          >
+            <div className="border-b border-[var(--border-default)] bg-[var(--bg-secondary)] px-3 py-2 text-xs font-medium text-[var(--text-muted)]">
+              {deleteMenu.edges.length > 1 ? "Which link to remove?" : "Remove link"}
+            </div>
+            <div className="py-1">
+              {deleteMenu.edges.map((edge) => (
+                <button
+                  key={edge.id}
+                  onClick={() => handleDeleteEdge(edge)}
+                  onMouseEnter={() => setHoveredEdgeId(edge.id)}
+                  onMouseLeave={() => setHoveredEdgeId(null)}
+                  className="group flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--accent-red)]/10"
+                >
+                  <span className="rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 font-mono text-xs font-medium text-[var(--text-primary)] group-hover:bg-[var(--accent-red)]/20 group-hover:text-[var(--accent-red)]">
+                    {edge.data?.sourceIdentifier}
+                  </span>
+                  <span className="text-[var(--text-muted)]">→</span>
+                  <span className="rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 font-mono text-xs font-medium text-[var(--text-primary)] group-hover:bg-[var(--accent-red)]/20 group-hover:text-[var(--accent-red)]">
+                    {edge.data?.targetIdentifier}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
       )}
     </>
   );
