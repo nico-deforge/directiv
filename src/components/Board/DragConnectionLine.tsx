@@ -1,4 +1,4 @@
-import { getSmoothStepPath, useViewport } from "@xyflow/react";
+import { getBezierPath, useViewport } from "@xyflow/react";
 
 interface DragConnectionLineProps {
   fromX: number;
@@ -17,34 +17,31 @@ export function DragConnectionLine({
 }: DragConnectionLineProps) {
   const { x, y, zoom } = useViewport();
 
-  const [path] = getSmoothStepPath({
+  const [path] = getBezierPath({
     sourceX: fromX,
     sourceY: fromY,
     targetX: toX,
     targetY: toY,
   });
 
-  const strokeColor = hasValidTarget ? "#f59e0b" : "#6b7280";
+  const strokeColor = "#f59e0b";
+  const opacity = hasValidTarget ? 1 : 0.6;
 
   return (
     <svg
       className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
       style={{ zIndex: 1000 }}
     >
-      <g transform={`translate(${x}, ${y}) scale(${zoom})`}>
+      <g transform={`translate(${x}, ${y}) scale(${zoom})`} opacity={opacity}>
+        {/* Origin circle at source handle */}
+        <circle cx={fromX} cy={fromY} r={5 / zoom} fill={strokeColor} />
         <path
           d={path}
           fill="none"
           stroke={strokeColor}
           strokeWidth={3 / zoom}
-          strokeDasharray={hasValidTarget ? "none" : `${8 / zoom} ${4 / zoom}`}
         />
-        <circle
-          cx={toX}
-          cy={toY}
-          r={6 / zoom}
-          fill={strokeColor}
-        />
+        <circle cx={toX} cy={toY} r={6 / zoom} fill={strokeColor} />
       </g>
     </svg>
   );

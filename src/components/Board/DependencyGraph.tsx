@@ -302,7 +302,9 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     // Calculate edges for blocking relationships
     const edgeData = calculateEdges(filteredTasks);
     // Build identifier lookup
-    const identifierById = new Map(filteredTasks.map((t) => [t.id, t.identifier]));
+    const identifierById = new Map(
+      filteredTasks.map((t) => [t.id, t.identifier]),
+    );
     // Use static amber color that matches our accent
     const edgeColor = resolvedTheme === "dark" ? "#f59e0b" : "#d97706";
     const taskEdges: EdgeWithRelation[] = edgeData.map((e) => ({
@@ -409,16 +411,19 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
       const clickedEdge = edge as EdgeWithRelation;
 
       // Use document.elementsFromPoint to find all edge elements at click location
-      const elementsAtPoint = document.elementsFromPoint(event.clientX, event.clientY);
+      const elementsAtPoint = document.elementsFromPoint(
+        event.clientX,
+        event.clientY,
+      );
 
       // Find all edge IDs at this point
       const edgeIdsAtPoint = new Set<string>();
       for (const el of elementsAtPoint) {
         // ReactFlow edge interaction zones have this class
-        if (el.classList.contains('react-flow__edge-interaction')) {
-          const edgeGroup = el.closest('.react-flow__edge');
+        if (el.classList.contains("react-flow__edge-interaction")) {
+          const edgeGroup = el.closest(".react-flow__edge");
           if (edgeGroup) {
-            const edgeId = edgeGroup.getAttribute('data-id');
+            const edgeId = edgeGroup.getAttribute("data-id");
             if (edgeId) {
               edgeIdsAtPoint.add(edgeId);
             }
@@ -430,8 +435,8 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
       edgeIdsAtPoint.add(clickedEdge.id);
 
       // Get full edge objects from the edges array
-      const edgesAtPoint = edges.filter(
-        (e) => edgeIdsAtPoint.has(e.id)
+      const edgesAtPoint = edges.filter((e) =>
+        edgeIdsAtPoint.has(e.id),
       ) as EdgeWithRelation[];
 
       setDeleteMenu({
@@ -468,26 +473,22 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
       // Disable drag in orphan view
       if (selectedProjectId === ORPHAN_PROJECT_ID) return;
 
-      const sourceNode = nodes.find((n) => n.id === nodeId);
-      if (!sourceNode) return;
-
-      // Get center-bottom of the source node for the connection start point
-      const sourceX = sourceNode.position.x + CARD_WIDTH / 2;
-      const sourceY = sourceNode.position.y + CARD_HEIGHT;
-
-      const flowPosition = screenToFlowPosition({
-        x: e.clientX,
-        y: e.clientY,
+      // Use the actual circle element's center as the source position
+      const circleEl = e.currentTarget as HTMLElement;
+      const rect = circleEl.getBoundingClientRect();
+      const sourcePosition = screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
       });
 
       setDragState({
         sourceNodeId: nodeId,
-        sourcePosition: { x: sourceX, y: sourceY },
-        currentPosition: flowPosition,
+        sourcePosition,
+        currentPosition: sourcePosition,
         targetNodeId: null,
       });
     },
-    [nodes, screenToFlowPosition, selectedProjectId],
+    [screenToFlowPosition, selectedProjectId],
   );
 
   // Handle mouse move during drag
@@ -601,6 +602,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
         proOptions={{ hideAttribution: true }}
         panOnScroll
         zoomOnDoubleClick={false}
+        connectionLineComponent={() => null}
         minZoom={0.3}
         maxZoom={1.5}
       >
@@ -630,7 +632,9 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
             style={{ left: deleteMenu.x, top: deleteMenu.y }}
           >
             <div className="border-b border-[var(--border-default)] bg-[var(--bg-secondary)] px-3 py-2 text-xs font-medium text-[var(--text-muted)]">
-              {deleteMenu.edges.length > 1 ? "Which link to remove?" : "Remove link"}
+              {deleteMenu.edges.length > 1
+                ? "Which link to remove?"
+                : "Remove link"}
             </div>
             <div className="py-1">
               {deleteMenu.edges.map((edge) => (

@@ -114,10 +114,7 @@ export type UnifiedTaskNodeData = {
 
 export type UnifiedTaskNodeType = Node<UnifiedTaskNodeData, "unifiedTask">;
 
-export function UnifiedTaskCard({
-  id,
-  data,
-}: NodeProps<UnifiedTaskNodeType>) {
+export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const {
     task,
     worktree,
@@ -259,19 +256,10 @@ export function UnifiedTaskCard({
     }
   }
 
-  const handleMouseDown = useCallback(
+  const handleDragHandleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        target.closest("button") ||
-        target.closest("a") ||
-        target.closest('[role="menu"]') ||
-        target.closest('[role="listbox"]') ||
-        target.closest("input")
-      ) {
-        return;
-      }
       e.preventDefault();
+      e.stopPropagation();
       onDragStart?.(id, e);
     },
     [id, onDragStart],
@@ -279,12 +267,11 @@ export function UnifiedTaskCard({
 
   return (
     <div
-      className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative cursor-grab active:cursor-grabbing ${
+      className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative ${
         isBeingTargeted
           ? "border-[var(--accent-amber)] ring-2 ring-[var(--accent-amber)]"
           : "border-[var(--border-default)]"
       }`}
-      onMouseDown={handleMouseDown}
     >
       {/* Hidden target handle for edge connections */}
       <Handle
@@ -292,8 +279,11 @@ export function UnifiedTaskCard({
         position={Position.Top}
         className="!opacity-0 !pointer-events-none"
       />
-      {/* Visual drag handle indicator - non-interactive, drag is handled by card body */}
-      <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[var(--accent-amber)] border-2 border-[var(--bg-tertiary)] hover:scale-125 transition-transform" />
+      {/* Drag handle at bottom center - starts blocked-by edge creation */}
+      <div
+        className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[var(--accent-amber)] border-2 border-[var(--bg-tertiary)] cursor-crosshair hover:scale-125 transition-transform z-10"
+        onMouseDown={handleDragHandleMouseDown}
+      />
       {/* Hidden source handle for edge connections */}
       <Handle
         type="source"
