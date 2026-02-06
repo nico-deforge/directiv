@@ -93,20 +93,31 @@ Create `directiv.config.json` in your home directory or project root:
     {
       "id": "work",
       "name": "Work Projects",
-      "path": "/path/to/your/projects"
+      "path": "/path/to/workspace"    // Parent folder containing your git repositories
     }
   ],
   "linear": {
-    "apiKey": "lin_api_xxxxx",        // Get it from Linear Settings > API
-    "teamIds": ["TEAM_ID"],
+    "teamIds": ["TEAM_ID"],           // Team IDs or keys (e.g., "ENG" or UUID)
     "activeProject": null | "PROJECT_ID"
-  },
-  "github": {
-    "token": "ghp_xxxxx"              // Personal Access Token (repo scope)
   },
   "theme": "system" | "light" | "dark"
 }
 ```
+
+### Environment Variables
+
+Create a `.env` file at the project root with your API keys:
+
+```bash
+# Required for Linear integration
+VITE_LINEAR_API_KEY=lin_api_xxxxx    # Get from Linear Settings > API
+
+# Required for GitHub integration
+VITE_GITHUB_TOKEN=ghp_xxxxx          # Personal Access Token (repo scope)
+```
+
+> **Note:** Vite requires the `VITE_` prefix to expose variables to the frontend.
+> Both `.env` and `.env.local` are supported (`.env.local` is gitignored).
 
 ### Per-repository configuration
 
