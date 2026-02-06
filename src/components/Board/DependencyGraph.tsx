@@ -114,14 +114,6 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
     const projectMap = new Map<string, { name: string; count: number }>();
 
     for (const task of tasks ?? []) {
-      // Skip done tasks
-      if (
-        task.status.toLowerCase().includes("done") ||
-        task.status.toLowerCase().includes("completed")
-      ) {
-        continue;
-      }
-
       const projectId = task.projectId ?? "__no_project__";
       const projectName = task.projectName ?? "No Project";
 
@@ -183,14 +175,6 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
     if (!tasks) return [];
 
     return tasks.filter((task) => {
-      // Exclude done tasks
-      if (
-        task.status.toLowerCase().includes("done") ||
-        task.status.toLowerCase().includes("completed")
-      ) {
-        return false;
-      }
-
       // Filter by project
       if (selectedProjectId === null) return true;
       if (selectedProjectId === ORPHAN_PROJECT_ID) return false;

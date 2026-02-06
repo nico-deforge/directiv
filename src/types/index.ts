@@ -1,3 +1,17 @@
+// --- Linear Status Types ---
+
+export const LINEAR_STATUS_TYPES = {
+  TRIAGE: "triage",
+  BACKLOG: "backlog",
+  TODO: "unstarted",
+  IN_PROGRESS: "started",
+  DONE: "completed",
+  CANCELED: "canceled",
+} as const;
+
+export type LinearStatusType =
+  (typeof LINEAR_STATUS_TYPES)[keyof typeof LINEAR_STATUS_TYPES];
+
 // --- Workflow ---
 
 export type WorkflowColumn =
@@ -32,6 +46,7 @@ export interface EnrichedTask {
   description: string | null;
   priority: number;
   status: string;
+  linearStatusType: LinearStatusType | null;
   assigneeId: string | null;
   projectId: string | null;
   projectName: string | null;

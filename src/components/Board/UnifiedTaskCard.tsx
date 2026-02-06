@@ -22,6 +22,7 @@ import type {
   WorktreeInfo,
   TmuxSession,
   DiscoveredRepo,
+  LinearStatusType,
 } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -39,6 +40,15 @@ const PRIORITY_COLORS: Record<number, string> = {
   2: "bg-orange-500",
   3: "bg-yellow-500",
   4: "bg-blue-500",
+};
+
+const LINEAR_STATUS_COLORS: Record<LinearStatusType, string> = {
+  triage: "bg-orange-500",
+  backlog: "bg-gray-500",
+  unstarted: "bg-blue-500",
+  started: "bg-yellow-500",
+  completed: "bg-green-500",
+  canceled: "bg-red-500",
 };
 
 type WorkflowStatus =
@@ -282,6 +292,12 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
                 {task.identifier}
                 <ExternalLink className="size-3" />
               </a>
+              {task.linearStatusType && (
+                <span
+                  className={`size-2 rounded-full ${LINEAR_STATUS_COLORS[task.linearStatusType]}`}
+                  title={task.status}
+                />
+              )}
             </div>
             <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
               {task.title}

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { linearClient } from "../lib/linear";
-import type { EnrichedTask, BlockingIssue } from "../types";
+import type { EnrichedTask, BlockingIssue, LinearStatusType } from "../types";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
 
 export type LinearConnectionStatus =
@@ -35,7 +35,7 @@ export function useLinearMyTasks(teamId: string | undefined) {
       const issues = await me.assignedIssues({
         filter: {
           team: { id: { eq: teamId } },
-          state: { type: { nin: ["canceled", "completed"] } },
+          state: { type: { in: ["triage", "unstarted", "started"] } },
         },
       });
 
@@ -77,6 +77,7 @@ export function useLinearMyTasks(teamId: string | undefined) {
             description: issue.description ?? null,
             priority: issue.priority,
             status: state?.name ?? "Unknown",
+            linearStatusType: (state?.type as LinearStatusType) ?? null,
             assigneeId: assignee?.id ?? null,
             projectId: project?.id ?? null,
             projectName: project?.name ?? null,
@@ -128,7 +129,7 @@ export function useLinearAllMyTasks(teamIds: string[]) {
       const issues = await me.assignedIssues({
         filter: {
           team: { id: { in: resolvedIds } },
-          state: { type: { nin: ["canceled", "completed"] } },
+          state: { type: { in: ["triage", "unstarted", "started"] } },
         },
       });
 
@@ -170,6 +171,7 @@ export function useLinearAllMyTasks(teamIds: string[]) {
             description: issue.description ?? null,
             priority: issue.priority,
             status: state?.name ?? "Unknown",
+            linearStatusType: (state?.type as LinearStatusType) ?? null,
             assigneeId: assignee?.id ?? null,
             projectId: project?.id ?? null,
             projectName: project?.name ?? null,
