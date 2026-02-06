@@ -13,7 +13,9 @@ import {
   Terminal,
   Plus,
   Settings,
+  AlertCircle,
 } from "lucide-react";
+import type { LinearConnectionStatus } from "../../hooks/useLinear";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useProjectStore,
@@ -42,11 +44,13 @@ import { WorkspaceSelector } from "./WorkspaceSelector";
 interface ProjectSelectorProps {
   projects: Project[];
   hasOrphans: boolean;
+  connectionStatus: LinearConnectionStatus;
 }
 
 export function ProjectSelector({
   projects,
   hasOrphans,
+  connectionStatus,
 }: ProjectSelectorProps) {
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
   const selectProject = useProjectStore((s) => s.selectProject);
@@ -99,11 +103,74 @@ export function ProjectSelector({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto py-2">
-        {projects.length === 0 && !hasOrphans && (
-          <p className="px-4 py-2 text-sm text-[var(--text-muted)]">
-            No projects found
-          </p>
+        {connectionStatus.status === "no-token" && (
+          <div className="px-4 py-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-[var(--accent-amber)]" />
+              <div>
+                <p className="text-sm font-medium text-[var(--accent-amber)]">
+                  Linear API key missing
+                </p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  Add VITE_LINEAR_API_KEY to .env.local
+                </p>
+              </div>
+            </div>
+          </div>
         )}
+
+        {connectionStatus.status === "no-teams" && (
+          <div className="px-4 py-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-[var(--accent-amber)]" />
+              <div>
+                <p className="text-sm font-medium text-[var(--accent-amber)]">
+                  No teams configured
+                </p>
+                <Link
+                  to="/config"
+                  className="mt-1 block text-xs text-[var(--accent-blue)] hover:underline"
+                >
+                  Configure teams in Settings →
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {connectionStatus.status === "loading" && (
+          <div className="flex items-center gap-2 px-4 py-3">
+            <Loader2 className="size-4 animate-spin text-[var(--text-muted)]" />
+            <p className="text-sm text-[var(--text-muted)]">
+              Loading projects...
+            </p>
+          </div>
+        )}
+
+        {connectionStatus.status === "error" && (
+          <div className="px-4 py-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 size-4 shrink-0 text-[var(--accent-red)]" />
+              <div>
+                <p className="text-sm font-medium text-[var(--accent-red)]">
+                  Linear API error
+                </p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  {connectionStatus.message}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {connectionStatus.status === "connected" &&
+          projects.length === 0 &&
+          !hasOrphans && (
+            <p className="px-4 py-2 text-sm text-[var(--text-muted)]">
+              No assigned tasks in Linear
+            </p>
+          )}
+
         {projects.map((project) => (
           <ProjectItem
             key={project.id}

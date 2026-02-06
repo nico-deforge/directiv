@@ -9,7 +9,11 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { useLinearAllMyTasks } from "../../hooks/useLinear";
+import {
+  useLinearAllMyTasks,
+  useLinearConnectionStatus,
+  type LinearConnectionStatus,
+} from "../../hooks/useLinear";
 import { useTmuxSessions } from "../../hooks/useTmux";
 import { useGitHubMyOpenPRs } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
@@ -43,7 +47,11 @@ const nodeTypes = {
 };
 
 interface DependencyGraphProps {
-  onProjectsChange: (projects: Project[], hasOrphans: boolean) => void;
+  onProjectsChange: (
+    projects: Project[],
+    hasOrphans: boolean,
+    connectionStatus: LinearConnectionStatus
+  ) => void;
 }
 
 export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
@@ -54,7 +62,16 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
 
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
 
-  const { data: tasks } = useLinearAllMyTasks(teamIds);
+  const {
+    data: tasks,
+    isLoading: tasksLoading,
+    error: tasksError,
+  } = useLinearAllMyTasks(teamIds);
+  const connectionStatus = useLinearConnectionStatus(
+    teamIds,
+    tasksLoading,
+    tasksError
+  );
   const { data: sessions } = useTmuxSessions();
   const { data: prs } = useGitHubMyOpenPRs();
   const { data: allWorktrees } = useAllWorktrees(repos);
@@ -158,8 +175,8 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
 
   // Notify parent of project changes
   useEffect(() => {
-    onProjectsChange(projectsFromTasks, hasOrphans);
-  }, [projectsFromTasks, hasOrphans, onProjectsChange]);
+    onProjectsChange(projectsFromTasks, hasOrphans, connectionStatus);
+  }, [projectsFromTasks, hasOrphans, connectionStatus, onProjectsChange]);
 
   // Filter tasks for selected project
   const filteredTasks = useMemo(() => {

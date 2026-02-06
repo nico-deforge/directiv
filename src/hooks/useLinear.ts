@@ -1,7 +1,29 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { linearClient } from "../lib/linear";
 import type { EnrichedTask, BlockingIssue } from "../types";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
+
+export type LinearConnectionStatus =
+  | { status: "no-token" }
+  | { status: "no-teams" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "connected" };
+
+export function useLinearConnectionStatus(
+  teamIds: string[],
+  isLoading: boolean,
+  error: Error | null
+): LinearConnectionStatus {
+  return useMemo(() => {
+    if (!linearClient) return { status: "no-token" as const };
+    if (teamIds.length === 0) return { status: "no-teams" as const };
+    if (isLoading) return { status: "loading" as const };
+    if (error) return { status: "error" as const, message: error.message };
+    return { status: "connected" as const };
+  }, [teamIds.length, isLoading, error]);
+}
 
 export function useLinearMyTasks(teamId: string | undefined) {
   return useQuery<EnrichedTask[]>({
