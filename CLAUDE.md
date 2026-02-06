@@ -4,16 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Directiv** is a unified dev workflow cockpit — a Tauri 2.0 desktop app that orchestrates AI-assisted development by integrating Linear, GitHub, tmux, and git worktrees into a single pipeline board.
+### Directiv — The Directed Acyclic Graph orchestrator for AI agents
 
-The app does NOT emulate a terminal. It delegates to the user's preferred terminal (Ghostty, iTerm2, Terminal.app, Alacritty) and uses tmux for session persistence.
+Modern software teams don't just write code — they orchestrate complex workflows across multiple tools, contexts, and AI assistants. **Directiv** is the command center that brings order to this chaos.
+
+By modeling your development pipeline as a DAG, Directiv ensures tasks flow through well-defined stages — from backlog to deployment — with AI agents executing each node autonomously while you maintain full visibility and control.
+
+**Why Directiv?**
+- **One board, complete visibility** — See every task's real status across Linear, GitHub, and active dev sessions
+- **AI-native orchestration** — Launch Claude Code agents with full context in one click
+- **Zero context-switching** — Manage worktrees, terminal sessions, and PR reviews without leaving the cockpit
+- **Parallel execution** — Work on multiple tasks simultaneously with isolated git worktrees and tmux sessions
+
+### Technical summary
+
+Directiv is a Tauri 2.0 desktop app that integrates Linear, GitHub, tmux, and git worktrees into a unified pipeline board. It delegates terminal operations to your preferred emulator (Ghostty, iTerm2, Terminal.app, Alacritty) and uses tmux for session persistence.
 
 ## Tech Stack
 
 - **App framework:** Tauri 2.0 (Rust backend in `src-tauri/`, React frontend in `src/`)
 - **Frontend:** React + TypeScript, Zustand (state), Tailwind CSS, TanStack Query (data fetching), lucide-react (icons)
 - **Backend:** Rust with `tauri-plugin-shell` for system commands, `serde` for serialization
-- **Integrations:** `@linear/sdk`, `@octokit/rest`, tmux CLI, `git-worktree-runner` (gtr)
+- **Integrations:** `@linear/sdk`, `@octokit/rest`, tmux CLI, git worktree
 
 ## Build & Dev Commands
 
@@ -53,14 +65,14 @@ cd src-tauri && cargo test
 
 ### Backend commands (`src-tauri/src/commands/`)
 
-- `worktree.rs` — git gtr new/rm/list
+- `worktree.rs` — git worktree add/remove/list
 - `tmux.rs` — session create/kill/list/capture-pane
 - `terminal.rs` — open external terminal attached to tmux session
 
 ### Core workflow: "Start Task"
 
 Triggered by clicking [Start] on a backlog card:
-1. Create git worktree → `git gtr new ACQ-145`
+1. Create git worktree → `git worktree add ../repo-worktrees/ACQ-145 -b ACQ-145 origin/main`
 2. Create tmux session → `tmux new-session -d -s ACQ-145 -c /path/to/worktree`
 3. Launch Claude with context → `tmux send-keys -t ACQ-145 'claude "/linear-issue ACQ-145"' Enter`
 4. Update Linear → status to "In Progress"
