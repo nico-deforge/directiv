@@ -25,7 +25,10 @@ pub async fn tmux_list_sessions(app: tauri::AppHandle) -> Result<Vec<TmuxSession
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !output.status.success() {
-        if stderr.contains("no server running") || stderr.contains("no current client") {
+        if stderr.contains("no server running")
+            || stderr.contains("no current client")
+            || stderr.contains("No such file or directory")
+        {
             return Ok(vec![]);
         }
         return Err(format!("tmux list-sessions failed: {stderr}"));
