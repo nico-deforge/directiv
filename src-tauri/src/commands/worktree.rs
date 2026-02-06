@@ -295,11 +295,17 @@ pub async fn worktree_create(
         .and_then(|n| n.to_str())
         .ok_or("Invalid repo path")?;
 
-    let worktree_dir = format!("{}-{}", repo_basename, issue_id);
-    let worktree_path = repo
+    let worktrees_dir = format!("{}-worktrees", repo_basename);
+    let worktrees_base = repo
         .parent()
         .ok_or("Repo has no parent directory")?
-        .join(&worktree_dir);
+        .join(&worktrees_dir);
+
+    // Create the worktrees directory if it doesn't exist
+    std::fs::create_dir_all(&worktrees_base)
+        .map_err(|e| format!("Failed to create worktrees directory: {e}"))?;
+
+    let worktree_path = worktrees_base.join(&issue_id);
     let worktree_path_str = worktree_path
         .to_str()
         .ok_or("Invalid worktree path")?
