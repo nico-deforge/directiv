@@ -21,6 +21,7 @@ import {
   type Project,
 } from "../../stores/projectStore";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useWorkspaceRepos } from "../../hooks/useWorkspace";
 import {
   worktreeList,
   worktreeCheckMerged,
@@ -36,6 +37,7 @@ import type {
 } from "../../types";
 import { useGitHubReviewRequests } from "../../hooks/useGitHub";
 import { useStartFreeTask } from "../../hooks/useStartTask";
+import { WorkspaceSelector } from "./WorkspaceSelector";
 
 interface ProjectSelectorProps {
   projects: Project[];
@@ -78,6 +80,7 @@ export function ProjectSelector({
 
   return (
     <aside className="flex w-[200px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-secondary)]">
+      <WorkspaceSelector />
       <div className="shrink-0 border-b border-[var(--border-default)] px-4 py-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">
@@ -146,7 +149,7 @@ export function ProjectSelector({
 }
 
 function NewWorktreeSection() {
-  const repos = useSettingsStore((s) => s.config.repos);
+  const repos = useWorkspaceRepos();
   const terminal = useSettingsStore((s) => s.config.terminal);
   const startFreeTask = useStartFreeTask();
 
@@ -319,7 +322,7 @@ function ReviewRequestItem({ pr }: { pr: ReviewRequestedPR }) {
 }
 
 function OrphanSessionsSection() {
-  const repos = useSettingsStore((s) => s.config.repos);
+  const repos = useWorkspaceRepos();
   const queryClient = useQueryClient();
 
   const [orphanSessions, setOrphanSessions] = useState<TmuxSession[]>([]);
@@ -469,7 +472,7 @@ function OrphanSessionsSection() {
 }
 
 function CleanupSection() {
-  const repos = useSettingsStore((s) => s.config.repos);
+  const repos = useWorkspaceRepos();
   const queryClient = useQueryClient();
 
   const [staleWorktrees, setStaleWorktrees] = useState<StaleWorktree[]>([]);

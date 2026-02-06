@@ -14,6 +14,7 @@ import { useTmuxSessions } from "../../hooks/useTmux";
 import { useGitHubMyOpenPRs } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useWorkspaceRepos } from "../../hooks/useWorkspace";
 import {
   useProjectStore,
   ORPHAN_PROJECT_ID,
@@ -49,7 +50,7 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
   const config = useSettingsStore((s) => s.config);
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
   const teamIds = config.linear.teamIds;
-  const repos = config.repos;
+  const repos = useWorkspaceRepos();
 
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
 

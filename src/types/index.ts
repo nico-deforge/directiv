@@ -140,13 +140,20 @@ export type TerminalEmulator = "ghostty" | "iterm2" | "terminal" | "alacritty";
 export type CodeEditor = "zed" | "cursor" | "vscode" | "code";
 export type Theme = "light" | "dark" | "system";
 
-export interface RepoConfig {
+export interface WorkspaceConfig {
+  id: string;
+  name?: string;
+  path: string;
+}
+
+export interface DiscoveredRepo {
   id: string;
   path: string;
-  copyPaths?: string[];
-  onStart?: string[];
+  workspaceId: string;
+  copyPaths: string[];
+  onStart: string[];
   baseBranch?: string;
-  fetchBefore?: boolean;
+  fetchBefore: boolean;
 }
 
 export interface LinearConfig {
@@ -157,7 +164,7 @@ export interface LinearConfig {
 export interface DirectivConfig {
   terminal: TerminalEmulator;
   editor: CodeEditor;
-  repos: RepoConfig[];
+  workspaces: WorkspaceConfig[];
   linear: LinearConfig;
   theme: Theme;
 }

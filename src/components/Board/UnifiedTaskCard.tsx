@@ -21,7 +21,7 @@ import type {
   PullRequestInfo,
   WorktreeInfo,
   TmuxSession,
-  RepoConfig,
+  DiscoveredRepo,
 } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -107,7 +107,7 @@ export type UnifiedTaskNodeData = {
   worktreeRepoPath: string | null;
   session: TmuxSession | null;
   pullRequest: PullRequestInfo | null;
-  repos: RepoConfig[];
+  repos: DiscoveredRepo[];
 };
 
 export type UnifiedTaskNodeType = Node<UnifiedTaskNodeData, "unifiedTask">;
@@ -125,7 +125,7 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
   const [deletingWorktree, setDeletingWorktree] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [selectedRepo, setSelectedRepo] = useState<RepoConfig | null>(null);
+  const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const priorityColor = PRIORITY_COLORS[task.priority] ?? "bg-neutral-400";

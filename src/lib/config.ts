@@ -1,10 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { DirectivConfig } from "../types";
+import type { DirectivConfig, WorkspaceConfig } from "../types";
 
 export const defaultConfig: DirectivConfig = {
   terminal: "ghostty",
   editor: "zed",
-  repos: [],
+  workspaces: [],
   linear: {
     teamIds: [],
     activeProject: null,
@@ -22,13 +22,13 @@ export function validateConfig(config: Partial<DirectivConfig>): DirectivConfig 
   return {
     terminal: config.terminal ?? defaultConfig.terminal,
     editor: config.editor ?? defaultConfig.editor,
-    repos: (config.repos ?? defaultConfig.repos).map((repo) => ({
-      ...repo,
-      copyPaths: repo.copyPaths ?? [],
-      onStart: repo.onStart ?? [],
-      baseBranch: repo.baseBranch,
-      fetchBefore: repo.fetchBefore ?? true,
-    })),
+    workspaces: (config.workspaces ?? defaultConfig.workspaces).map(
+      (ws): WorkspaceConfig => ({
+        id: ws.id,
+        name: ws.name,
+        path: ws.path,
+      }),
+    ),
     linear: config.linear ?? defaultConfig.linear,
     theme: config.theme ?? defaultConfig.theme,
   };

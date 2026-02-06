@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { useSettingsStore } from "../stores/settingsStore";
+import { useWorkspaceRepos } from "./useWorkspace";
 import { listSkills, readSkillFile } from "../lib/tauri";
 import type { SkillsResult } from "../types";
 
 export function useSkills() {
-  const repos = useSettingsStore((s) => s.config.repos);
+  const repos = useWorkspaceRepos();
 
   return useQuery<SkillsResult>({
     queryKey: ["skills", repos.map((r) => r.id).join(",")],

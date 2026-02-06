@@ -1,5 +1,34 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { TmuxSession, WorktreeInfo, SkillsResult } from "../types";
+import type {
+  TmuxSession,
+  WorktreeInfo,
+  SkillsResult,
+  DiscoveredRepo,
+} from "../types";
+
+// --- Workspace commands ---
+
+interface RawDiscoveredRepo {
+  id: string;
+  path: string;
+  copyPaths: string[];
+  onStart: string[];
+  baseBranch?: string;
+  fetchBefore: boolean;
+}
+
+export async function scanWorkspace(
+  workspacePath: string,
+  workspaceId: string,
+): Promise<DiscoveredRepo[]> {
+  const repos = await invoke<RawDiscoveredRepo[]>("scan_workspace", {
+    workspacePath,
+  });
+  return repos.map((repo) => ({
+    ...repo,
+    workspaceId,
+  }));
+}
 
 // --- Worktree commands ---
 

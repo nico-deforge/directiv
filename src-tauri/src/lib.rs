@@ -30,6 +30,7 @@ pub fn run() {
             commands::config::load_config,
             commands::skills::list_skills,
             commands::skills::read_skill_file,
+            commands::workspace::scan_workspace,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
