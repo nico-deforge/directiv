@@ -1,0 +1,10 @@
+{
+  "copyPaths": [
+    ".claude/settings.local.json",
+    ".env.local",
+    "node_modules"
+  ],
+  "onStart": ["bun install"],
+  "baseBranch": "main",
+  "fetchBefore": true
+}

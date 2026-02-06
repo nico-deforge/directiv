@@ -1,21 +1,16 @@
 {
   "terminal": "ghostty",
   "editor": "zed",
-  "repos": [
+  "workspaces": [
     {
-      "id": "REPO",
-      "path": "/path/to/your/repo",
-      "copyPaths": [".env.local"],
-      "onStart": ["bun install"]
+      "id": "work",
+      "name": "Work Projects",
+      "path": "/path/to/your/projects"
     }
   ],
   "linear": {
     "teamIds": ["TEAM_ID"],
     "activeProject": null
-  },
-  "github": {
-    "owner": "your-org",
-    "repos": ["your-repo"]
   },
   "theme": "system"
 }

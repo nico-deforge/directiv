@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { worktreeList, worktreeCreate, worktreeRemove } from "../lib/tauri";
-import type { WorktreeInfo, RepoConfig } from "../types";
+import type { WorktreeInfo, DiscoveredRepo } from "../types";
 import { LOCAL_REFRESH_INTERVAL_SLOW } from "../constants/intervals";
 
 export interface RepoWorktrees {
@@ -9,7 +9,7 @@ export interface RepoWorktrees {
   worktrees: WorktreeInfo[];
 }
 
-export function useAllWorktrees(repos: RepoConfig[]) {
+export function useAllWorktrees(repos: DiscoveredRepo[]) {
   return useQuery<RepoWorktrees[]>({
     queryKey: ["worktrees", "all", repos.map((r) => r.id).join(",")],
     queryFn: async () => {

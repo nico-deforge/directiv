@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Outlet } from "@tanstack/react-router";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useWorkspaceInit } from "../../hooks/useWorkspace";
 
 export function RootLayout() {
   const loadFromDisk = useSettingsStore((s) => s.loadFromDisk);
@@ -9,6 +10,9 @@ export function RootLayout() {
   useEffect(() => {
     loadFromDisk();
   }, [loadFromDisk]);
+
+  // Initialize workspaces after config is loaded
+  useWorkspaceInit();
 
   if (!isLoaded) {
     return (
