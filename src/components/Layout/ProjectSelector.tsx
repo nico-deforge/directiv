@@ -242,7 +242,6 @@ function NewWorktreeSection() {
         terminal,
         copyPaths: repo.copyPaths,
         onStart: repo.onStart,
-        baseBranch: repo.baseBranch,
         fetchBefore: repo.fetchBefore,
       },
       {
@@ -567,11 +566,7 @@ function CleanupSection() {
         // Skip the main worktree (first entry)
         for (const wt of worktrees.slice(1)) {
           try {
-            const merged = await worktreeCheckMerged(
-              repo.path,
-              wt.branch,
-              repo.baseBranch,
-            );
+            const merged = await worktreeCheckMerged(repo.path, wt.branch);
             if (merged) {
               stale.push({
                 worktree: wt,

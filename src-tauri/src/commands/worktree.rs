@@ -554,7 +554,6 @@ pub async fn worktree_check_merged(
     app: tauri::AppHandle,
     repo_path: String,
     branch: String,
-    base_branch: Option<String>,
 ) -> Result<bool, String> {
     // Method 1: Check if the remote tracking branch has been deleted
     // This handles squash-and-merge workflows where the commit hash changes
@@ -573,16 +572,11 @@ pub async fn worktree_check_merged(
     }
 
     // Method 2: Fallback to merge-base check for regular merges
-    let base = match base_branch {
-        Some(ref b) if !b.is_empty() => b.clone(),
-        _ => {
-            let detected = detect_default_branch(&app, &repo_path).await;
-            detected
-                .strip_prefix("origin/")
-                .unwrap_or(&detected)
-                .to_string()
-        }
-    };
+    let detected = detect_default_branch(&app, &repo_path).await;
+    let base = detected
+        .strip_prefix("origin/")
+        .unwrap_or(&detected)
+        .to_string();
 
     let output = app
         .shell()

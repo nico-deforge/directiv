@@ -166,7 +166,6 @@ export interface DiscoveredRepo {
   workspaceId: string;
   copyPaths: string[];
   onStart: string[];
-  baseBranch?: string;
   fetchBefore: boolean;
   configWarning?: string;
 }

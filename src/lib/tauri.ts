@@ -13,7 +13,6 @@ interface RawDiscoveredRepo {
   path: string;
   copyPaths: string[];
   onStart: string[];
-  baseBranch?: string;
   fetchBefore: boolean;
   configWarning?: string;
 }
@@ -70,12 +69,10 @@ export function worktreeRemove(
 export function worktreeCheckMerged(
   repoPath: string,
   branch: string,
-  baseBranch?: string,
 ): Promise<boolean> {
   return invoke<boolean>("worktree_check_merged", {
     repoPath,
     branch,
-    baseBranch,
   });
 }
 
