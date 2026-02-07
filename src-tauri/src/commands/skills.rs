@@ -30,9 +30,9 @@ fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
     let mut name = None;
     let mut description = None;
 
-    if content.starts_with("---") {
-        if let Some(end) = content[3..].find("---") {
-            let frontmatter = &content[3..3 + end];
+    if let Some(stripped) = content.strip_prefix("---") {
+        if let Some(end) = stripped.find("---") {
+            let frontmatter = &stripped[..end];
             for line in frontmatter.lines() {
                 let line = line.trim();
                 if let Some(rest) = line.strip_prefix("name:") {
@@ -125,8 +125,12 @@ pub async fn list_skills(repo_paths: Vec<(String, String)>) -> Result<SkillsResu
     // 2. Read repo-specific skills
     for (repo_id, repo_path) in repo_paths {
         let repo_skills_dir = PathBuf::from(&repo_path).join(".claude").join("skills");
-        let skills =
-            scan_skills_directory(&repo_skills_dir, SkillSource::Repo { repo_id: repo_id.clone() });
+        let skills = scan_skills_directory(
+            &repo_skills_dir,
+            SkillSource::Repo {
+                repo_id: repo_id.clone(),
+            },
+        );
         repo_skills.extend(skills);
     }
 
@@ -144,6 +148,5 @@ pub async fn read_skill_file(skill_path: String, filename: String) -> Result<Str
         return Err(format!("File not found: {}", file_path.display()));
     }
 
-    fs::read_to_string(&file_path)
-        .map_err(|e| format!("Failed to read file: {}", e))
+    fs::read_to_string(&file_path).map_err(|e| format!("Failed to read file: {}", e))
 }

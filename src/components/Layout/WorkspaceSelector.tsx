@@ -9,7 +9,8 @@ export function WorkspaceSelector() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const activeWorkspace = workspaces.find((ws) => ws.id === activeId);
-  const displayName = activeWorkspace?.name ?? activeWorkspace?.id ?? "Select workspace";
+  const displayName =
+    activeWorkspace?.name ?? activeWorkspace?.id ?? "Select workspace";
 
   useEffect(() => {
     if (!isOpen) return;

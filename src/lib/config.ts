@@ -18,7 +18,9 @@ export async function loadConfigFromDisk(): Promise<DirectivConfig> {
   return validateConfig(parsed);
 }
 
-export function validateConfig(config: Partial<DirectivConfig>): DirectivConfig {
+export function validateConfig(
+  config: Partial<DirectivConfig>,
+): DirectivConfig {
   return {
     terminal: config.terminal ?? defaultConfig.terminal,
     editor: config.editor ?? defaultConfig.editor,

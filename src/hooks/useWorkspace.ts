@@ -11,7 +11,12 @@ export function useWorkspaceInit() {
   const hasScanned = useRef(false);
 
   useEffect(() => {
-    if (isConfigLoaded && isHydrated && workspaces.length > 0 && !hasScanned.current) {
+    if (
+      isConfigLoaded &&
+      isHydrated &&
+      workspaces.length > 0 &&
+      !hasScanned.current
+    ) {
       hasScanned.current = true;
       scanAllWorkspaces(workspaces);
     }

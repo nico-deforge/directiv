@@ -14,13 +14,13 @@ export function HomePage() {
     (
       newProjects: Project[],
       orphans: boolean,
-      status: LinearConnectionStatus
+      status: LinearConnectionStatus,
     ) => {
       setProjects(newProjects);
       setHasOrphans(orphans);
       setConnectionStatus(status);
     },
-    []
+    [],
   );
 
   return (

@@ -100,8 +100,7 @@ function SkillCard({ skill }: { skill: SkillInfo }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
-  const repoId =
-    skill.source.type === "repo" ? skill.source.repoId : undefined;
+  const repoId = skill.source.type === "repo" ? skill.source.repoId : undefined;
 
   return (
     <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)]">
