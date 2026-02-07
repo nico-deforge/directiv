@@ -1,8 +1,93 @@
 [tools]
-bun = "latest"
-rust = "1.93"
-github-cli = "latest"
+bun = "1.3.8"
+rust = "1.92"
 
 [env]
 # Load .env file if it exists
 _.file = ".env"
+
+# ---------------------------------------------------------------------------
+# Setup
+# ---------------------------------------------------------------------------
+
+[tasks.install]
+description = "Install frontend dependencies"
+run = "bun install"
+alias = "i"
+
+# ---------------------------------------------------------------------------
+# Development
+# ---------------------------------------------------------------------------
+
+[tasks.dev]
+description = "Run full Tauri app in dev mode"
+run = "bun run tauri:dev"
+
+[tasks."dev:frontend"]
+description = "Start Vite dev server (frontend only)"
+run = "bun run dev"
+
+# ---------------------------------------------------------------------------
+# Code quality
+# ---------------------------------------------------------------------------
+
+[tasks.tsc]
+description = "Type-check TypeScript (no emit)"
+run = "bun run tsc"
+
+[tasks.lint]
+description = "Run ESLint"
+run = "bun run lint"
+
+[tasks."lint:fix"]
+description = "Run ESLint with auto-fix"
+run = "bun run lint -- --fix"
+
+[tasks.format]
+description = "Format code with Prettier"
+run = "bun run format"
+
+[tasks."format:check"]
+description = "Check formatting without writing"
+run = "bun x prettier --check \"src/**/*.{ts,tsx,css}\""
+
+[tasks.check]
+description = "Run all checks (tsc + lint + format)"
+depends = ["tsc", "lint", "format:check"]
+
+# ---------------------------------------------------------------------------
+# Rust backend
+# ---------------------------------------------------------------------------
+
+[tasks."rust:build"]
+description = "Build Rust backend"
+dir = "src-tauri"
+run = "cargo build"
+
+[tasks."rust:test"]
+description = "Run Rust tests"
+dir = "src-tauri"
+run = "cargo test"
+
+[tasks."rust:clippy"]
+description = "Run clippy linter"
+dir = "src-tauri"
+run = "cargo clippy -- -D warnings"
+
+[tasks."rust:fmt"]
+description = "Format Rust code"
+dir = "src-tauri"
+run = "cargo fmt"
+
+[tasks."rust:check"]
+description = "Run all Rust checks (clippy + fmt check)"
+dir = "src-tauri"
+run = ["cargo clippy -- -D warnings", "cargo fmt -- --check"]
+
+# ---------------------------------------------------------------------------
+# Build
+# ---------------------------------------------------------------------------
+
+[tasks.build]
+description = "Build production Tauri app"
+run = "bun run tauri:build"
