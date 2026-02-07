@@ -15,6 +15,7 @@ interface RawDiscoveredRepo {
   onStart: string[];
   baseBranch?: string;
   fetchBefore: boolean;
+  configWarning?: string;
 }
 
 export async function scanWorkspace(

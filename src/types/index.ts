@@ -37,6 +37,7 @@ export interface BlockingIssue {
   identifier: string;
   title: string;
   url: string;
+  relationId: string;
 }
 
 export interface EnrichedTask {
@@ -167,6 +168,7 @@ export interface DiscoveredRepo {
   onStart: string[];
   baseBranch?: string;
   fetchBefore: boolean;
+  configWarning?: string;
 }
 
 export interface LinearConfig {

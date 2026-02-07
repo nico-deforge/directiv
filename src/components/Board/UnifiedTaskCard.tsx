@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { Node, NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import {
@@ -14,6 +14,7 @@ import {
   ExternalLink,
   ChevronLeft,
   Code2,
+  AlertTriangle,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -118,13 +119,23 @@ export type UnifiedTaskNodeData = {
   session: TmuxSession | null;
   pullRequest: PullRequestInfo | null;
   repos: DiscoveredRepo[];
+  onDragStart?: (nodeId: string, e: React.MouseEvent) => void;
+  isBeingTargeted?: boolean;
 };
 
 export type UnifiedTaskNodeType = Node<UnifiedTaskNodeData, "unifiedTask">;
 
-export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
-  const { task, worktree, worktreeRepoPath, session, pullRequest, repos } =
-    data;
+export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
+  const {
+    task,
+    worktree,
+    worktreeRepoPath,
+    session,
+    pullRequest,
+    repos,
+    onDragStart,
+    isBeingTargeted,
+  } = data;
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
   const queryClient = useQueryClient();
@@ -256,18 +267,39 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
+  const handleDragHandleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onDragStart?.(id, e);
+    },
+    [id, onDragStart],
+  );
+
   return (
-    <div className="nodrag nopan w-[380px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-lg relative">
-      {/* ReactFlow handles for edges */}
+    <div
+      className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative ${
+        isBeingTargeted
+          ? "border-[var(--accent-amber)] ring-2 ring-[var(--accent-amber)]"
+          : "border-[var(--border-default)]"
+      }`}
+    >
+      {/* Hidden target handle for edge connections */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!bg-[var(--accent-amber)]/60 !w-2 !h-2 !border-0"
+        className="!opacity-0 !pointer-events-none"
       />
+      {/* Drag handle at bottom center - starts blocked-by edge creation */}
+      <div
+        className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[var(--accent-amber)] border-2 border-[var(--bg-tertiary)] cursor-crosshair hover:scale-125 transition-transform z-10"
+        onMouseDown={handleDragHandleMouseDown}
+      />
+      {/* Hidden source handle for edge connections */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!bg-[var(--accent-amber)]/60 !w-2 !h-2 !border-0"
+        className="!opacity-0 !pointer-events-none"
       />
 
       {/* Header: Task info with workflow status */}
@@ -443,6 +475,7 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
             {repos.length === 1 ? (
               <BranchSelector
                 repoPath={repos[0].path}
+                configWarning={repos[0].configWarning}
                 onSelect={(baseBranch) =>
                   handleStart(repos[0].path, baseBranch)
                 }
@@ -451,6 +484,7 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
               <BranchSelector
                 repoPath={selectedRepo.path}
                 repoId={selectedRepo.id}
+                configWarning={selectedRepo.configWarning}
                 onSelect={(baseBranch) =>
                   handleStart(selectedRepo.path, baseBranch)
                 }
@@ -462,9 +496,14 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
                   <button
                     key={repo.id}
                     onClick={() => setSelectedRepo(repo)}
-                    className="block w-full px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                   >
                     {repo.id}
+                    {repo.configWarning && (
+                      <span title={repo.configWarning}>
+                        <AlertTriangle className="size-3.5 shrink-0 text-[var(--accent-amber)]" />
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -485,11 +524,13 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
 function BranchSelector({
   repoPath,
   repoId,
+  configWarning,
   onSelect,
   onBack,
 }: {
   repoPath: string;
   repoId?: string;
+  configWarning?: string;
   onSelect: (baseBranch?: string) => void;
   onBack?: () => void;
 }) {
@@ -502,6 +543,12 @@ function BranchSelector({
 
   return (
     <div className="min-w-48">
+      {configWarning && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[var(--accent-amber)]">
+          <AlertTriangle className="size-3 shrink-0" />
+          <span className="line-clamp-2">.directiv.json error</span>
+        </div>
+      )}
       {onBack && (
         <button
           onClick={onBack}
