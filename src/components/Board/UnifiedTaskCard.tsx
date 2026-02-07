@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { toastError } from "../../lib/toast";
 import type { Node, NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import {
@@ -9,8 +10,9 @@ import {
   Loader2,
   ChevronDown,
   GitBranch,
-  GitPullRequest,
+  Github,
   Circle,
+  SquareKanban,
   ExternalLink,
   ChevronLeft,
   Code2,
@@ -23,7 +25,6 @@ import type {
   WorktreeInfo,
   TmuxSession,
   DiscoveredRepo,
-  LinearStatusType,
 } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -34,23 +35,6 @@ import {
   worktreeRemove,
 } from "../../lib/tauri";
 import { useWorktrees } from "../../hooks/useWorktrees";
-
-const PRIORITY_COLORS: Record<number, string> = {
-  0: "bg-neutral-400",
-  1: "bg-red-500",
-  2: "bg-orange-500",
-  3: "bg-yellow-500",
-  4: "bg-blue-500",
-};
-
-const LINEAR_STATUS_COLORS: Record<LinearStatusType, string> = {
-  triage: "bg-orange-500",
-  backlog: "bg-gray-500",
-  unstarted: "bg-blue-500",
-  started: "bg-yellow-500",
-  completed: "bg-green-500",
-  canceled: "bg-red-500",
-};
 
 type WorkflowStatus =
   | "todo"
@@ -141,7 +125,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const queryClient = useQueryClient();
   const startTask = useStartTask();
 
-  const [error, setError] = useState<string | null>(null);
   const [killingSession, setKillingSession] = useState(false);
   const [deletingWorktree, setDeletingWorktree] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -149,17 +132,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const priorityColor = PRIORITY_COLORS[task.priority] ?? "bg-neutral-400";
   const hasSession = session !== null;
   const isLoading = startTask.isPending || killingSession || deletingWorktree;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
-
-  useEffect(() => {
-    if (!error) return;
-    const timer = setTimeout(() => setError(null), 5000);
-    return () => clearTimeout(timer);
-  }, [error]);
 
   useEffect(() => {
     if (!confirmingDelete) return;
@@ -185,12 +161,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   async function handleKillSession() {
     if (!session) return;
     setKillingSession(true);
-    setError(null);
     try {
       await tmuxKillSession(session.name);
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toastError(err);
     } finally {
       setKillingSession(false);
     }
@@ -200,7 +175,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     if (!worktree || !worktreeRepoPath) return;
     setDeletingWorktree(true);
     setConfirmingDelete(false);
-    setError(null);
     try {
       // Kill session if it exists
       if (session) {
@@ -220,14 +194,13 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toastError(err);
     } finally {
       setDeletingWorktree(false);
     }
   }
 
   function handleStart(repoPath: string, baseBranch?: string) {
-    setError(null);
     setDropdownOpen(false);
     setSelectedRepo(null);
     const repo = repos.find((r) => r.path === repoPath);
@@ -239,12 +212,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         terminal,
         copyPaths: repo?.copyPaths,
         onStart: repo?.onStart,
-        baseBranch: baseBranch ?? repo?.baseBranch,
+        baseBranch,
         fetchBefore: repo?.fetchBefore,
       },
       {
-        onError: (err) =>
-          setError(err instanceof Error ? err.message : String(err)),
+        onError: (err) => toastError(err),
       },
     );
   }
@@ -254,7 +226,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     try {
       await openTerminal(terminal, session.name);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toastError(err);
     }
   }
 
@@ -263,7 +235,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     try {
       await openEditor(editor, worktree.path);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toastError(err);
     }
   }
 
@@ -304,51 +276,50 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
       {/* Header: Task info with workflow status */}
       <div className="border-b border-[var(--border-default)] px-3 py-2">
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-2">
           <span
-            className={`mt-1.5 size-2 shrink-0 rounded-full ${priorityColor}`}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span
-                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusLabel.className}`}
-              >
-                {statusLabel.label}
-              </span>
-              <a
-                href={task.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs font-medium text-[var(--accent-blue)] hover:opacity-80"
-              >
-                {task.identifier}
-                <ExternalLink className="size-3" />
-              </a>
-              {task.linearStatusType && (
-                <span
-                  className={`size-2 rounded-full ${LINEAR_STATUS_COLORS[task.linearStatusType]}`}
-                  title={task.status}
-                />
-              )}
-            </div>
-            <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
-              {task.title}
-            </p>
-          </div>
+            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusLabel.className}`}
+          >
+            {statusLabel.label}
+          </span>
+          <span className="text-xs font-medium text-[var(--text-secondary)]">
+            {task.identifier}
+          </span>
         </div>
+        <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
+          {task.title}
+        </p>
+      </div>
+
+      {/* Linear Section */}
+      <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+        <SquareKanban className="size-4 shrink-0 text-[var(--accent-blue)]" />
+        <a
+          href={task.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 min-w-0 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        >
+          <span className="truncate">{task.identifier}</span>
+          <ExternalLink className="size-3 shrink-0" />
+        </a>
+        <span className="ml-auto text-xs text-[var(--text-tertiary)]">
+          {task.status}
+        </span>
       </div>
 
       {/* PR Section */}
       {pullRequest && (
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <GitPullRequest className="size-4 shrink-0 text-[var(--accent-purple)]" />
+          <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
           <a
             href={pullRequest.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="min-w-0 flex-1 truncate text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="flex items-center gap-1 min-w-0 flex-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
-            PR #{pullRequest.number}
+            <span className="truncate">PR #{pullRequest.number}</span>
+            <ExternalLink className="size-3 shrink-0" />
           </a>
         </div>
       )}
@@ -511,11 +482,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           </div>
         )}
       </div>
-
-      {/* Error message */}
-      {error && (
-        <p className="px-3 pb-2 text-xs text-[var(--accent-red)]">{error}</p>
-      )}
     </div>
   );
 }

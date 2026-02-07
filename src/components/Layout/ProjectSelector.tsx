@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { toastError } from "../../lib/toast";
 import { Link } from "@tanstack/react-router";
 import {
   Folder,
@@ -223,7 +224,6 @@ function NewWorktreeSection() {
   const [showForm, setShowForm] = useState(false);
   const [branchName, setBranchName] = useState("");
   const [selectedRepoIndex, setSelectedRepoIndex] = useState(0);
-  const [error, setError] = useState<string | null>(null);
 
   const isValidBranchName = (name: string) =>
     /^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(name);
@@ -248,11 +248,8 @@ function NewWorktreeSection() {
         onSuccess: () => {
           setShowForm(false);
           setBranchName("");
-          setError(null);
         },
-        onError: (err) => {
-          setError(err instanceof Error ? err.message : String(err));
-        },
+        onError: (err) => toastError(err),
       },
     );
   }
@@ -268,10 +265,7 @@ function NewWorktreeSection() {
               New worktree
             </span>
             <button
-              onClick={() => {
-                setShowForm(false);
-                setError(null);
-              }}
+              onClick={() => setShowForm(false)}
               className="rounded p-0.5 hover:bg-[var(--bg-elevated)]"
             >
               <X className="size-3 text-[var(--text-muted)]" />
@@ -317,9 +311,6 @@ function NewWorktreeSection() {
               "Create & Open"
             )}
           </button>
-          {error && (
-            <p className="mt-1 text-xs text-[var(--accent-red)]">{error}</p>
-          )}
         </div>
       ) : (
         <button
@@ -398,11 +389,9 @@ function OrphanSessionsSection() {
   const [scanning, setScanning] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [showCleanup, setShowCleanup] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const scanForOrphanSessions = useCallback(async () => {
     setScanning(true);
-    setError(null);
     try {
       // 1. Collect all branches from worktrees
       const allBranches = new Set<string>();
@@ -430,7 +419,7 @@ function OrphanSessionsSection() {
       setSelectedSessions(new Set(orphans.map((s) => s.name)));
       setShowCleanup(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      toastError(e);
     } finally {
       setScanning(false);
     }
@@ -438,7 +427,6 @@ function OrphanSessionsSection() {
 
   const cleanSelectedSessions = useCallback(async () => {
     setCleaning(true);
-    setError(null);
     try {
       for (const session of orphanSessions) {
         if (!selectedSessions.has(session.name)) continue;
@@ -449,7 +437,7 @@ function OrphanSessionsSection() {
       setOrphanSessions([]);
       setSelectedSessions(new Set());
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      toastError(e);
     } finally {
       setCleaning(false);
     }
@@ -515,9 +503,6 @@ function OrphanSessionsSection() {
               </button>
             </div>
           )}
-          {error && (
-            <p className="mt-1 text-xs text-[var(--accent-red)]">{error}</p>
-          )}
         </div>
       ) : (
         <button
@@ -546,11 +531,9 @@ function CleanupSection() {
   const [scanning, setScanning] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [showCleanup, setShowCleanup] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const scanForStale = useCallback(async () => {
     setScanning(true);
-    setError(null);
     try {
       const stale: StaleWorktree[] = [];
 
@@ -585,7 +568,7 @@ function CleanupSection() {
       );
       setShowCleanup(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      toastError(e);
     } finally {
       setScanning(false);
     }
@@ -593,7 +576,6 @@ function CleanupSection() {
 
   const cleanSelected = useCallback(async () => {
     setCleaning(true);
-    setError(null);
     try {
       for (const sw of staleWorktrees) {
         const key = `${sw.repoPath}:${sw.worktree.branch}`;
@@ -618,7 +600,7 @@ function CleanupSection() {
       setStaleWorktrees([]);
       setSelected(new Set());
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      toastError(e);
     } finally {
       setCleaning(false);
     }
@@ -684,9 +666,6 @@ function CleanupSection() {
                 {cleaning ? "Cleaning..." : `Delete (${selected.size})`}
               </button>
             </div>
-          )}
-          {error && (
-            <p className="mt-1 text-xs text-[var(--accent-red)]">{error}</p>
           )}
         </div>
       ) : (
