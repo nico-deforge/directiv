@@ -46,7 +46,10 @@ pub async fn open_terminal(
             let script = format!(
                 r#"tell application "iTerm"
     activate
-    create window with default profile command "tmux attach -t {session}"
+    create window with default profile
+    tell current session of current window
+        write text "tmux -CC attach -t {session}"
+    end tell
 end tell"#
             );
             app.shell()
@@ -59,7 +62,7 @@ end tell"#
             let script = format!(
                 r#"tell application "Terminal"
     activate
-    do script "tmux attach -t {session}"
+    do script "{user_shell} -lc 'tmux attach -t {session}'"
 end tell"#
             );
             app.shell()
