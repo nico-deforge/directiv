@@ -61,6 +61,10 @@ export interface EnrichedTask {
   blockedBy: BlockingIssue[];
 }
 
+// --- Claude Session ---
+
+export type ClaudeSessionStatus = "active" | "waiting" | "unknown";
+
 // --- Tmux ---
 
 export interface TmuxSession {

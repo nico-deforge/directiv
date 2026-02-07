@@ -19,7 +19,7 @@ import {
   useLinearConnectionStatus,
   type LinearConnectionStatus,
 } from "../../hooks/useLinear";
-import { useTmuxSessions } from "../../hooks/useTmux";
+import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
 import { useGitHubMyOpenPRs } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
 import {
@@ -111,6 +111,11 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     tasksError,
   );
   const { data: sessions } = useTmuxSessions();
+  const activeSessionNames = useMemo(
+    () => (sessions ?? []).map((s) => s.name),
+    [sessions],
+  );
+  const { data: claudeStates } = useClaudeSessionStates(activeSessionNames);
   const { data: prs } = useGitHubMyOpenPRs();
   const { data: allWorktrees } = useAllWorktrees(repos);
 
@@ -270,6 +275,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
         prByBranch.get(task.identifier.toLowerCase()) ??
         (wtInfo ? prByBranch.get(wtInfo.worktree.branch.toLowerCase()) : null);
 
+      const sessionName = task.identifier;
       return {
         id: task.id,
         type: "unifiedTask",
@@ -278,9 +284,10 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
           task,
           worktree: wtInfo?.worktree ?? null,
           worktreeRepoPath: wtInfo?.repoPath ?? null,
-          session: sessionByName.get(task.identifier) ?? null,
+          session: sessionByName.get(sessionName) ?? null,
           pullRequest: pr ?? null,
           repos,
+          claudeStatus: claudeStates?.get(sessionName) ?? null,
         },
         draggable: false,
       };
@@ -323,6 +330,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     worktreeByBranch,
     prByBranch,
     sessionByName,
+    claudeStates,
     repos,
     resolvedTheme,
   ]);

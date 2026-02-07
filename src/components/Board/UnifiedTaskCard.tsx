@@ -25,6 +25,7 @@ import type {
   WorktreeInfo,
   TmuxSession,
   DiscoveredRepo,
+  ClaudeSessionStatus,
 } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -103,6 +104,7 @@ export type UnifiedTaskNodeData = {
   session: TmuxSession | null;
   pullRequest: PullRequestInfo | null;
   repos: DiscoveredRepo[];
+  claudeStatus: ClaudeSessionStatus | null;
   onDragStart?: (nodeId: string, e: React.MouseEvent) => void;
   isBeingTargeted?: boolean;
 };
@@ -117,6 +119,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     session,
     pullRequest,
     repos,
+    claudeStatus,
     onDragStart,
     isBeingTargeted,
   } = data;
@@ -136,6 +139,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const isLoading = startTask.isPending || killingSession || deletingWorktree;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
+  const needsInput =
+    claudeStatus === "waiting" || workflowStatus === "personal-review";
 
   useEffect(() => {
     if (!confirmingDelete) return;
@@ -285,6 +290,12 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           <span className="text-xs font-medium text-[var(--text-secondary)]">
             {task.identifier}
           </span>
+          {needsInput && (
+            <span className="ml-auto flex items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-red)]/20 text-[var(--accent-red)]">
+              <AlertTriangle className="size-3" />
+              Needs Input
+            </span>
+          )}
         </div>
         <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
           {task.title}
