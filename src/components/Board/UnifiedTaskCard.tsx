@@ -14,6 +14,7 @@ import {
   ExternalLink,
   ChevronLeft,
   Code2,
+  AlertTriangle,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -458,6 +459,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             {repos.length === 1 ? (
               <BranchSelector
                 repoPath={repos[0].path}
+                configWarning={repos[0].configWarning}
                 onSelect={(baseBranch) =>
                   handleStart(repos[0].path, baseBranch)
                 }
@@ -466,6 +468,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <BranchSelector
                 repoPath={selectedRepo.path}
                 repoId={selectedRepo.id}
+                configWarning={selectedRepo.configWarning}
                 onSelect={(baseBranch) =>
                   handleStart(selectedRepo.path, baseBranch)
                 }
@@ -477,9 +480,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                   <button
                     key={repo.id}
                     onClick={() => setSelectedRepo(repo)}
-                    className="block w-full px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                   >
                     {repo.id}
+                    {repo.configWarning && (
+                      <span title={repo.configWarning}>
+                        <AlertTriangle className="size-3.5 shrink-0 text-[var(--accent-amber)]" />
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -500,11 +508,13 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 function BranchSelector({
   repoPath,
   repoId,
+  configWarning,
   onSelect,
   onBack,
 }: {
   repoPath: string;
   repoId?: string;
+  configWarning?: string;
   onSelect: (baseBranch?: string) => void;
   onBack?: () => void;
 }) {
@@ -517,6 +527,12 @@ function BranchSelector({
 
   return (
     <div className="min-w-48">
+      {configWarning && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[var(--accent-amber)]">
+          <AlertTriangle className="size-3 shrink-0" />
+          <span className="line-clamp-2">.directiv.json error</span>
+        </div>
+      )}
       {onBack && (
         <button
           onClick={onBack}

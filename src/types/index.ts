@@ -153,6 +153,7 @@ export interface DiscoveredRepo {
   onStart: string[];
   baseBranch?: string;
   fetchBefore: boolean;
+  configWarning?: string;
 }
 
 export interface LinearConfig {
