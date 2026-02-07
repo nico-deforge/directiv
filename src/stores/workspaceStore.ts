@@ -58,7 +58,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           set({
             repos: allRepos,
             isScanning: false,
-            activeWorkspaceId: activeValid ? currentActive : workspaces[0]?.id ?? null,
+            activeWorkspaceId: activeValid
+              ? currentActive
+              : (workspaces[0]?.id ?? null),
           });
         } catch (err) {
           set({

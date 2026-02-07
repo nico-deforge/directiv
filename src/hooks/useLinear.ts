@@ -14,7 +14,7 @@ export type LinearConnectionStatus =
 export function useLinearConnectionStatus(
   teamIds: string[],
   isLoading: boolean,
-  error: Error | null
+  error: Error | null,
 ): LinearConnectionStatus {
   return useMemo(() => {
     if (!linearClient) return { status: "no-token" as const };

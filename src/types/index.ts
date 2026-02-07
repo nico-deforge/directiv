@@ -117,9 +117,7 @@ export interface StaleWorktree {
 
 // --- Skills ---
 
-export type SkillSource =
-  | { type: "global" }
-  | { type: "repo"; repoId: string };
+export type SkillSource = { type: "global" } | { type: "repo"; repoId: string };
 
 export interface SkillInfo {
   name: string;
