@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ReactFlow,
@@ -9,7 +9,6 @@ import {
   ConnectionMode,
   type Node,
   type Edge,
-  type Connection,
   type EdgeMouseHandler,
   MarkerType,
 } from "@xyflow/react";
@@ -72,6 +71,10 @@ const nodeTypes = {
   unifiedTask: UnifiedTaskCard,
   orphanTask: OrphanTaskCard,
 };
+
+const EDGE_COLOR = { dark: "#f59e0b", light: "#d97706" } as const;
+const EDGE_HIGHLIGHT_COLOR = "#ef4444";
+const NullConnectionLine = () => null;
 
 interface DependencyGraphProps {
   onProjectsChange: (
@@ -305,8 +308,8 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     const identifierById = new Map(
       filteredTasks.map((t) => [t.id, t.identifier]),
     );
-    // Use static amber color that matches our accent
-    const edgeColor = resolvedTheme === "dark" ? "#f59e0b" : "#d97706";
+    const edgeColor =
+      resolvedTheme === "dark" ? EDGE_COLOR.dark : EDGE_COLOR.light;
     const taskEdges: EdgeWithRelation[] = edgeData.map((e) => ({
       id: e.relationId,
       source: e.source,
@@ -349,27 +352,32 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
 
   // Update edges with highlight for hovered edge
   useEffect(() => {
-    const edgeColor = resolvedTheme === "dark" ? "#f59e0b" : "#d97706";
-    const highlightColor = "#ef4444"; // red-500
+    if (!hoveredEdgeId) {
+      setEdges(nextEdges);
+      return;
+    }
 
     setEdges(
-      nextEdges.map((edge) => ({
-        ...edge,
-        style: {
-          ...edge.style,
-          stroke: edge.id === hoveredEdgeId ? highlightColor : edgeColor,
-          strokeWidth: edge.id === hoveredEdgeId ? 5 : 3,
-        },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: edge.id === hoveredEdgeId ? highlightColor : edgeColor,
-          width: 20,
-          height: 20,
-        },
-        animated: edge.id === hoveredEdgeId,
-      })),
+      nextEdges.map((edge) => {
+        if (edge.id !== hoveredEdgeId) return edge;
+        return {
+          ...edge,
+          style: {
+            ...edge.style,
+            stroke: EDGE_HIGHLIGHT_COLOR,
+            strokeWidth: 5,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: EDGE_HIGHLIGHT_COLOR,
+            width: 20,
+            height: 20,
+          },
+          animated: true,
+        };
+      }),
     );
-  }, [nextEdges, setEdges, hoveredEdgeId, resolvedTheme]);
+  }, [nextEdges, setEdges, hoveredEdgeId]);
 
   // Build task lookup for optimistic updates
   const taskById = useMemo(() => {
@@ -380,36 +388,19 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     return map;
   }, [filteredTasks]);
 
-  // Handle new connections (create blocked-by relation)
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      if (!connection.source || !connection.target) return;
-      // Prevent self-connection
-      if (connection.source === connection.target) return;
-
-      const blockerTask = taskById.get(connection.source);
-      if (!blockerTask) return;
-
-      // source = blocker, target = blocked
-      createBlockedBy.mutate({
-        blockerIssueId: connection.source,
-        targetIssueId: connection.target,
-        blockerInfo: {
-          id: blockerTask.id,
-          identifier: blockerTask.identifier,
-          title: blockerTask.title,
-          url: blockerTask.url,
-        },
-      });
-    },
-    [createBlockedBy, taskById],
-  );
+  // Refs to avoid re-registering drag listeners when these change mid-drag
+  const dragStateRef = useRef<DragState | null>(null);
+  const taskByIdRef = useRef(taskById);
+  taskByIdRef.current = taskById;
+  const createBlockedByRef = useRef(createBlockedBy);
+  createBlockedByRef.current = createBlockedBy;
 
   // Handle edge click - show menu for all edges at click location
   const onEdgeClick: EdgeMouseHandler = useCallback(
     (event, edge) => {
       const clickedEdge = edge as EdgeWithRelation;
 
+      // WARNING: relies on ReactFlow internal DOM structure — may break on major version upgrades
       // Use document.elementsFromPoint to find all edge elements at click location
       const elementsAtPoint = document.elementsFromPoint(
         event.clientX,
@@ -481,19 +472,22 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
         y: rect.top + rect.height / 2,
       });
 
-      setDragState({
+      const initial: DragState = {
         sourceNodeId: nodeId,
         sourcePosition,
         currentPosition: sourcePosition,
         targetNodeId: null,
-      });
+      };
+      dragStateRef.current = initial;
+      setDragState(initial);
     },
     [screenToFlowPosition, selectedProjectId],
   );
 
-  // Handle mouse move during drag
+  // Handle mouse move during drag — uses refs so listeners are registered once per drag
+  const isDragging = dragState !== null;
   useEffect(() => {
-    if (!dragState) return;
+    if (!isDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       const flowPosition = screenToFlowPosition({
@@ -511,41 +505,56 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
 
       // Filter out source node and find valid target
       const validTarget = intersecting.find(
-        (n) => n.id !== dragState.sourceNodeId && n.type === "unifiedTask",
+        (n) =>
+          n.id !== dragStateRef.current?.sourceNodeId &&
+          n.type === "unifiedTask",
       );
 
-      setDragState((prev) =>
-        prev
-          ? {
-              ...prev,
-              currentPosition: flowPosition,
-              targetNodeId: validTarget?.id ?? null,
-            }
-          : null,
-      );
+      const newState: DragState = {
+        ...dragStateRef.current!,
+        currentPosition: flowPosition,
+        targetNodeId: validTarget?.id ?? null,
+      };
+      dragStateRef.current = newState;
+      setDragState(newState);
     };
 
     const handleMouseUp = () => {
-      if (dragState.targetNodeId) {
-        const blockerTask = taskById.get(dragState.sourceNodeId);
+      const ds = dragStateRef.current;
+      if (ds?.targetNodeId) {
+        const blockerTask = taskByIdRef.current.get(ds.sourceNodeId);
+        const targetTask = taskByIdRef.current.get(ds.targetNodeId);
         if (blockerTask) {
-          createBlockedBy.mutate({
-            blockerIssueId: dragState.sourceNodeId,
-            targetIssueId: dragState.targetNodeId,
-            blockerInfo: {
-              id: blockerTask.id,
-              identifier: blockerTask.identifier,
-              title: blockerTask.title,
-              url: blockerTask.url,
-            },
-          });
+          // Guard: duplicate relation
+          if (targetTask?.blockedBy.some((b) => b.id === ds.sourceNodeId)) {
+            toast.info("This blocking link already exists");
+          }
+          // Guard: direct cycle (A→B when B→A already exists)
+          else if (
+            blockerTask.blockedBy.some((b) => b.id === ds.targetNodeId)
+          ) {
+            toast.warning("This would create a circular dependency");
+          } else {
+            createBlockedByRef.current.mutate({
+              blockerIssueId: ds.sourceNodeId,
+              targetIssueId: ds.targetNodeId,
+              blockerInfo: {
+                id: blockerTask.id,
+                identifier: blockerTask.identifier,
+                title: blockerTask.title,
+                url: blockerTask.url,
+              },
+            });
+          }
         }
       }
+      dragStateRef.current = null;
       setDragState(null);
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        dragStateRef.current = null;
         setDragState(null);
       }
     };
@@ -559,24 +568,26 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [
-    dragState,
-    screenToFlowPosition,
-    getIntersectingNodes,
-    taskById,
-    createBlockedBy,
-  ]);
+  }, [isDragging, screenToFlowPosition, getIntersectingNodes]);
 
-  // Build nodes with drag handlers
+  // Build nodes with drag handlers — only create new data objects when values actually change
   const nodesWithDragHandlers = useMemo(() => {
+    const targetId = dragState?.targetNodeId ?? null;
     return nodes.map((node) => {
       if (node.type !== "unifiedTask") return node;
+      const isTarget = targetId === node.id;
+      if (
+        node.data.onDragStart === handleCardDragStart &&
+        node.data.isBeingTargeted === isTarget
+      ) {
+        return node;
+      }
       return {
         ...node,
         data: {
           ...node.data,
           onDragStart: handleCardDragStart,
-          isBeingTargeted: dragState?.targetNodeId === node.id,
+          isBeingTargeted: isTarget,
         },
       };
     });
@@ -589,7 +600,6 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
         onEdgeClick={onEdgeClick}
         nodeTypes={nodeTypes}
         connectionMode={ConnectionMode.Loose}
@@ -602,7 +612,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
         proOptions={{ hideAttribution: true }}
         panOnScroll
         zoomOnDoubleClick={false}
-        connectionLineComponent={() => null}
+        connectionLineComponent={NullConnectionLine}
         minZoom={0.3}
         maxZoom={1.5}
       >
@@ -613,6 +623,9 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
             toX={dragState.currentPosition.x}
             toY={dragState.currentPosition.y}
             hasValidTarget={dragState.targetNodeId !== null}
+            color={
+              resolvedTheme === "dark" ? EDGE_COLOR.dark : EDGE_COLOR.light
+            }
           />
         )}
       </ReactFlow>

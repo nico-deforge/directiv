@@ -6,6 +6,7 @@ interface DragConnectionLineProps {
   toX: number;
   toY: number;
   hasValidTarget: boolean;
+  color?: string;
 }
 
 export function DragConnectionLine({
@@ -14,6 +15,7 @@ export function DragConnectionLine({
   toX,
   toY,
   hasValidTarget,
+  color = "#f59e0b",
 }: DragConnectionLineProps) {
   const { x, y, zoom } = useViewport();
 
@@ -24,7 +26,7 @@ export function DragConnectionLine({
     targetY: toY,
   });
 
-  const strokeColor = "#f59e0b";
+  const strokeColor = color;
   const opacity = hasValidTarget ? 1 : 0.6;
 
   return (

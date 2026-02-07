@@ -43,7 +43,7 @@ export function useCreateBlockedBy() {
             if (task.id !== targetIssueId) return task;
             const newBlocker: BlockingIssue = {
               ...blockerInfo,
-              relationId: `temp-${Date.now()}`,
+              relationId: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
             };
             return {
               ...task,
