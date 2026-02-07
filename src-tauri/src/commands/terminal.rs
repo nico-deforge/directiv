@@ -13,14 +13,32 @@ pub async fn open_terminal(
         "ghostty" => {
             app.shell()
                 .command("open")
-                .args(["-n", "-a", "Ghostty", "--args", "-e", &user_shell, "-lc", &tmux_cmd])
+                .args([
+                    "-n",
+                    "-a",
+                    "Ghostty",
+                    "--args",
+                    "-e",
+                    &user_shell,
+                    "-lc",
+                    &tmux_cmd,
+                ])
                 .spawn()
                 .map_err(|e| format!("Failed to open Ghostty: {e}"))?;
         }
         "alacritty" => {
             app.shell()
                 .command("open")
-                .args(["-n", "-a", "Alacritty", "--args", "-e", &user_shell, "-lc", &tmux_cmd])
+                .args([
+                    "-n",
+                    "-a",
+                    "Alacritty",
+                    "--args",
+                    "-e",
+                    &user_shell,
+                    "-lc",
+                    &tmux_cmd,
+                ])
                 .spawn()
                 .map_err(|e| format!("Failed to open Alacritty: {e}"))?;
         }

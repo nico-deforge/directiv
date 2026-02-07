@@ -172,9 +172,7 @@ async fn get_worktree_health(
         .output()
         .await
     {
-        Ok(out) if out.status.success() => {
-            !String::from_utf8_lossy(&out.stdout).trim().is_empty()
-        }
+        Ok(out) if out.status.success() => !String::from_utf8_lossy(&out.stdout).trim().is_empty(),
         _ => false,
     };
 
@@ -228,7 +226,9 @@ fn validate_relative_path(rel: &str) -> Result<(), String> {
 
     for component in path.components() {
         if matches!(component, Component::ParentDir) {
-            return Err(format!("copyPaths: parent traversal (..) not allowed: {rel}"));
+            return Err(format!(
+                "copyPaths: parent traversal (..) not allowed: {rel}"
+            ));
         }
     }
 
@@ -268,8 +268,8 @@ fn copy_path(src: &Path, dst: &Path) -> Result<(), String> {
         let entries = std::fs::read_dir(src)
             .map_err(|e| format!("Failed to read directory {}: {e}", src.display()))?;
         for entry in entries {
-            let entry = entry
-                .map_err(|e| format!("Failed to read entry in {}: {e}", src.display()))?;
+            let entry =
+                entry.map_err(|e| format!("Failed to read entry in {}: {e}", src.display()))?;
             let child_src = entry.path();
             let child_dst = dst.join(entry.file_name());
             copy_path(&child_src, &child_dst)?;
@@ -395,12 +395,8 @@ pub async fn worktree_create(
         }
 
         // Path exists but is not a valid worktree on the expected branch → remove it
-        std::fs::remove_dir_all(&worktree_path).map_err(|e| {
-            format!(
-                "Cannot clean stale directory {}: {e}",
-                worktree_path_str
-            )
-        })?;
+        std::fs::remove_dir_all(&worktree_path)
+            .map_err(|e| format!("Cannot clean stale directory {}: {e}", worktree_path_str))?;
     }
 
     let base = match base_branch {

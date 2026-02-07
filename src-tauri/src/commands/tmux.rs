@@ -58,7 +58,12 @@ pub async fn tmux_create_session(
     name: String,
     working_dir: Option<String>,
 ) -> Result<TmuxSession, String> {
-    let mut args = vec!["new-session".to_string(), "-d".to_string(), "-s".to_string(), name.clone()];
+    let mut args = vec![
+        "new-session".to_string(),
+        "-d".to_string(),
+        "-s".to_string(),
+        name.clone(),
+    ];
 
     if let Some(dir) = &working_dir {
         args.push("-c".to_string());
