@@ -26,28 +26,33 @@ Directiv is a Tauri 2.0 desktop app that integrates Linear, GitHub, tmux, and gi
 - **Frontend:** React + TypeScript, Zustand (state), Tailwind CSS, TanStack Query (data fetching), lucide-react (icons)
 - **Backend:** Rust with `tauri-plugin-shell` for system commands, `serde` for serialization
 - **Integrations:** `@linear/sdk`, `@octokit/rest`, tmux CLI, git worktree
+- **Dev tooling:** mise (tool version management + task runner)
 
 ## Build & Dev Commands
 
 ```bash
 # Install
-bun install                    # Install frontend dependencies
+mise install               # Install tools (bun, rust) at pinned versions
+mise run install           # Install frontend dependencies (bun install)
 
 # Dev
-bun run dev                    # Start Vite dev server (frontend only)
-bun run tauri:dev              # Run full Tauri app in dev mode
+mise run dev               # Run full Tauri app in dev mode
+mise run dev:frontend      # Start Vite dev server (frontend only)
+
+# Code quality
+mise run check             # All checks in parallel (tsc + lint + format)
+mise run tsc               # Type-check (no emit)
+mise run lint              # ESLint
+mise run format            # Prettier format
+
+# Rust backend
+mise run rust:build        # cargo build (in src-tauri/)
+mise run rust:test         # cargo test (in src-tauri/)
+mise run rust:clippy       # cargo clippy (in src-tauri/)
+mise run rust:check        # All Rust checks (clippy + fmt)
 
 # Build
-bun run tauri:build            # Build production app
-
-# Checks
-bun run tsc                    # Type-check (no emit)
-bun run lint                   # ESLint
-bun run format                 # Prettier format
-
-# Rust backend only
-cd src-tauri && cargo build
-cd src-tauri && cargo test
+mise run build             # Build production Tauri app
 ```
 
 ## Architecture

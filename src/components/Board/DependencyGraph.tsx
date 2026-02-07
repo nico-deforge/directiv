@@ -50,7 +50,7 @@ interface DependencyGraphProps {
   onProjectsChange: (
     projects: Project[],
     hasOrphans: boolean,
-    connectionStatus: LinearConnectionStatus
+    connectionStatus: LinearConnectionStatus,
   ) => void;
 }
 
@@ -70,7 +70,7 @@ export function DependencyGraph({ onProjectsChange }: DependencyGraphProps) {
   const connectionStatus = useLinearConnectionStatus(
     teamIds,
     tasksLoading,
-    tasksError
+    tasksError,
   );
   const { data: sessions } = useTmuxSessions();
   const { data: prs } = useGitHubMyOpenPRs();

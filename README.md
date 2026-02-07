@@ -167,6 +167,20 @@ Directiv requires several tools to be installed on your system.
 brew install git tmux
 ```
 
+#### mise (recommended)
+
+[mise](https://mise.jdx.dev/) manages tool versions (Bun, Rust) and provides project tasks:
+
+```bash
+# macOS (Homebrew)
+brew install mise
+
+# Activate in your shell (add to ~/.zshrc or ~/.bashrc)
+eval "$(mise activate zsh)"
+```
+
+With mise installed, `bun` and `rust` are automatically installed at the correct versions when you enter the project directory.
+
 **Optional tmux configuration** (`~/.config/tmux/tmux.conf`):
 
 ```bash
@@ -224,36 +238,47 @@ npm install -g @anthropic-ai/claude-code
 ### Clone and setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/nico-deforge/directiv.git
 cd directiv
 
-# Install frontend dependencies
-bun install
+# With mise (recommended) — installs correct bun & rust versions automatically
+mise install
+mise run install     # alias: mise run i
 
-# Run in development mode
-bun run tauri:dev
+# Without mise
+bun install
 ```
 
 ### Development commands
 
 ```bash
-# Type checking
-bun run tsc
+# Full Tauri app (frontend + backend)
+mise run dev
 
-# Linting
-bun run lint
+# Frontend only (Vite dev server)
+mise run dev:frontend
 
-# Formatting
-bun run format
+# Code quality
+mise run check            # All checks (tsc + lint + format) in parallel
+mise run tsc              # Type-check only
+mise run lint             # ESLint only
+mise run lint:fix         # ESLint with auto-fix
+mise run format           # Format with Prettier
+
+# Rust backend
+mise run rust:build       # Build
+mise run rust:test        # Run tests
+mise run rust:clippy      # Lint with clippy
+mise run rust:check       # All Rust checks
 
 # Build for production
-bun run tauri:build
+mise run build
 
-# Rust backend only
-cd src-tauri && cargo build
-cd src-tauri && cargo test
+# List all available tasks
+mise tasks
 ```
+
+> **Note:** All `bun run` scripts from `package.json` still work directly (e.g., `bun run tauri:dev`).
 
 ### Project structure
 

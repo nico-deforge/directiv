@@ -38,11 +38,14 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
     }
 
     if !path.is_dir() {
-        return Err(format!("Workspace path is not a directory: {}", workspace_path));
+        return Err(format!(
+            "Workspace path is not a directory: {}",
+            workspace_path
+        ));
     }
 
-    let entries = fs::read_dir(path)
-        .map_err(|e| format!("Failed to read workspace directory: {}", e))?;
+    let entries =
+        fs::read_dir(path).map_err(|e| format!("Failed to read workspace directory: {}", e))?;
 
     let mut repos = Vec::new();
 
@@ -67,10 +70,7 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
             .unwrap_or("unknown")
             .to_string();
 
-        let repo_path = entry_path
-            .to_str()
-            .unwrap_or("")
-            .to_string();
+        let repo_path = entry_path.to_str().unwrap_or("").to_string();
 
         // Try to read .directiv.json from the repo
         let config_path = entry_path.join(".directiv.json");

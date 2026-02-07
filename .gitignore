@@ -16,6 +16,7 @@ dist-ssr
 .env
 .env.local
 directiv.config.json
+.mise.local.toml
 
 # Editor directories and files
 .vscode/*
