@@ -56,7 +56,7 @@ Switch between tasks instantly. Never lose your place.
 - **GitHub integration** — Track PRs, reviews, and merge status
 - **Git worktree management** — Create, switch, and cleanup worktrees via GUI
 - **tmux orchestration** — Persistent sessions that survive terminal crashes
-- **Terminal delegation** — Works with Ghostty, iTerm2, Terminal.app, Alacritty
+- **Terminal delegation** — Works with Ghostty, iTerm2
 - **Claude Code integration** — Launch AI agents with issue context pre-loaded
 - **Multi-repo support** — Manage multiple repositories from one board
 
@@ -87,7 +87,7 @@ Create `directiv.config.json` in your home directory or project root:
 
 ```jsonc
 {
-  "terminal": "ghostty" | "iterm2" | "terminal" | "alacritty",
+  "terminal": "ghostty" | "iterm2",
   "editor": "zed" | "cursor" | "vscode" | "code",
   "workspaces": [
     {
@@ -186,7 +186,7 @@ With mise installed, `bun` and `rust` are automatically installed at the correct
 ```bash
 # True Color support (24-bit)
 set -as terminal-features ",xterm-ghostty:RGB"  # Ghostty
-# set -as terminal-features ",xterm-256color:RGB" # iTerm2/Terminal.app
+# set -as terminal-features ",xterm-256color:RGB" # iTerm2
 
 # Default terminal
 set -g default-terminal "tmux-256color"

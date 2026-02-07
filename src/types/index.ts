@@ -154,7 +154,7 @@ export interface SkillsResult {
 
 // --- Config ---
 
-export type TerminalEmulator = "ghostty" | "iterm2" | "terminal" | "alacritty";
+export type TerminalEmulator = "ghostty" | "iterm2";
 export type CodeEditor = "zed" | "cursor" | "vscode" | "code";
 export type Theme = "light" | "dark" | "system";
 

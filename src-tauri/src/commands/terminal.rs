@@ -26,22 +26,6 @@ pub async fn open_terminal(
                 .spawn()
                 .map_err(|e| format!("Failed to open Ghostty: {e}"))?;
         }
-        "alacritty" => {
-            app.shell()
-                .command("open")
-                .args([
-                    "-n",
-                    "-a",
-                    "Alacritty",
-                    "--args",
-                    "-e",
-                    &user_shell,
-                    "-lc",
-                    &tmux_cmd,
-                ])
-                .spawn()
-                .map_err(|e| format!("Failed to open Alacritty: {e}"))?;
-        }
         "iterm2" => {
             let script = format!(
                 r#"tell application "iTerm"
@@ -57,19 +41,6 @@ end tell"#
                 .args(["-e", &script])
                 .spawn()
                 .map_err(|e| format!("Failed to open iTerm2: {e}"))?;
-        }
-        "terminal" => {
-            let script = format!(
-                r#"tell application "Terminal"
-    activate
-    do script "{user_shell} -lc 'tmux attach -t {session}'"
-end tell"#
-            );
-            app.shell()
-                .command("osascript")
-                .args(["-e", &script])
-                .spawn()
-                .map_err(|e| format!("Failed to open Terminal.app: {e}"))?;
         }
         _ => return Err(format!("Unknown terminal emulator: {emulator}")),
     }
