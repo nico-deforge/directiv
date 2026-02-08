@@ -14,6 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
+import { Maximize2 } from "lucide-react";
 import {
   useLinearMyProjects,
   useLinearProjectIssues,
@@ -137,7 +138,16 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
 
-  const { screenToFlowPosition, getIntersectingNodes } = useReactFlow();
+  const { screenToFlowPosition, getIntersectingNodes, fitView } =
+    useReactFlow();
+
+  // Auto-fitView when switching projects
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fitView({ padding: 0.1, duration: 300 });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [selectedProjectId, fitView]);
 
   // Build lookup maps
   const sessionByName = useMemo(() => {
@@ -582,6 +592,15 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
         minZoom={0.3}
         maxZoom={1.5}
       >
+        <div className="absolute bottom-3 right-3 z-10">
+          <button
+            onClick={() => fitView({ padding: 0.1, duration: 300 })}
+            className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] p-2 text-[var(--text-muted)] shadow-sm transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+            title="Fit all cards"
+          >
+            <Maximize2 size={16} />
+          </button>
+        </div>
         {dragState && (
           <DragConnectionLine
             fromX={dragState.sourcePosition.x}
