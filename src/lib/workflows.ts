@@ -21,6 +21,7 @@ interface StartTaskParams {
   onStart?: string[];
   baseBranch?: string;
   fetchBefore?: boolean;
+  skill?: string;
 }
 
 export async function startTask({
@@ -32,6 +33,7 @@ export async function startTask({
   onStart,
   baseBranch,
   fetchBefore,
+  skill,
 }: StartTaskParams): Promise<void> {
   // 1. Reuse or create git worktree
   const worktrees = await worktreeList(repoPath);
@@ -57,7 +59,8 @@ export async function startTask({
         await runHooks(onStart, worktree.path);
       }
       // 3. Launch Claude only on fresh sessions
-      await tmuxSendKeys(identifier, `claude "/linear-issue ${identifier}"`);
+      const claudeCmd = skill ? `claude "/${skill} ${identifier}"` : "claude";
+      await tmuxSendKeys(identifier, claudeCmd);
     } catch (err) {
       // Rollback: kill session so retry creates a fresh one
       await tmuxKillSession(identifier).catch(() => {});

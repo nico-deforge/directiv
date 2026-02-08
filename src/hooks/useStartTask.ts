@@ -10,6 +10,7 @@ interface StartTaskParams {
   onStart?: string[];
   baseBranch?: string;
   fetchBefore?: boolean;
+  skill?: string;
 }
 
 export function useStartTask() {

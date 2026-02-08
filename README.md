@@ -97,10 +97,12 @@ Create `directiv.config.json` in your home directory or project root:
     }
   ],
   "linear": {
-    "teamIds": ["TEAM_ID"],           // Team IDs or keys (e.g., "ENG" or UUID)
-    "activeProject": null | "PROJECT_ID"
+    "teamIds": ["TEAM_ID"]             // Team IDs or keys (e.g., "ENG" or UUID)
   },
-  "theme": "system" | "light" | "dark"
+  "theme": "system" | "light" | "dark",
+  "skills": [                            // Claude Code skills to run on task start (optional)
+    { "skill": "linear-issue", "label": "Start" }
+  ]
 }
 ```
 

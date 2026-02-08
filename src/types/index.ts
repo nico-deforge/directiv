@@ -156,6 +156,11 @@ export interface SkillsResult {
 
 // --- Config ---
 
+export interface SkillConfig {
+  skill: string;
+  label: string;
+}
+
 export type TerminalEmulator = "ghostty" | "iterm2";
 export type CodeEditor = "zed" | "cursor" | "vscode" | "code";
 export type Theme = "light" | "dark" | "system";
@@ -178,7 +183,6 @@ export interface DiscoveredRepo {
 
 export interface LinearConfig {
   teamIds: string[];
-  activeProject: string | null;
 }
 
 export interface DirectivConfig {
@@ -187,4 +191,5 @@ export interface DirectivConfig {
   workspaces: WorkspaceConfig[];
   linear: LinearConfig;
   theme: Theme;
+  skills: SkillConfig[];
 }

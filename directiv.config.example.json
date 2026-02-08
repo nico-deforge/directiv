@@ -9,8 +9,8 @@
     }
   ],
   "linear": {
-    "teamIds": ["TEAM_ID"],
-    "activeProject": null
+    "teamIds": ["TEAM_ID"]
   },
-  "theme": "system"
+  "theme": "system",
+  "skills": [{ "skill": "linear-issue", "label": "Start" }]
 }
