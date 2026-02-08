@@ -477,27 +477,39 @@ pub async fn worktree_remove(
     delete_branch: Option<bool>,
 ) -> Result<(), String> {
     if !Path::new(&worktree_path).exists() {
-        return Err(format!("No worktree found at: {worktree_path}"));
-    }
+        // Path is gone from disk — prune stale git worktree entries
+        let prune_output = app
+            .shell()
+            .command("git")
+            .args(["-C", &repo_path, "worktree", "prune"])
+            .output()
+            .await
+            .map_err(|e| format!("Failed to run git worktree prune: {e}"))?;
 
-    let output = app
-        .shell()
-        .command("git")
-        .args([
-            "-C",
-            &repo_path,
-            "worktree",
-            "remove",
-            "--force",
-            &worktree_path,
-        ])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run git: {e}"))?;
+        if !prune_output.status.success() {
+            let stderr = String::from_utf8_lossy(&prune_output.stderr);
+            return Err(format!("git worktree prune failed: {stderr}"));
+        }
+    } else {
+        let output = app
+            .shell()
+            .command("git")
+            .args([
+                "-C",
+                &repo_path,
+                "worktree",
+                "remove",
+                "--force",
+                &worktree_path,
+            ])
+            .output()
+            .await
+            .map_err(|e| format!("Failed to run git: {e}"))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("git worktree remove failed: {stderr}"));
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("git worktree remove failed: {stderr}"));
+        }
     }
 
     // Optionally delete the branch after worktree removal
@@ -554,7 +566,6 @@ pub async fn worktree_check_merged(
     app: tauri::AppHandle,
     repo_path: String,
     branch: String,
-    base_branch: Option<String>,
 ) -> Result<bool, String> {
     // Method 1: Check if the remote tracking branch has been deleted
     // This handles squash-and-merge workflows where the commit hash changes
@@ -573,16 +584,11 @@ pub async fn worktree_check_merged(
     }
 
     // Method 2: Fallback to merge-base check for regular merges
-    let base = match base_branch {
-        Some(ref b) if !b.is_empty() => b.clone(),
-        _ => {
-            let detected = detect_default_branch(&app, &repo_path).await;
-            detected
-                .strip_prefix("origin/")
-                .unwrap_or(&detected)
-                .to_string()
-        }
-    };
+    let detected = detect_default_branch(&app, &repo_path).await;
+    let base = detected
+        .strip_prefix("origin/")
+        .unwrap_or(&detected)
+        .to_string();
 
     let output = app
         .shell()

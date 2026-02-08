@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { toastError } from "../../lib/toast";
 import type { Node, NodeProps } from "@xyflow/react";
 import { Handle, Position } from "@xyflow/react";
 import {
@@ -9,11 +10,13 @@ import {
   Loader2,
   ChevronDown,
   GitBranch,
-  GitPullRequest,
+  Github,
   Circle,
+  SquareKanban,
   ExternalLink,
   ChevronLeft,
   Code2,
+  AlertTriangle,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -22,6 +25,7 @@ import type {
   WorktreeInfo,
   TmuxSession,
   DiscoveredRepo,
+  ClaudeSessionStatus,
 } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -32,14 +36,6 @@ import {
   worktreeRemove,
 } from "../../lib/tauri";
 import { useWorktrees } from "../../hooks/useWorktrees";
-
-const PRIORITY_COLORS: Record<number, string> = {
-  0: "bg-neutral-400",
-  1: "bg-red-500",
-  2: "bg-orange-500",
-  3: "bg-yellow-500",
-  4: "bg-blue-500",
-};
 
 type WorkflowStatus =
   | "todo"
@@ -108,37 +104,48 @@ export type UnifiedTaskNodeData = {
   session: TmuxSession | null;
   pullRequest: PullRequestInfo | null;
   repos: DiscoveredRepo[];
+  claudeStatus: ClaudeSessionStatus | null;
+  onDragStart?: (nodeId: string, e: React.MouseEvent) => void;
+  isBeingTargeted?: boolean;
 };
 
 export type UnifiedTaskNodeType = Node<UnifiedTaskNodeData, "unifiedTask">;
 
-export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
-  const { task, worktree, worktreeRepoPath, session, pullRequest, repos } =
-    data;
+export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
+  const {
+    task,
+    worktree,
+    worktreeRepoPath,
+    session,
+    pullRequest,
+    repos,
+    claudeStatus,
+    onDragStart,
+    isBeingTargeted,
+  } = data;
+  const isDisabled = !task.isAssignedToMe;
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
+  const skills = useSettingsStore((s) => s.config.skills);
   const queryClient = useQueryClient();
   const startTask = useStartTask();
 
-  const [error, setError] = useState<string | null>(null);
   const [killingSession, setKillingSession] = useState(false);
   const [deletingWorktree, setDeletingWorktree] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
+  const [selectedSkill, setSelectedSkill] = useState<string | undefined>(
+    undefined,
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const priorityColor = PRIORITY_COLORS[task.priority] ?? "bg-neutral-400";
   const hasSession = session !== null;
   const isLoading = startTask.isPending || killingSession || deletingWorktree;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
-
-  useEffect(() => {
-    if (!error) return;
-    const timer = setTimeout(() => setError(null), 5000);
-    return () => clearTimeout(timer);
-  }, [error]);
+  const needsInput =
+    claudeStatus === "waiting" || workflowStatus === "personal-review";
 
   useEffect(() => {
     if (!confirmingDelete) return;
@@ -155,6 +162,7 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
       ) {
         setDropdownOpen(false);
         setSelectedRepo(null);
+        setSelectedSkill(undefined);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -164,12 +172,11 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
   async function handleKillSession() {
     if (!session) return;
     setKillingSession(true);
-    setError(null);
     try {
       await tmuxKillSession(session.name);
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toastError(err);
     } finally {
       setKillingSession(false);
     }
@@ -179,7 +186,6 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
     if (!worktree || !worktreeRepoPath) return;
     setDeletingWorktree(true);
     setConfirmingDelete(false);
-    setError(null);
     try {
       // Kill session if it exists
       if (session) {
@@ -199,16 +205,17 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toastError(err);
     } finally {
       setDeletingWorktree(false);
     }
   }
 
   function handleStart(repoPath: string, baseBranch?: string) {
-    setError(null);
+    const skill = selectedSkill;
     setDropdownOpen(false);
     setSelectedRepo(null);
+    setSelectedSkill(undefined);
     const repo = repos.find((r) => r.path === repoPath);
     startTask.mutate(
       {
@@ -218,12 +225,12 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
         terminal,
         copyPaths: repo?.copyPaths,
         onStart: repo?.onStart,
-        baseBranch: baseBranch ?? repo?.baseBranch,
+        baseBranch,
         fetchBefore: repo?.fetchBefore,
+        skill,
       },
       {
-        onError: (err) =>
-          setError(err instanceof Error ? err.message : String(err)),
+        onError: (err) => toastError(err),
       },
     );
   }
@@ -233,7 +240,7 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
     try {
       await openTerminal(terminal, session.name);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toastError(err);
     }
   }
 
@@ -242,65 +249,102 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
     try {
       await openEditor(editor, worktree.path);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toastError(err);
     }
   }
 
+  const handleDragHandleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onDragStart?.(id, e);
+    },
+    [id, onDragStart],
+  );
+
   return (
-    <div className="nodrag nopan w-[380px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-lg relative">
-      {/* ReactFlow handles for edges */}
+    <div
+      className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative ${
+        isBeingTargeted
+          ? "border-[var(--text-muted)] ring-1 ring-[var(--text-muted)]/50"
+          : "border-[var(--border-default)]"
+      } ${isDisabled ? "opacity-50" : ""}`}
+    >
+      {/* Hidden target handle for edge connections */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!bg-[var(--accent-amber)]/60 !w-2 !h-2 !border-0"
+        className="!opacity-0 !pointer-events-none"
       />
+      {/* Drag handle at bottom center - starts blocked-by edge creation */}
+      <div
+        className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[var(--text-muted)] border border-[var(--bg-tertiary)] cursor-crosshair hover:scale-150 hover:bg-[var(--text-secondary)] transition-transform z-10"
+        onMouseDown={handleDragHandleMouseDown}
+      />
+      {/* Hidden source handle for edge connections */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!bg-[var(--accent-amber)]/60 !w-2 !h-2 !border-0"
+        className="!opacity-0 !pointer-events-none"
       />
 
       {/* Header: Task info with workflow status */}
       <div className="border-b border-[var(--border-default)] px-3 py-2">
-        <div className="flex items-start gap-2">
+        <div className="flex items-center gap-2">
           <span
-            className={`mt-1.5 size-2 shrink-0 rounded-full ${priorityColor}`}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span
-                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusLabel.className}`}
-              >
-                {statusLabel.label}
-              </span>
-              <a
-                href={task.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-xs font-medium text-[var(--accent-blue)] hover:opacity-80"
-              >
-                {task.identifier}
-                <ExternalLink className="size-3" />
-              </a>
-            </div>
-            <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
-              {task.title}
-            </p>
-          </div>
+            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusLabel.className}`}
+          >
+            {statusLabel.label}
+          </span>
+          <span className="text-xs font-medium text-[var(--text-secondary)]">
+            {task.identifier}
+          </span>
+          {isDisabled && task.assigneeName && (
+            <span className="text-[10px] text-[var(--text-muted)]">
+              {task.assigneeName}
+            </span>
+          )}
+          {needsInput && (
+            <span className="ml-auto flex items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-red)]/20 text-[var(--accent-red)]">
+              <AlertTriangle className="size-3" />
+              Needs Input
+            </span>
+          )}
         </div>
+        <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
+          {task.title}
+        </p>
+      </div>
+
+      {/* Linear Section */}
+      <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+        <SquareKanban className="size-4 shrink-0 text-[var(--accent-blue)]" />
+        <a
+          href={task.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 min-w-0 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        >
+          <span className="truncate">{task.identifier}</span>
+          <ExternalLink className="size-3 shrink-0" />
+        </a>
+        <span className="ml-auto text-xs text-[var(--text-tertiary)]">
+          {task.status}
+        </span>
       </div>
 
       {/* PR Section */}
       {pullRequest && (
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <GitPullRequest className="size-4 shrink-0 text-[var(--accent-purple)]" />
+          <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
           <a
             href={pullRequest.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="min-w-0 flex-1 truncate text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="flex items-center gap-1 min-w-0 flex-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
-            PR #{pullRequest.number}
+            <span className="truncate">PR #{pullRequest.number}</span>
+            <ExternalLink className="size-3 shrink-0" />
           </a>
         </div>
       )}
@@ -327,139 +371,173 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
       )}
 
       {/* Actions */}
-      <div
-        className="relative flex items-center gap-2 px-3 py-2"
-        ref={dropdownRef}
-      >
-        {/* Start button with dropdown */}
-        {!hasSession && (
-          <button
-            onClick={() => setDropdownOpen((prev) => !prev)}
-            disabled={isLoading || repos.length === 0}
-            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {startTask.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" />
+      {!isDisabled && (
+        <div
+          className="relative flex items-center gap-2 px-3 py-2"
+          ref={dropdownRef}
+        >
+          {/* Start button(s) with dropdown */}
+          {!hasSession &&
+            (skills.length === 0 ? (
+              <button
+                onClick={() => {
+                  setSelectedSkill(undefined);
+                  setDropdownOpen((prev) => !prev);
+                }}
+                disabled={isLoading || repos.length === 0}
+                className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {startTask.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <Play className="size-3.5" />
+                    Start
+                    <ChevronDown className="size-3" />
+                  </>
+                )}
+              </button>
             ) : (
-              <>
-                <Play className="size-3.5" />
-                Start
-                <ChevronDown className="size-3" />
-              </>
-            )}
-          </button>
-        )}
+              skills.map((s, i) => (
+                <button
+                  key={s.skill}
+                  onClick={() => {
+                    setSelectedSkill(s.skill);
+                    setDropdownOpen((prev) => !prev);
+                  }}
+                  disabled={isLoading || repos.length === 0}
+                  className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium hover:opacity-90 disabled:opacity-50 ${
+                    i === 0
+                      ? "bg-[var(--accent-green)] text-white"
+                      : "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                  }`}
+                >
+                  {startTask.isPending && selectedSkill === s.skill ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <>
+                      <Play className="size-3.5" />
+                      {s.label}
+                      <ChevronDown className="size-3" />
+                    </>
+                  )}
+                </button>
+              ))
+            ))}
 
-        {/* Terminal button */}
-        {hasSession && (
-          <button
-            onClick={handleOpenTerminal}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
-          >
-            <Terminal className="size-3.5" />
-            Terminal
-          </button>
-        )}
-
-        {/* Editor button */}
-        {worktree && (
-          <button
-            onClick={handleOpenEditor}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
-          >
-            <Code2 className="size-3.5" />
-            Editor
-          </button>
-        )}
-
-        {/* Kill Session button */}
-        {hasSession && !confirmingDelete && (
-          <button
-            onClick={handleKillSession}
-            disabled={isLoading}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
-            title="Kill tmux session (keeps worktree)"
-          >
-            {killingSession ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <X className="size-3.5" />
-            )}
-          </button>
-        )}
-
-        {/* Delete Worktree button */}
-        {worktree && !confirmingDelete && (
-          <button
-            onClick={() => setConfirmingDelete(true)}
-            disabled={isLoading}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
-            title="Delete worktree and branch"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
-        )}
-
-        {/* Delete confirmation */}
-        {confirmingDelete && (
-          <span className="flex items-center gap-2 text-xs">
-            <span className="text-[var(--text-muted)]">Delete worktree?</span>
+          {/* Terminal button */}
+          {hasSession && (
             <button
-              onClick={handleDeleteWorktree}
-              disabled={deletingWorktree}
-              className="text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
+              onClick={handleOpenTerminal}
+              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
             >
-              {deletingWorktree ? "Deleting..." : "Yes"}
+              <Terminal className="size-3.5" />
+              Terminal
             </button>
-            <span className="text-[var(--text-muted)]">/</span>
+          )}
+
+          {/* Editor button */}
+          {worktree && (
             <button
-              onClick={() => setConfirmingDelete(false)}
-              className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              onClick={handleOpenEditor}
+              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
             >
-              No
+              <Code2 className="size-3.5" />
+              Editor
             </button>
-          </span>
-        )}
+          )}
 
-        {/* Dropdown for repo/branch selection */}
-        {dropdownOpen && (
-          <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
-            {repos.length === 1 ? (
-              <BranchSelector
-                repoPath={repos[0].path}
-                onSelect={(baseBranch) =>
-                  handleStart(repos[0].path, baseBranch)
-                }
-              />
-            ) : selectedRepo ? (
-              <BranchSelector
-                repoPath={selectedRepo.path}
-                repoId={selectedRepo.id}
-                onSelect={(baseBranch) =>
-                  handleStart(selectedRepo.path, baseBranch)
-                }
-                onBack={() => setSelectedRepo(null)}
-              />
-            ) : (
-              <div className="min-w-40">
-                {repos.map((repo) => (
-                  <button
-                    key={repo.id}
-                    onClick={() => setSelectedRepo(repo)}
-                    className="block w-full px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
-                  >
-                    {repo.id}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+          {/* Kill Session button */}
+          {hasSession && !confirmingDelete && (
+            <button
+              onClick={handleKillSession}
+              disabled={isLoading}
+              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
+              title="Kill tmux session (keeps worktree)"
+            >
+              {killingSession ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <X className="size-3.5" />
+              )}
+            </button>
+          )}
 
-      {/* Error message */}
-      {error && (
-        <p className="px-3 pb-2 text-xs text-[var(--accent-red)]">{error}</p>
+          {/* Delete Worktree button */}
+          {worktree && !confirmingDelete && (
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              disabled={isLoading}
+              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
+              title="Delete worktree and branch"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          )}
+
+          {/* Delete confirmation */}
+          {confirmingDelete && (
+            <span className="flex items-center gap-2 text-xs">
+              <span className="text-[var(--text-muted)]">Delete worktree?</span>
+              <button
+                onClick={handleDeleteWorktree}
+                disabled={deletingWorktree}
+                className="text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
+              >
+                {deletingWorktree ? "Deleting..." : "Yes"}
+              </button>
+              <span className="text-[var(--text-muted)]">/</span>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                No
+              </button>
+            </span>
+          )}
+
+          {/* Dropdown for repo/branch selection */}
+          {dropdownOpen && (
+            <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+              {repos.length === 1 ? (
+                <BranchSelector
+                  repoPath={repos[0].path}
+                  configWarning={repos[0].configWarning}
+                  onSelect={(baseBranch) =>
+                    handleStart(repos[0].path, baseBranch)
+                  }
+                />
+              ) : selectedRepo ? (
+                <BranchSelector
+                  repoPath={selectedRepo.path}
+                  repoId={selectedRepo.id}
+                  configWarning={selectedRepo.configWarning}
+                  onSelect={(baseBranch) =>
+                    handleStart(selectedRepo.path, baseBranch)
+                  }
+                  onBack={() => setSelectedRepo(null)}
+                />
+              ) : (
+                <div className="min-w-40">
+                  {repos.map((repo) => (
+                    <button
+                      key={repo.id}
+                      onClick={() => setSelectedRepo(repo)}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
+                    >
+                      {repo.id}
+                      {repo.configWarning && (
+                        <span title={repo.configWarning}>
+                          <AlertTriangle className="size-3.5 shrink-0 text-[var(--accent-amber)]" />
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -469,11 +547,13 @@ export function UnifiedTaskCard({ data }: NodeProps<UnifiedTaskNodeType>) {
 function BranchSelector({
   repoPath,
   repoId,
+  configWarning,
   onSelect,
   onBack,
 }: {
   repoPath: string;
   repoId?: string;
+  configWarning?: string;
   onSelect: (baseBranch?: string) => void;
   onBack?: () => void;
 }) {
@@ -486,6 +566,12 @@ function BranchSelector({
 
   return (
     <div className="min-w-48">
+      {configWarning && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[var(--accent-amber)]">
+          <AlertTriangle className="size-3 shrink-0" />
+          <span className="line-clamp-2">.directiv.json error</span>
+        </div>
+      )}
       {onBack && (
         <button
           onClick={onBack}

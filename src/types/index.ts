@@ -1,3 +1,17 @@
+// --- Linear Status Types ---
+
+export const LINEAR_STATUS_TYPES = {
+  TRIAGE: "triage",
+  BACKLOG: "backlog",
+  TODO: "unstarted",
+  IN_PROGRESS: "started",
+  DONE: "completed",
+  CANCELED: "canceled",
+} as const;
+
+export type LinearStatusType =
+  (typeof LINEAR_STATUS_TYPES)[keyof typeof LINEAR_STATUS_TYPES];
+
 // --- Workflow ---
 
 export type WorkflowColumn =
@@ -23,6 +37,7 @@ export interface BlockingIssue {
   identifier: string;
   title: string;
   url: string;
+  relationId: string;
 }
 
 export interface EnrichedTask {
@@ -32,6 +47,7 @@ export interface EnrichedTask {
   description: string | null;
   priority: number;
   status: string;
+  linearStatusType: LinearStatusType | null;
   assigneeId: string | null;
   projectId: string | null;
   projectName: string | null;
@@ -43,7 +59,13 @@ export interface EnrichedTask {
   url: string;
   isBlocked: boolean;
   blockedBy: BlockingIssue[];
+  isAssignedToMe: boolean;
+  assigneeName: string | null;
 }
+
+// --- Claude Session ---
+
+export type ClaudeSessionStatus = "active" | "waiting" | "unknown";
 
 // --- Tmux ---
 
@@ -134,7 +156,12 @@ export interface SkillsResult {
 
 // --- Config ---
 
-export type TerminalEmulator = "ghostty" | "iterm2" | "terminal" | "alacritty";
+export interface SkillConfig {
+  skill: string;
+  label: string;
+}
+
+export type TerminalEmulator = "ghostty" | "iterm2";
 export type CodeEditor = "zed" | "cursor" | "vscode" | "code";
 export type Theme = "light" | "dark" | "system";
 
@@ -150,13 +177,12 @@ export interface DiscoveredRepo {
   workspaceId: string;
   copyPaths: string[];
   onStart: string[];
-  baseBranch?: string;
   fetchBefore: boolean;
+  configWarning?: string;
 }
 
 export interface LinearConfig {
   teamIds: string[];
-  activeProject: string | null;
 }
 
 export interface DirectivConfig {
@@ -165,4 +191,5 @@ export interface DirectivConfig {
   workspaces: WorkspaceConfig[];
   linear: LinearConfig;
   theme: Theme;
+  skills: SkillConfig[];
 }

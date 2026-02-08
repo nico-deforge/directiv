@@ -9,8 +9,8 @@ pub struct DiscoveredRepo {
     pub path: String,
     pub copy_paths: Vec<String>,
     pub on_start: Vec<String>,
-    pub base_branch: Option<String>,
     pub fetch_before: bool,
+    pub config_warning: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -20,7 +20,6 @@ struct RepoConfig {
     copy_paths: Vec<String>,
     #[serde(default)]
     on_start: Vec<String>,
-    base_branch: Option<String>,
     #[serde(default = "default_fetch_before")]
     fetch_before: bool,
 }
@@ -74,13 +73,24 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
 
         // Try to read .directiv.json from the repo
         let config_path = entry_path.join(".directiv.json");
-        let config: RepoConfig = if config_path.exists() {
-            fs::read_to_string(&config_path)
-                .ok()
-                .and_then(|content| serde_json::from_str(&content).ok())
-                .unwrap_or_default()
+        let (config, config_warning) = if config_path.exists() {
+            match fs::read_to_string(&config_path) {
+                Ok(content) => match serde_json::from_str(&content) {
+                    Ok(config) => (config, None),
+                    Err(e) => {
+                        let msg = format!("Failed to parse {}: {e}", config_path.display());
+                        log::warn!("{msg}");
+                        (RepoConfig::default(), Some(msg))
+                    }
+                },
+                Err(e) => {
+                    let msg = format!("Failed to read {}: {e}", config_path.display());
+                    log::warn!("{msg}");
+                    (RepoConfig::default(), Some(msg))
+                }
+            }
         } else {
-            RepoConfig::default()
+            (RepoConfig::default(), None)
         };
 
         repos.push(DiscoveredRepo {
@@ -88,8 +98,8 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
             path: repo_path,
             copy_paths: config.copy_paths,
             on_start: config.on_start,
-            base_branch: config.base_branch,
             fetch_before: config.fetch_before,
+            config_warning,
         });
     }
 
