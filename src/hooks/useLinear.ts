@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { PaginationOrderBy } from "@linear/sdk";
 import { linearClient } from "../lib/linear";
-import type { EnrichedTask, BlockingIssue } from "../types";
+import type { EnrichedTask, BlockingIssue, LinearStatusType } from "../types";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
 
 export type LinearConnectionStatus =
@@ -25,80 +26,6 @@ export function useLinearConnectionStatus(
   }, [teamIds.length, isLoading, error]);
 }
 
-export function useLinearMyTasks(teamId: string | undefined) {
-  return useQuery<EnrichedTask[]>({
-    queryKey: ["linear", "my-tasks", teamId],
-    queryFn: async () => {
-      if (!linearClient || !teamId) return [];
-
-      const me = await linearClient.viewer;
-      const issues = await me.assignedIssues({
-        filter: {
-          team: { id: { eq: teamId } },
-          state: { type: { nin: ["canceled", "completed"] } },
-        },
-      });
-
-      const tasks: EnrichedTask[] = await Promise.all(
-        issues.nodes.map(async (issue) => {
-          const [state, assignee, project, inverseRelations] =
-            await Promise.all([
-              issue.state,
-              issue.assignee,
-              issue.project,
-              issue.inverseRelations(),
-            ]);
-
-          const blockingRelations = inverseRelations.nodes.filter(
-            (r) => r.type === "blocks",
-          );
-
-          const blockedBy: BlockingIssue[] = await Promise.all(
-            blockingRelations.map(async (relation) => {
-              const blockingIssue = await relation.issue;
-              if (!blockingIssue) return null;
-              return {
-                id: blockingIssue.id,
-                identifier: blockingIssue.identifier,
-                title: blockingIssue.title,
-                url: blockingIssue.url,
-              };
-            }),
-          ).then((results) =>
-            results.filter((r): r is BlockingIssue => r !== null),
-          );
-
-          const isBlocked = blockedBy.length > 0;
-
-          return {
-            id: issue.id,
-            identifier: issue.identifier,
-            title: issue.title,
-            description: issue.description ?? null,
-            priority: issue.priority,
-            status: state?.name ?? "Unknown",
-            assigneeId: assignee?.id ?? null,
-            projectId: project?.id ?? null,
-            projectName: project?.name ?? null,
-            labels: [],
-            column: "backlog" as const,
-            session: null,
-            worktree: null,
-            pullRequest: null,
-            url: issue.url,
-            isBlocked,
-            blockedBy,
-          };
-        }),
-      );
-
-      return tasks;
-    },
-    enabled: !!linearClient && !!teamId,
-    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
-  });
-}
-
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -117,19 +44,53 @@ async function resolveTeamIds(keys: string[]): Promise<string[]> {
   });
 }
 
-export function useLinearAllMyTasks(teamIds: string[]) {
-  return useQuery<EnrichedTask[]>({
-    queryKey: ["linear", "all-my-tasks", teamIds],
+export interface LinearProject {
+  id: string;
+  name: string;
+}
+
+export function useLinearMyProjects() {
+  return useQuery<LinearProject[]>({
+    queryKey: ["linear", "my-projects"],
     queryFn: async () => {
-      if (!linearClient || teamIds.length === 0) return [];
+      if (!linearClient) return [];
+
+      const result = await linearClient.projects({
+        filter: {
+          members: { some: { isMe: { eq: true } } },
+          status: { type: { eq: "started" } },
+        },
+        orderBy: PaginationOrderBy.CreatedAt,
+        first: 100,
+      });
+
+      return result.nodes.map((p) => ({ id: p.id, name: p.name }));
+    },
+    enabled: !!linearClient,
+    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
+  });
+}
+
+export function useLinearProjectIssues(
+  projectId: string | null,
+  teamIds: string[],
+) {
+  return useQuery<EnrichedTask[]>({
+    queryKey: ["linear", "project-issues", projectId, teamIds],
+    queryFn: async () => {
+      if (!linearClient || !projectId || teamIds.length === 0) return [];
 
       const resolvedIds = await resolveTeamIds(teamIds);
       const me = await linearClient.viewer;
-      const issues = await me.assignedIssues({
+      const viewerId = me.id;
+
+      const issues = await linearClient.issues({
         filter: {
+          project: { id: { eq: projectId } },
           team: { id: { in: resolvedIds } },
-          state: { type: { nin: ["canceled", "completed"] } },
+          state: { type: { in: ["triage", "unstarted", "started"] } },
         },
+        first: 250,
       });
 
       const tasks: EnrichedTask[] = await Promise.all(
@@ -155,6 +116,7 @@ export function useLinearAllMyTasks(teamIds: string[]) {
                 identifier: blockingIssue.identifier,
                 title: blockingIssue.title,
                 url: blockingIssue.url,
+                relationId: relation.id,
               };
             }),
           ).then((results) =>
@@ -170,6 +132,7 @@ export function useLinearAllMyTasks(teamIds: string[]) {
             description: issue.description ?? null,
             priority: issue.priority,
             status: state?.name ?? "Unknown",
+            linearStatusType: (state?.type as LinearStatusType) ?? null,
             assigneeId: assignee?.id ?? null,
             projectId: project?.id ?? null,
             projectName: project?.name ?? null,
@@ -181,13 +144,15 @@ export function useLinearAllMyTasks(teamIds: string[]) {
             url: issue.url,
             isBlocked,
             blockedBy,
+            isAssignedToMe: assignee?.id === viewerId,
+            assigneeName: assignee?.displayName ?? assignee?.name ?? null,
           };
         }),
       );
 
       return tasks;
     },
-    enabled: !!linearClient && teamIds.length > 0,
+    enabled: !!linearClient && !!projectId && teamIds.length > 0,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }

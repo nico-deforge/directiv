@@ -1,8 +1,11 @@
+import { IssueRelationType } from "@linear/sdk";
+import { toast } from "sonner";
 import { linearClient } from "./linear";
 import {
   worktreeCreate,
   worktreeList,
   tmuxCreateSession,
+  tmuxKillSession,
   tmuxListSessions,
   tmuxSendKeys,
   openTerminal,
@@ -18,6 +21,7 @@ interface StartTaskParams {
   onStart?: string[];
   baseBranch?: string;
   fetchBefore?: boolean;
+  skill?: string;
 }
 
 export async function startTask({
@@ -29,6 +33,7 @@ export async function startTask({
   onStart,
   baseBranch,
   fetchBefore,
+  skill,
 }: StartTaskParams): Promise<void> {
   // 1. Reuse or create git worktree
   const worktrees = await worktreeList(repoPath);
@@ -43,24 +48,39 @@ export async function startTask({
     );
   }
 
-  // 2. Reuse or create tmux session
+  // 2. Reuse or create tmux session (with rollback on failure)
   const sessions = await tmuxListSessions();
   const existingSession = sessions.find((s) => s.name === identifier);
   if (!existingSession) {
     await tmuxCreateSession(identifier, worktree.path);
-    // 2.5 Run onStart hooks in the worktree directory
-    if (onStart && onStart.length > 0) {
-      await runHooks(onStart, worktree.path);
+    try {
+      // 2.5 Run onStart hooks in the worktree directory
+      if (onStart && onStart.length > 0) {
+        await runHooks(onStart, worktree.path);
+      }
+      // 3. Launch Claude only on fresh sessions
+      const claudeCmd = skill ? `claude "/${skill} ${identifier}"` : "claude";
+      await tmuxSendKeys(identifier, claudeCmd);
+    } catch (err) {
+      // Rollback: kill session so retry creates a fresh one
+      await tmuxKillSession(identifier).catch(() => {});
+      throw err;
     }
-    // 3. Launch Claude only on fresh sessions
-    await tmuxSendKeys(identifier, `claude "/linear-issue ${identifier}"`);
   }
 
-  // 4. Open terminal attached to the tmux session
-  await openTerminal(terminal, identifier);
+  // 4. Open terminal (fire-and-forget — failure shouldn't block the flow)
+  openTerminal(terminal, identifier).catch((err) => {
+    toast.warning(
+      `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
 
-  // 5. Update Linear status to "In Progress"
-  await updateLinearStatusToStarted(issueId);
+  // 5. Update Linear status (best-effort — everything critical is already done)
+  await updateLinearStatusToStarted(issueId).catch((err) => {
+    toast.warning(
+      `Failed to update Linear status: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
 }
 
 interface StartFreeTaskParams {
@@ -95,20 +115,30 @@ export async function startFreeTask({
     );
   }
 
-  // 2. Reuse or create tmux session
+  // 2. Reuse or create tmux session (with rollback on failure)
   const sessions = await tmuxListSessions();
   const existingSession = sessions.find((s) => s.name === branchName);
   if (!existingSession) {
     await tmuxCreateSession(branchName, worktree.path);
-    if (onStart && onStart.length > 0) {
-      await runHooks(onStart, worktree.path);
+    try {
+      if (onStart && onStart.length > 0) {
+        await runHooks(onStart, worktree.path);
+      }
+      // 3. Launch Claude (plain, no /linear-issue)
+      await tmuxSendKeys(branchName, "claude");
+    } catch (err) {
+      // Rollback: kill session so retry creates a fresh one
+      await tmuxKillSession(branchName).catch(() => {});
+      throw err;
     }
-    // 3. Launch Claude (plain, no /linear-issue)
-    await tmuxSendKeys(branchName, "claude");
   }
 
-  // 4. Open terminal attached to the tmux session
-  await openTerminal(terminal, branchName);
+  // 4. Open terminal (fire-and-forget — failure shouldn't block the flow)
+  openTerminal(terminal, branchName).catch((err) => {
+    toast.warning(
+      `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
 }
 
 async function updateLinearStatusToStarted(issueId: string): Promise<void> {
@@ -131,4 +161,23 @@ async function updateLinearStatusToStarted(issueId: string): Promise<void> {
   }
 
   await linearClient.updateIssue(issueId, { stateId: startedState.id });
+}
+
+export async function createBlockedByRelation(
+  targetIssueId: string,
+  blockerIssueId: string,
+): Promise<void> {
+  if (!linearClient) throw new Error("Linear client not initialized");
+  await linearClient.createIssueRelation({
+    issueId: blockerIssueId,
+    relatedIssueId: targetIssueId,
+    type: IssueRelationType.Blocks,
+  });
+}
+
+export async function deleteBlockedByRelation(
+  relationId: string,
+): Promise<void> {
+  if (!linearClient) throw new Error("Linear client not initialized");
+  await linearClient.deleteIssueRelation(relationId);
 }

@@ -186,16 +186,20 @@ export function calculatePositions(tasks: EnrichedTask[]): NodePosition[] {
   return [...positions.values()];
 }
 
+export interface EdgeData {
+  source: string;
+  target: string;
+  relationId: string;
+}
+
 /**
  * Generate edges for blocking relationships.
  * Returns source -> target pairs where source blocks target.
  */
-export function calculateEdges(
-  tasks: EnrichedTask[],
-): { source: string; target: string }[] {
+export function calculateEdges(tasks: EnrichedTask[]): EdgeData[] {
   const taskByIdentifier = new Map(tasks.map((t) => [t.identifier, t]));
   const taskById = new Map(tasks.map((t) => [t.id, t]));
-  const edges: { source: string; target: string }[] = [];
+  const edges: EdgeData[] = [];
 
   for (const task of tasks) {
     for (const blocker of task.blockedBy) {
@@ -205,6 +209,7 @@ export function calculateEdges(
         edges.push({
           source: blockerTask.id,
           target: task.id,
+          relationId: blocker.relationId,
         });
       }
     }

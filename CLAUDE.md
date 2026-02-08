@@ -18,7 +18,7 @@ By modeling your development pipeline as a DAG, Directiv ensures tasks flow thro
 
 ### Technical summary
 
-Directiv is a Tauri 2.0 desktop app that integrates Linear, GitHub, tmux, and git worktrees into a unified pipeline board. It delegates terminal operations to your preferred emulator (Ghostty, iTerm2, Terminal.app, Alacritty) and uses tmux for session persistence.
+Directiv is a Tauri 2.0 desktop app that integrates Linear, GitHub, tmux, and git worktrees into a unified pipeline board. It delegates terminal operations to your preferred emulator (Ghostty, iTerm2) and uses tmux for session persistence.
 
 ## Tech Stack
 
@@ -98,7 +98,7 @@ Claude Code starts in interactive mode with `/linear-issue <issue_id>` as the in
 ## Configuration
 
 User config lives in `directiv.config.json` at project root:
-- `terminal`: preferred emulator (ghostty, iterm2, terminal, alacritty)
+- `terminal`: preferred emulator (ghostty, iterm2)
 - `repos`: list of repos with path and issue prefixes
 - `linear`: team IDs, active project
 - `github`: owner and repo names

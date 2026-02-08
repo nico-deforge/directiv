@@ -6,7 +6,6 @@ export const ORPHAN_PROJECT_ID = "__orphan__";
 export interface Project {
   id: string;
   name: string;
-  taskCount: number;
 }
 
 interface ProjectState {

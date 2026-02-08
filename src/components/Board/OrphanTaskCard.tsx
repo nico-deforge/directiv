@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toastError } from "../../lib/toast";
 import type { Node, NodeProps } from "@xyflow/react";
 import {
   Terminal,
@@ -32,18 +33,11 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const removeWorktree = useWorktreeRemove();
   const queryClient = useQueryClient();
 
-  const [error, setError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [killingSession, setKillingSession] = useState(false);
 
   const hasSession = session !== null;
   const isDeleting = removeWorktree.isPending;
-
-  useEffect(() => {
-    if (!error) return;
-    const timer = setTimeout(() => setError(null), 5000);
-    return () => clearTimeout(timer);
-  }, [error]);
 
   useEffect(() => {
     if (!confirmingDelete) return;
@@ -56,7 +50,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     try {
       await openTerminal(terminal, session.name);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toastError(err);
     }
   }
 
@@ -64,7 +58,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     try {
       await openEditor(editor, worktree.path);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toastError(err);
     }
   }
 
@@ -87,7 +81,6 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       return;
     }
     setConfirmingDelete(false);
-    setError(null);
 
     // Kill tmux session first if exists
     try {
@@ -101,8 +94,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       {
         onSuccess: () =>
           queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] }),
-        onError: (err) =>
-          setError(err instanceof Error ? err.message : String(err)),
+        onError: (err) => toastError(err),
       },
     );
   }
@@ -215,11 +207,6 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           </button>
         )}
       </div>
-
-      {/* Error message */}
-      {error && (
-        <p className="px-3 pb-2 text-xs text-[var(--accent-red)]">{error}</p>
-      )}
     </div>
   );
 }
