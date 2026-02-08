@@ -59,6 +59,8 @@ export interface EnrichedTask {
   url: string;
   isBlocked: boolean;
   blockedBy: BlockingIssue[];
+  isAssignedToMe: boolean;
+  assigneeName: string | null;
 }
 
 // --- Claude Session ---

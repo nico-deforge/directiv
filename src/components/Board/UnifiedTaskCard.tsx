@@ -123,6 +123,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     onDragStart,
     isBeingTargeted,
   } = data;
+  const isDisabled = !task.isAssignedToMe;
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
   const queryClient = useQueryClient();
@@ -259,7 +260,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         isBeingTargeted
           ? "border-[var(--accent-amber)] ring-2 ring-[var(--accent-amber)]"
           : "border-[var(--border-default)]"
-      }`}
+      } ${isDisabled ? "opacity-50" : ""}`}
     >
       {/* Hidden target handle for edge connections */}
       <Handle
@@ -290,6 +291,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           <span className="text-xs font-medium text-[var(--text-secondary)]">
             {task.identifier}
           </span>
+          {isDisabled && task.assigneeName && (
+            <span className="text-[10px] text-[var(--text-muted)]">
+              {task.assigneeName}
+            </span>
+          )}
           {needsInput && (
             <span className="ml-auto flex items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-red)]/20 text-[var(--accent-red)]">
               <AlertTriangle className="size-3" />
@@ -357,142 +363,144 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       )}
 
       {/* Actions */}
-      <div
-        className="relative flex items-center gap-2 px-3 py-2"
-        ref={dropdownRef}
-      >
-        {/* Start button with dropdown */}
-        {!hasSession && (
-          <button
-            onClick={() => setDropdownOpen((prev) => !prev)}
-            disabled={isLoading || repos.length === 0}
-            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {startTask.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <>
-                <Play className="size-3.5" />
-                Start
-                <ChevronDown className="size-3" />
-              </>
-            )}
-          </button>
-        )}
-
-        {/* Terminal button */}
-        {hasSession && (
-          <button
-            onClick={handleOpenTerminal}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
-          >
-            <Terminal className="size-3.5" />
-            Terminal
-          </button>
-        )}
-
-        {/* Editor button */}
-        {worktree && (
-          <button
-            onClick={handleOpenEditor}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
-          >
-            <Code2 className="size-3.5" />
-            Editor
-          </button>
-        )}
-
-        {/* Kill Session button */}
-        {hasSession && !confirmingDelete && (
-          <button
-            onClick={handleKillSession}
-            disabled={isLoading}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
-            title="Kill tmux session (keeps worktree)"
-          >
-            {killingSession ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <X className="size-3.5" />
-            )}
-          </button>
-        )}
-
-        {/* Delete Worktree button */}
-        {worktree && !confirmingDelete && (
-          <button
-            onClick={() => setConfirmingDelete(true)}
-            disabled={isLoading}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
-            title="Delete worktree and branch"
-          >
-            <Trash2 className="size-3.5" />
-          </button>
-        )}
-
-        {/* Delete confirmation */}
-        {confirmingDelete && (
-          <span className="flex items-center gap-2 text-xs">
-            <span className="text-[var(--text-muted)]">Delete worktree?</span>
+      {!isDisabled && (
+        <div
+          className="relative flex items-center gap-2 px-3 py-2"
+          ref={dropdownRef}
+        >
+          {/* Start button with dropdown */}
+          {!hasSession && (
             <button
-              onClick={handleDeleteWorktree}
-              disabled={deletingWorktree}
-              className="text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
+              onClick={() => setDropdownOpen((prev) => !prev)}
+              disabled={isLoading || repos.length === 0}
+              className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              {deletingWorktree ? "Deleting..." : "Yes"}
+              {startTask.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <>
+                  <Play className="size-3.5" />
+                  Start
+                  <ChevronDown className="size-3" />
+                </>
+              )}
             </button>
-            <span className="text-[var(--text-muted)]">/</span>
-            <button
-              onClick={() => setConfirmingDelete(false)}
-              className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            >
-              No
-            </button>
-          </span>
-        )}
+          )}
 
-        {/* Dropdown for repo/branch selection */}
-        {dropdownOpen && (
-          <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
-            {repos.length === 1 ? (
-              <BranchSelector
-                repoPath={repos[0].path}
-                configWarning={repos[0].configWarning}
-                onSelect={(baseBranch) =>
-                  handleStart(repos[0].path, baseBranch)
-                }
-              />
-            ) : selectedRepo ? (
-              <BranchSelector
-                repoPath={selectedRepo.path}
-                repoId={selectedRepo.id}
-                configWarning={selectedRepo.configWarning}
-                onSelect={(baseBranch) =>
-                  handleStart(selectedRepo.path, baseBranch)
-                }
-                onBack={() => setSelectedRepo(null)}
-              />
-            ) : (
-              <div className="min-w-40">
-                {repos.map((repo) => (
-                  <button
-                    key={repo.id}
-                    onClick={() => setSelectedRepo(repo)}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
-                  >
-                    {repo.id}
-                    {repo.configWarning && (
-                      <span title={repo.configWarning}>
-                        <AlertTriangle className="size-3.5 shrink-0 text-[var(--accent-amber)]" />
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+          {/* Terminal button */}
+          {hasSession && (
+            <button
+              onClick={handleOpenTerminal}
+              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+            >
+              <Terminal className="size-3.5" />
+              Terminal
+            </button>
+          )}
+
+          {/* Editor button */}
+          {worktree && (
+            <button
+              onClick={handleOpenEditor}
+              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+            >
+              <Code2 className="size-3.5" />
+              Editor
+            </button>
+          )}
+
+          {/* Kill Session button */}
+          {hasSession && !confirmingDelete && (
+            <button
+              onClick={handleKillSession}
+              disabled={isLoading}
+              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
+              title="Kill tmux session (keeps worktree)"
+            >
+              {killingSession ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <X className="size-3.5" />
+              )}
+            </button>
+          )}
+
+          {/* Delete Worktree button */}
+          {worktree && !confirmingDelete && (
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              disabled={isLoading}
+              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
+              title="Delete worktree and branch"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          )}
+
+          {/* Delete confirmation */}
+          {confirmingDelete && (
+            <span className="flex items-center gap-2 text-xs">
+              <span className="text-[var(--text-muted)]">Delete worktree?</span>
+              <button
+                onClick={handleDeleteWorktree}
+                disabled={deletingWorktree}
+                className="text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
+              >
+                {deletingWorktree ? "Deleting..." : "Yes"}
+              </button>
+              <span className="text-[var(--text-muted)]">/</span>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                No
+              </button>
+            </span>
+          )}
+
+          {/* Dropdown for repo/branch selection */}
+          {dropdownOpen && (
+            <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+              {repos.length === 1 ? (
+                <BranchSelector
+                  repoPath={repos[0].path}
+                  configWarning={repos[0].configWarning}
+                  onSelect={(baseBranch) =>
+                    handleStart(repos[0].path, baseBranch)
+                  }
+                />
+              ) : selectedRepo ? (
+                <BranchSelector
+                  repoPath={selectedRepo.path}
+                  repoId={selectedRepo.id}
+                  configWarning={selectedRepo.configWarning}
+                  onSelect={(baseBranch) =>
+                    handleStart(selectedRepo.path, baseBranch)
+                  }
+                  onBack={() => setSelectedRepo(null)}
+                />
+              ) : (
+                <div className="min-w-40">
+                  {repos.map((repo) => (
+                    <button
+                      key={repo.id}
+                      onClick={() => setSelectedRepo(repo)}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
+                    >
+                      {repo.id}
+                      {repo.configWarning && (
+                        <span title={repo.configWarning}>
+                          <AlertTriangle className="size-3.5 shrink-0 text-[var(--accent-amber)]" />
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

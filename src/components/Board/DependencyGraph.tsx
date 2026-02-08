@@ -15,7 +15,8 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import {
-  useLinearAllMyTasks,
+  useLinearMyProjects,
+  useLinearProjectIssues,
   useLinearConnectionStatus,
   type LinearConnectionStatus,
 } from "../../hooks/useLinear";
@@ -45,6 +46,7 @@ import {
   V_GAP,
 } from "../../lib/graphLayout";
 import type {
+  EnrichedTask,
   TmuxSession,
   PullRequestInfo,
   WorktreeInfo,
@@ -101,14 +103,19 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
 
   const {
+    data: linearProjects,
+    isLoading: projectsLoading,
+    error: projectsError,
+  } = useLinearMyProjects();
+  const {
     data: tasks,
     isLoading: tasksLoading,
     error: tasksError,
-  } = useLinearAllMyTasks(teamIds);
+  } = useLinearProjectIssues(selectedProjectId, teamIds);
   const connectionStatus = useLinearConnectionStatus(
     teamIds,
-    tasksLoading,
-    tasksError,
+    projectsLoading || tasksLoading,
+    projectsError || tasksError,
   );
   const { data: sessions } = useTmuxSessions();
   const activeSessionNames = useMemo(
@@ -165,36 +172,16 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     return map;
   }, [allWorktrees]);
 
-  // Extract projects from tasks
-  const projectsFromTasks = useMemo(() => {
-    const projectMap = new Map<string, { name: string; count: number }>();
-
-    for (const task of tasks ?? []) {
-      const projectId = task.projectId ?? "__no_project__";
-      const projectName = task.projectName ?? "No Project";
-
-      const existing = projectMap.get(projectId);
-      if (existing) {
-        existing.count++;
-      } else {
-        projectMap.set(projectId, { name: projectName, count: 1 });
-      }
-    }
-
-    const projects: Project[] = [];
-    for (const [id, data] of projectMap.entries()) {
-      projects.push({ id, name: data.name, taskCount: data.count });
-    }
-
-    // Sort: named projects first, "No Project" last
-    projects.sort((a, b) => {
-      if (a.id === "__no_project__") return 1;
-      if (b.id === "__no_project__") return -1;
-      return a.name.localeCompare(b.name);
-    });
-
-    return projects;
-  }, [tasks]);
+  // Map API-fetched projects to Project[] format
+  const projectList = useMemo(() => {
+    if (!linearProjects) return [];
+    return linearProjects.map(
+      (p): Project => ({
+        id: p.id,
+        name: p.name,
+      }),
+    );
+  }, [linearProjects]);
 
   // Find orphan worktrees (not linked to any task)
   const orphanWorktrees = useMemo(() => {
@@ -223,22 +210,8 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
 
   // Notify parent of project changes
   useEffect(() => {
-    onProjectsChange(projectsFromTasks, hasOrphans, connectionStatus);
-  }, [projectsFromTasks, hasOrphans, connectionStatus, onProjectsChange]);
-
-  // Filter tasks for selected project
-  const filteredTasks = useMemo(() => {
-    if (!tasks) return [];
-
-    return tasks.filter((task) => {
-      // Filter by project
-      if (selectedProjectId === null) return true;
-      if (selectedProjectId === ORPHAN_PROJECT_ID) return false;
-
-      const taskProjectId = task.projectId ?? "__no_project__";
-      return taskProjectId === selectedProjectId;
-    });
-  }, [tasks, selectedProjectId]);
+    onProjectsChange(projectList, hasOrphans, connectionStatus);
+  }, [projectList, hasOrphans, connectionStatus, onProjectsChange]);
 
   // Build nodes and edges
   const { nextNodes, nextEdges } = useMemo(() => {
@@ -264,11 +237,13 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
       return { nextNodes: orphanNodes, nextEdges: [] };
     }
 
+    const activeTasks = tasks ?? [];
+
     // Calculate positions for dependency graph
-    const positions = calculatePositions(filteredTasks);
+    const positions = calculatePositions(activeTasks);
     const positionById = new Map(positions.map((p) => [p.id, p]));
 
-    const taskNodes: Node<UnifiedTaskNodeData>[] = filteredTasks.map((task) => {
+    const taskNodes: Node<UnifiedTaskNodeData>[] = activeTasks.map((task) => {
       const pos = positionById.get(task.id) ?? { x: 0, y: 0 };
       const wtInfo = worktreeByBranch.get(task.identifier.toLowerCase());
       const pr =
@@ -294,10 +269,10 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     });
 
     // Calculate edges for blocking relationships
-    const edgeData = calculateEdges(filteredTasks);
+    const edgeData = calculateEdges(activeTasks);
     // Build identifier lookup
     const identifierById = new Map(
-      filteredTasks.map((t) => [t.id, t.identifier]),
+      activeTasks.map((t) => [t.id, t.identifier]),
     );
     const edgeColor =
       resolvedTheme === "dark" ? EDGE_COLOR.dark : EDGE_COLOR.light;
@@ -325,7 +300,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     return { nextNodes: taskNodes, nextEdges: taskEdges };
   }, [
     selectedProjectId,
-    filteredTasks,
+    tasks,
     orphanWorktrees,
     worktreeByBranch,
     prByBranch,
@@ -373,12 +348,12 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
 
   // Build task lookup for optimistic updates
   const taskById = useMemo(() => {
-    const map = new Map<string, (typeof filteredTasks)[0]>();
-    for (const task of filteredTasks) {
+    const map = new Map<string, EnrichedTask>();
+    for (const task of tasks ?? []) {
       map.set(task.id, task);
     }
     return map;
-  }, [filteredTasks]);
+  }, [tasks]);
 
   // Refs to avoid re-registering drag listeners when these change mid-drag
   const dragStateRef = useRef<DragState | null>(null);

@@ -168,7 +168,7 @@ export function ProjectSelector({
           projects.length === 0 &&
           !hasOrphans && (
             <p className="px-4 py-2 text-sm text-[var(--text-muted)]">
-              No assigned tasks in Linear
+              No active projects found
             </p>
           )}
 
@@ -708,9 +708,6 @@ function ProjectItem({
     >
       <Icon className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
-      <span className="shrink-0 rounded-full bg-[var(--bg-elevated)] px-1.5 py-0.5 text-xs text-[var(--text-muted)]">
-        {project.taskCount}
-      </span>
     </button>
   );
 }
