@@ -74,7 +74,7 @@ const nodeTypes = {
   orphanTask: OrphanTaskCard,
 };
 
-const EDGE_COLOR = { dark: "#f59e0b", light: "#d97706" } as const;
+const EDGE_COLOR = { dark: "#737373", light: "#8a8a84" } as const;
 const EDGE_HIGHLIGHT_COLOR = "#ef4444";
 const NullConnectionLine = () => null;
 
@@ -288,12 +288,12 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
       },
       type: "smoothstep",
       interactionWidth: 40, // Large clickable area
-      style: { stroke: edgeColor, strokeWidth: 3, cursor: "pointer" },
+      style: { stroke: edgeColor, strokeWidth: 1.5, cursor: "pointer" },
       markerEnd: {
         type: MarkerType.ArrowClosed,
         color: edgeColor,
-        width: 20,
-        height: 20,
+        width: 12,
+        height: 12,
       },
     }));
 
@@ -332,15 +332,14 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
           style: {
             ...edge.style,
             stroke: EDGE_HIGHLIGHT_COLOR,
-            strokeWidth: 5,
+            strokeWidth: 2,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
             color: EDGE_HIGHLIGHT_COLOR,
-            width: 20,
-            height: 20,
+            width: 14,
+            height: 14,
           },
-          animated: true,
         };
       }),
     );

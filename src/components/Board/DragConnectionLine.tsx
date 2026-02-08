@@ -15,7 +15,7 @@ export function DragConnectionLine({
   toX,
   toY,
   hasValidTarget,
-  color = "#f59e0b",
+  color = "#737373",
 }: DragConnectionLineProps) {
   const { x, y, zoom } = useViewport();
 
@@ -27,7 +27,7 @@ export function DragConnectionLine({
   });
 
   const strokeColor = color;
-  const opacity = hasValidTarget ? 1 : 0.6;
+  const opacity = hasValidTarget ? 0.8 : 0.4;
 
   return (
     <svg
@@ -35,15 +35,16 @@ export function DragConnectionLine({
       style={{ zIndex: 1000 }}
     >
       <g transform={`translate(${x}, ${y}) scale(${zoom})`} opacity={opacity}>
-        {/* Origin circle at source handle */}
-        <circle cx={fromX} cy={fromY} r={5 / zoom} fill={strokeColor} />
         <path
           d={path}
           fill="none"
           stroke={strokeColor}
-          strokeWidth={3 / zoom}
+          strokeWidth={1.5 / zoom}
+          strokeDasharray={`${6 / zoom} ${4 / zoom}`}
         />
-        <circle cx={toX} cy={toY} r={6 / zoom} fill={strokeColor} />
+        {hasValidTarget && (
+          <circle cx={toX} cy={toY} r={4 / zoom} fill={strokeColor} />
+        )}
       </g>
     </svg>
   );

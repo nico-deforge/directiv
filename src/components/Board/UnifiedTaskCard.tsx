@@ -258,7 +258,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     <div
       className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative ${
         isBeingTargeted
-          ? "border-[var(--accent-amber)] ring-2 ring-[var(--accent-amber)]"
+          ? "border-[var(--text-muted)] ring-1 ring-[var(--text-muted)]/50"
           : "border-[var(--border-default)]"
       } ${isDisabled ? "opacity-50" : ""}`}
     >
@@ -270,7 +270,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       />
       {/* Drag handle at bottom center - starts blocked-by edge creation */}
       <div
-        className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[var(--accent-amber)] border-2 border-[var(--bg-tertiary)] cursor-crosshair hover:scale-125 transition-transform z-10"
+        className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[var(--text-muted)] border border-[var(--bg-tertiary)] cursor-crosshair hover:scale-150 hover:bg-[var(--text-secondary)] transition-transform z-10"
         onMouseDown={handleDragHandleMouseDown}
       />
       {/* Hidden source handle for edge connections */}
