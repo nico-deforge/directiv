@@ -15,6 +15,7 @@ import type { WorktreeInfo, TmuxSession } from "../../types";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
 import { tmuxKillSession, openTerminal, openEditor } from "../../lib/tauri";
+import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
 
 export type OrphanTaskNodeData = {
@@ -66,7 +67,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     if (!session) return;
     setKillingSession(true);
     try {
-      await tmuxKillSession(worktree.branch);
+      await tmuxKillSession(toSessionName(worktree.branch));
       queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] });
     } catch {
       // Session may already be gone
@@ -84,7 +85,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
     // Kill tmux session first if exists
     try {
-      await tmuxKillSession(worktree.branch);
+      await tmuxKillSession(toSessionName(worktree.branch));
     } catch {
       // Session may not exist
     }

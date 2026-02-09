@@ -12,6 +12,7 @@ import {
   openTerminal,
   runHooks,
 } from "./tauri";
+import { toSessionName } from "./tmux-utils";
 
 interface StartTaskParams {
   issueId: string;
@@ -50,28 +51,29 @@ export async function startTask({
   }
 
   // 2. Reuse or create tmux session (with rollback on failure)
+  const sessionName = toSessionName(identifier);
   const sessions = await tmuxListSessions();
-  const existingSession = sessions.find((s) => s.name === identifier);
+  const existingSession = sessions.find((s) => s.name === sessionName);
   if (!existingSession) {
-    await tmuxCreateSession(identifier, worktree.path);
+    await tmuxCreateSession(sessionName, worktree.path);
     try {
-      await tmuxWaitForReady(identifier);
+      await tmuxWaitForReady(sessionName);
       // 2.5 Run onStart hooks in the worktree directory
       if (onStart && onStart.length > 0) {
         await runHooks(onStart, worktree.path);
       }
       // 3. Launch Claude only on fresh sessions
       const claudeCmd = skill ? `claude "/${skill} ${identifier}"` : "claude";
-      await tmuxSendKeys(identifier, claudeCmd);
+      await tmuxSendKeys(sessionName, claudeCmd);
     } catch (err) {
       // Rollback: kill session so retry creates a fresh one
-      await tmuxKillSession(identifier).catch(() => {});
+      await tmuxKillSession(sessionName).catch(() => {});
       throw err;
     }
   }
 
   // 4. Open terminal (fire-and-forget — failure shouldn't block the flow)
-  openTerminal(terminal, identifier).catch((err) => {
+  openTerminal(terminal, sessionName).catch((err) => {
     toast.warning(
       `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
     );
@@ -118,26 +120,27 @@ export async function startFreeTask({
   }
 
   // 2. Reuse or create tmux session (with rollback on failure)
+  const sessionName = toSessionName(branchName);
   const sessions = await tmuxListSessions();
-  const existingSession = sessions.find((s) => s.name === branchName);
+  const existingSession = sessions.find((s) => s.name === sessionName);
   if (!existingSession) {
-    await tmuxCreateSession(branchName, worktree.path);
+    await tmuxCreateSession(sessionName, worktree.path);
     try {
-      await tmuxWaitForReady(branchName);
+      await tmuxWaitForReady(sessionName);
       if (onStart && onStart.length > 0) {
         await runHooks(onStart, worktree.path);
       }
       // 3. Launch Claude (plain, no /linear-issue)
-      await tmuxSendKeys(branchName, "claude");
+      await tmuxSendKeys(sessionName, "claude");
     } catch (err) {
       // Rollback: kill session so retry creates a fresh one
-      await tmuxKillSession(branchName).catch(() => {});
+      await tmuxKillSession(sessionName).catch(() => {});
       throw err;
     }
   }
 
   // 4. Open terminal (fire-and-forget — failure shouldn't block the flow)
-  openTerminal(terminal, branchName).catch((err) => {
+  openTerminal(terminal, sessionName).catch((err) => {
     toast.warning(
       `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
     );

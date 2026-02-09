@@ -40,6 +40,7 @@ import type {
 } from "../../types";
 import { useGitHubReviewRequests } from "../../hooks/useGitHub";
 import { useStartFreeTask } from "../../hooks/useStartTask";
+import { toSessionName } from "../../lib/tmux-utils";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 
 interface ProjectSelectorProps {
@@ -582,7 +583,7 @@ function CleanupSection() {
         if (!selected.has(key)) continue;
         // Kill tmux session if one exists for this branch
         try {
-          await tmuxKillSession(sw.worktree.branch);
+          await tmuxKillSession(toSessionName(sw.worktree.branch));
         } catch {
           // Session may not exist
         }
