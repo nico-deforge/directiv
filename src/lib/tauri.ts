@@ -105,6 +105,13 @@ export function tmuxCapturePane(session: string): Promise<string> {
   return invoke<string>("tmux_capture_pane", { session });
 }
 
+export function tmuxWaitForReady(
+  session: string,
+  timeoutMs?: number,
+): Promise<void> {
+  return invoke<void>("tmux_wait_for_ready", { session, timeoutMs });
+}
+
 // --- Hook commands ---
 
 export function runHooks(
