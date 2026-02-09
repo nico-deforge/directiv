@@ -46,6 +46,7 @@ import {
   H_GAP,
   V_GAP,
 } from "../../lib/graphLayout";
+import { toSessionName } from "../../lib/tmux-utils";
 import type {
   EnrichedTask,
   TmuxSession,
@@ -208,7 +209,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
             worktree: wt,
             repoId: rw.repoId,
             repoPath: rw.repoPath,
-            session: sessionByName.get(wt.branch) ?? null,
+            session: sessionByName.get(toSessionName(wt.branch)) ?? null,
           });
         }
       }
@@ -260,7 +261,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
         prByBranch.get(task.identifier.toLowerCase()) ??
         (wtInfo ? prByBranch.get(wtInfo.worktree.branch.toLowerCase()) : null);
 
-      const sessionName = task.identifier;
+      const sessionName = toSessionName(task.identifier);
       return {
         id: task.id,
         type: "unifiedTask",
