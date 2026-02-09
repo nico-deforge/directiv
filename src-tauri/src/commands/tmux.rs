@@ -64,12 +64,16 @@ pub async fn tmux_create_session(
     name: String,
     working_dir: Option<String>,
 ) -> Result<TmuxSession, String> {
-    if !name
+    let name: String = name
         .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    {
-        return Err(format!("Invalid session name: {name}"));
-    }
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
 
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
     let signal = format!("ready_{name}");
