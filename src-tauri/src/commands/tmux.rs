@@ -1,5 +1,8 @@
 use serde::Serialize;
+use std::time::Duration;
+use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
+use tokio::time::timeout;
 
 #[derive(Debug, Serialize, Clone)]
 pub struct TmuxSession {
@@ -61,6 +64,17 @@ pub async fn tmux_create_session(
     name: String,
     working_dir: Option<String>,
 ) -> Result<TmuxSession, String> {
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err(format!("Invalid session name: {name}"));
+    }
+
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    let signal = format!("ready_{name}");
+    let shell_cmd = format!("{shell} -ic 'tmux wait-for -S {signal}; exec {shell}'");
+
     let mut args = vec![
         "new-session".to_string(),
         "-d".to_string(),
@@ -72,6 +86,8 @@ pub async fn tmux_create_session(
         args.push("-c".to_string());
         args.push(dir.clone());
     }
+
+    args.push(shell_cmd);
 
     let output = app
         .shell()
@@ -150,4 +166,46 @@ pub async fn tmux_capture_pane(app: tauri::AppHandle, session: String) -> Result
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[tauri::command]
+pub async fn tmux_wait_for_ready(
+    app: tauri::AppHandle,
+    session: String,
+    timeout_ms: Option<u64>,
+) -> Result<(), String> {
+    let signal = format!("ready_{session}");
+    let timeout_duration = Duration::from_millis(timeout_ms.unwrap_or(30_000));
+
+    let (mut rx, child) = app
+        .shell()
+        .command("tmux")
+        .args(["wait-for", &signal])
+        .spawn()
+        .map_err(|e| format!("Failed to spawn tmux wait-for: {e}"))?;
+
+    let result = timeout(timeout_duration, async {
+        while let Some(event) = rx.recv().await {
+            if let CommandEvent::Terminated(status) = event {
+                return if status.code == Some(0) {
+                    Ok(())
+                } else {
+                    Err(format!("tmux wait-for exited with code {:?}", status.code))
+                };
+            }
+        }
+        Err("tmux wait-for process ended unexpectedly".to_string())
+    })
+    .await;
+
+    match result {
+        Ok(inner) => inner,
+        Err(_) => {
+            let _ = child.kill();
+            Err(format!(
+                "Shell init timed out after {}ms",
+                timeout_duration.as_millis()
+            ))
+        }
+    }
 }

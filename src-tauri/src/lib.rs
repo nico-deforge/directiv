@@ -24,6 +24,7 @@ pub fn run() {
             commands::tmux::tmux_kill_session,
             commands::tmux::tmux_send_keys,
             commands::tmux::tmux_capture_pane,
+            commands::tmux::tmux_wait_for_ready,
             commands::terminal::open_terminal,
             commands::terminal::open_editor,
             commands::hooks::run_hooks,

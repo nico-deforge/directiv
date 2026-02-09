@@ -8,6 +8,7 @@ import {
   tmuxKillSession,
   tmuxListSessions,
   tmuxSendKeys,
+  tmuxWaitForReady,
   openTerminal,
   runHooks,
 } from "./tauri";
@@ -54,6 +55,7 @@ export async function startTask({
   if (!existingSession) {
     await tmuxCreateSession(identifier, worktree.path);
     try {
+      await tmuxWaitForReady(identifier);
       // 2.5 Run onStart hooks in the worktree directory
       if (onStart && onStart.length > 0) {
         await runHooks(onStart, worktree.path);
@@ -121,6 +123,7 @@ export async function startFreeTask({
   if (!existingSession) {
     await tmuxCreateSession(branchName, worktree.path);
     try {
+      await tmuxWaitForReady(branchName);
       if (onStart && onStart.length > 0) {
         await runHooks(onStart, worktree.path);
       }
