@@ -19,6 +19,7 @@ import {
   useLinearMyProjects,
   useLinearProjectIssues,
   useLinearConnectionStatus,
+  useLinearIssuesByBranches,
   type LinearConnectionStatus,
 } from "../../hooks/useLinear";
 import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
@@ -217,6 +218,13 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     return orphans;
   }, [tasks, allWorktrees, sessionByName]);
 
+  const orphanBranchNames = useMemo(
+    () => orphanWorktrees.map((o) => o.worktree.branch),
+    [orphanWorktrees],
+  );
+  const { data: linearIssuesByBranch } =
+    useLinearIssuesByBranches(orphanBranchNames);
+
   const hasOrphans = orphanWorktrees.length > 0;
 
   // Notify parent of project changes
@@ -241,6 +249,11 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
             session: orphan.session,
             repoId: orphan.repoId,
             repoPath: orphan.repoPath,
+            pullRequest:
+              prByBranch.get(orphan.worktree.branch.toLowerCase()) ?? null,
+            linearIssue:
+              linearIssuesByBranch?.get(orphan.worktree.branch.toLowerCase()) ??
+              null,
           },
           draggable: false,
         }),
@@ -319,6 +332,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     claudeStates,
     repos,
     resolvedTheme,
+    linearIssuesByBranch,
   ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);

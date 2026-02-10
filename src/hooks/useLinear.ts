@@ -4,6 +4,7 @@ import { PaginationOrderBy } from "@linear/sdk";
 import { linearClient } from "../lib/linear";
 import type { EnrichedTask, BlockingIssue, LinearStatusType } from "../types";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
+import { ORPHAN_PROJECT_ID } from "../stores/projectStore";
 
 export type LinearConnectionStatus =
   | { status: "no-token" }
@@ -78,7 +79,13 @@ export function useLinearProjectIssues(
   return useQuery<EnrichedTask[]>({
     queryKey: ["linear", "project-issues", projectId, teamIds],
     queryFn: async () => {
-      if (!linearClient || !projectId || teamIds.length === 0) return [];
+      if (
+        !linearClient ||
+        !projectId ||
+        projectId === ORPHAN_PROJECT_ID ||
+        teamIds.length === 0
+      )
+        return [];
 
       const resolvedIds = await resolveTeamIds(teamIds);
       const me = await linearClient.viewer;
@@ -152,7 +159,48 @@ export function useLinearProjectIssues(
 
       return tasks;
     },
-    enabled: !!linearClient && !!projectId && teamIds.length > 0,
+    enabled:
+      !!linearClient &&
+      !!projectId &&
+      projectId !== ORPHAN_PROJECT_ID &&
+      teamIds.length > 0,
+    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
+  });
+}
+
+export interface LinearIssueStub {
+  id: string;
+  identifier: string;
+  title: string;
+  url: string;
+  status: string;
+  statusType: LinearStatusType | null;
+}
+
+export function useLinearIssuesByBranches(branchNames: string[]) {
+  return useQuery<Map<string, LinearIssueStub>>({
+    queryKey: ["linear", "issues-by-branches", branchNames],
+    queryFn: async () => {
+      if (!linearClient || branchNames.length === 0) return new Map();
+      const map = new Map<string, LinearIssueStub>();
+      await Promise.allSettled(
+        branchNames.map(async (branch) => {
+          const issue = await linearClient!.issueVcsBranchSearch(branch);
+          if (!issue) return;
+          const state = await issue.state;
+          map.set(branch.toLowerCase(), {
+            id: issue.id,
+            identifier: issue.identifier,
+            title: issue.title,
+            url: issue.url,
+            status: state?.name ?? "Unknown",
+            statusType: (state?.type as LinearStatusType) ?? null,
+          });
+        }),
+      );
+      return map;
+    },
+    enabled: !!linearClient && branchNames.length > 0,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }
