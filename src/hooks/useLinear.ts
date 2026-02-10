@@ -177,6 +177,27 @@ export interface LinearIssueStub {
   statusType: LinearStatusType | null;
 }
 
+export function useLinearMyActiveIdentifiers(teamIds: string[]) {
+  return useQuery<Set<string>>({
+    queryKey: ["linear", "my-active-identifiers", teamIds],
+    queryFn: async () => {
+      if (!linearClient || teamIds.length === 0) return new Set();
+      const resolvedIds = await resolveTeamIds(teamIds);
+      const issues = await linearClient.issues({
+        filter: {
+          assignee: { isMe: { eq: true } },
+          team: { id: { in: resolvedIds } },
+          state: { type: { in: ["triage", "unstarted", "started"] } },
+        },
+        first: 500,
+      });
+      return new Set(issues.nodes.map((i) => i.identifier.toLowerCase()));
+    },
+    enabled: !!linearClient && teamIds.length > 0,
+    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
+  });
+}
+
 export function useLinearIssuesByBranches(branchNames: string[]) {
   return useQuery<Map<string, LinearIssueStub>>({
     queryKey: ["linear", "issues-by-branches", branchNames],
