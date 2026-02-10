@@ -19,6 +19,8 @@ import {
   useLinearMyProjects,
   useLinearProjectIssues,
   useLinearConnectionStatus,
+  useLinearIssuesByBranches,
+  useLinearMyActiveIdentifiers,
   type LinearConnectionStatus,
 } from "../../hooks/useLinear";
 import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
@@ -127,6 +129,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
   const { data: claudeStates } = useClaudeSessionStates(activeSessionNames);
   const { data: prs } = useGitHubMyOpenPRs();
   const { data: allWorktrees } = useAllWorktrees(repos);
+  const { data: myActiveIdentifiers } = useLinearMyActiveIdentifiers(teamIds);
 
   const createBlockedBy = useCreateBlockedBy();
   const deleteBlockedBy = useDeleteBlockedBy();
@@ -194,17 +197,15 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     );
   }, [linearProjects]);
 
-  // Find orphan worktrees (not linked to any task)
+  // Find orphan worktrees (not linked to any active issue across all projects)
   const orphanWorktrees = useMemo(() => {
-    const taskIdentifiers = new Set(
-      (tasks ?? []).map((t) => t.identifier.toLowerCase()),
-    );
+    const knownIdentifiers = myActiveIdentifiers ?? new Set<string>();
 
     const orphans: OrphanWorktree[] = [];
     for (const rw of allWorktrees ?? []) {
       // Skip main worktree (index 0)
       for (const wt of rw.worktrees.slice(1)) {
-        if (!taskIdentifiers.has(wt.branch.toLowerCase())) {
+        if (!knownIdentifiers.has(wt.branch.toLowerCase())) {
           orphans.push({
             worktree: wt,
             repoId: rw.repoId,
@@ -215,7 +216,14 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
       }
     }
     return orphans;
-  }, [tasks, allWorktrees, sessionByName]);
+  }, [myActiveIdentifiers, allWorktrees, sessionByName]);
+
+  const orphanBranchNames = useMemo(
+    () => orphanWorktrees.map((o) => o.worktree.branch),
+    [orphanWorktrees],
+  );
+  const { data: linearIssuesByBranch } =
+    useLinearIssuesByBranches(orphanBranchNames);
 
   const hasOrphans = orphanWorktrees.length > 0;
 
@@ -241,6 +249,11 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
             session: orphan.session,
             repoId: orphan.repoId,
             repoPath: orphan.repoPath,
+            pullRequest:
+              prByBranch.get(orphan.worktree.branch.toLowerCase()) ?? null,
+            linearIssue:
+              linearIssuesByBranch?.get(orphan.worktree.branch.toLowerCase()) ??
+              null,
           },
           draggable: false,
         }),
@@ -319,6 +332,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     claudeStates,
     repos,
     resolvedTheme,
+    linearIssuesByBranch,
   ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
