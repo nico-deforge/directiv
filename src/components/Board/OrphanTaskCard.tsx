@@ -6,13 +6,16 @@ import {
   Trash2,
   Loader2,
   GitBranch,
+  Github,
   Circle,
-  FolderOpen,
+  SquareKanban,
+  ExternalLink,
   X,
   Code2,
 } from "lucide-react";
-import type { WorktreeInfo, TmuxSession } from "../../types";
+import type { WorktreeInfo, TmuxSession, PullRequestInfo } from "../../types";
 import { useSettingsStore } from "../../stores/settingsStore";
+import type { LinearIssueStub } from "../../hooks/useLinear";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
 import { tmuxKillSession, openTerminal, openEditor } from "../../lib/tauri";
 import { toSessionName } from "../../lib/tmux-utils";
@@ -23,12 +26,15 @@ export type OrphanTaskNodeData = {
   session: TmuxSession | null;
   repoId: string;
   repoPath: string;
+  pullRequest: PullRequestInfo | null;
+  linearIssue: LinearIssueStub | null;
 };
 
 export type OrphanTaskNodeType = Node<OrphanTaskNodeData, "orphanTask">;
 
 export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
-  const { worktree, session, repoId, repoPath } = data;
+  const { worktree, session, repoId, repoPath, pullRequest, linearIssue } =
+    data;
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
   const removeWorktree = useWorktreeRemove();
@@ -100,41 +106,80 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     );
   }
 
-  const dirName = worktree.path.split("/").pop() ?? worktree.path;
-
   return (
     <div className="nodrag nopan w-[380px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-lg">
-      {/* Header: Branch info */}
+      {/* Header */}
       <div className="border-b border-[var(--border-default)] px-3 py-2">
-        <div className="flex items-start gap-2">
-          <GitBranch className="mt-0.5 size-4 shrink-0 text-[var(--accent-green)]" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-sm text-[var(--text-primary)]">
-                {worktree.branch}
-              </span>
-              {worktree.isDirty && (
-                <span title="Uncommitted changes">
-                  <Circle className="size-2 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
-              <FolderOpen className="size-3" />
-              <span className="truncate">{dirName}</span>
-              {(worktree.ahead > 0 || worktree.behind > 0) && (
-                <span className="ml-1 flex items-center gap-1 text-[var(--text-muted)]">
-                  {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
-                  {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
-                </span>
-              )}
-            </div>
-          </div>
-          <span className="shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
+        <div className="flex items-center gap-2">
+          {linearIssue ? (
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
+              {linearIssue.identifier}
+            </span>
+          ) : (
+            <GitBranch className="size-4 shrink-0 text-[var(--accent-green)]" />
+          )}
+          <span className="ml-auto shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
             {repoId}
           </span>
         </div>
+        <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
+          {linearIssue ? linearIssue.title : worktree.branch}
+        </p>
       </div>
+
+      {/* Linear Section */}
+      {linearIssue && (
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+          <SquareKanban className="size-4 shrink-0 text-[var(--accent-blue)]" />
+          <a
+            href={linearIssue.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 min-w-0 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          >
+            <span className="truncate">{linearIssue.identifier}</span>
+            <ExternalLink className="size-3 shrink-0" />
+          </a>
+          <span className="ml-auto text-xs text-[var(--text-tertiary)]">
+            {linearIssue.status}
+          </span>
+        </div>
+      )}
+
+      {/* Worktree Section */}
+      <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+        <GitBranch className="size-4 shrink-0 text-[var(--accent-green)]" />
+        <span className="truncate text-sm text-[var(--text-secondary)]">
+          {worktree.branch}
+        </span>
+        {worktree.isDirty && (
+          <span title="Uncommitted changes">
+            <Circle className="size-2 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
+          </span>
+        )}
+        {(worktree.ahead > 0 || worktree.behind > 0) && (
+          <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
+            {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
+            {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
+          </span>
+        )}
+      </div>
+
+      {/* PR Section */}
+      {pullRequest && (
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+          <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
+          <a
+            href={pullRequest.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 min-w-0 flex-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          >
+            <span className="truncate">PR #{pullRequest.number}</span>
+            <ExternalLink className="size-3 shrink-0" />
+          </a>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="flex items-center gap-2 px-3 py-2">
