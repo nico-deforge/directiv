@@ -15,6 +15,7 @@ import {
   Plus,
   Settings,
   AlertCircle,
+  ChevronRight,
 } from "lucide-react";
 import type { LinearConnectionStatus } from "../../hooks/useLinear";
 import { useQueryClient } from "@tanstack/react-query";
@@ -57,9 +58,14 @@ export function ProjectSelector({
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
   const selectProject = useProjectStore((s) => s.selectProject);
   const setProjects = useProjectStore((s) => s.setProjects);
+  const showBacklogProjects = useProjectStore((s) => s.showBacklogProjects);
+  const toggleBacklogProjects = useProjectStore((s) => s.toggleBacklogProjects);
   const queryClient = useQueryClient();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const startedProjects = projects.filter((p) => p.statusType === "started");
+  const backlogProjects = projects.filter((p) => p.statusType === "backlog");
 
   // Sync projects to store
   useEffect(() => {
@@ -166,14 +172,15 @@ export function ProjectSelector({
         )}
 
         {connectionStatus.status === "connected" &&
-          projects.length === 0 &&
+          startedProjects.length === 0 &&
+          backlogProjects.length === 0 &&
           !hasOrphans && (
             <p className="px-4 py-2 text-sm text-[var(--text-muted)]">
               No active projects found
             </p>
           )}
 
-        {projects.map((project) => (
+        {startedProjects.map((project) => (
           <ProjectItem
             key={project.id}
             project={project}
@@ -181,6 +188,32 @@ export function ProjectSelector({
             onSelect={() => selectProject(project.id)}
           />
         ))}
+
+        {backlogProjects.length > 0 && (
+          <>
+            <button
+              onClick={toggleBacklogProjects}
+              className="flex w-full items-center gap-1.5 px-4 py-2 text-left text-xs font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+            >
+              <ChevronRight
+                className={`size-3 shrink-0 transition-transform ${showBacklogProjects ? "rotate-90" : ""}`}
+              />
+              <span>Backlog</span>
+              <span className="ml-auto text-[10px] tabular-nums opacity-60">
+                {backlogProjects.length}
+              </span>
+            </button>
+            {showBacklogProjects &&
+              backlogProjects.map((project) => (
+                <ProjectItem
+                  key={project.id}
+                  project={project}
+                  isSelected={selectedProjectId === project.id}
+                  onSelect={() => selectProject(project.id)}
+                />
+              ))}
+          </>
+        )}
         {hasOrphans && (
           <>
             {projects.length > 0 && (
@@ -697,6 +730,7 @@ function ProjectItem({
   onSelect: () => void;
 }) {
   const Icon = isSelected ? FolderOpen : Folder;
+  const isBacklog = project.statusType === "backlog";
 
   return (
     <button
@@ -707,7 +741,7 @@ function ProjectItem({
           : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
       }`}
     >
-      <Icon className="size-4 shrink-0" />
+      <Icon className={`size-4 shrink-0 ${isBacklog ? "opacity-50" : ""}`} />
       <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
     </button>
   );
