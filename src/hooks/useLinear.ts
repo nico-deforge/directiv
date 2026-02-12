@@ -1,10 +1,10 @@
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { PaginationOrderBy } from "@linear/sdk";
-import { linearClient } from "../lib/linear";
-import type { EnrichedTask, BlockingIssue, LinearStatusType } from "../types";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
+import { linearClient } from "../lib/linear";
 import { ORPHAN_PROJECT_ID } from "../stores/projectStore";
+import type { BlockingIssue, EnrichedTask, LinearStatusType } from "../types";
 
 export type LinearConnectionStatus =
   | { status: "no-token" }
@@ -48,7 +48,16 @@ async function resolveTeamIds(keys: string[]): Promise<string[]> {
 export interface LinearProject {
   id: string;
   name: string;
+  statusType: LinearProjectStatusType;
 }
+
+export const LINEAR_PROJECT_STATUS_TYPE = {
+  STARTED: "started",
+  BACKLOG: "backlog",
+} as const;
+
+export type LinearProjectStatusType =
+  (typeof LINEAR_PROJECT_STATUS_TYPE)[keyof typeof LINEAR_PROJECT_STATUS_TYPE];
 
 export function useLinearMyProjects() {
   return useQuery<LinearProject[]>({
@@ -59,13 +68,17 @@ export function useLinearMyProjects() {
       const result = await linearClient.projects({
         filter: {
           members: { some: { isMe: { eq: true } } },
-          status: { type: { eq: "started" } },
+          status: { type: { in: ["started", "backlog"] } },
         },
         orderBy: PaginationOrderBy.CreatedAt,
         first: 100,
       });
 
-      return result.nodes.map((p) => ({ id: p.id, name: p.name }));
+      return result.nodes.map((p) => ({
+        id: p.id,
+        name: p.name,
+        statusType: p.state as LinearProjectStatusType,
+      }));
     },
     enabled: !!linearClient,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,

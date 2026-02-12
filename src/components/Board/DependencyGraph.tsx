@@ -193,6 +193,7 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
       (p): Project => ({
         id: p.id,
         name: p.name,
+        statusType: p.statusType,
       }),
     );
   }, [linearProjects]);
