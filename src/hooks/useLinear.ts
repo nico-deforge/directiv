@@ -51,7 +51,13 @@ export interface LinearProject {
   statusType: LinearProjectStatusType;
 }
 
-type LinearProjectStatusType = "started" | "backlog";
+export const LINEAR_PROJECT_STATUS_TYPE = {
+  STARTED: "started",
+  BACKLOG: "backlog",
+} as const;
+
+export type LinearProjectStatusType =
+  (typeof LINEAR_PROJECT_STATUS_TYPE)[keyof typeof LINEAR_PROJECT_STATUS_TYPE];
 
 export function useLinearMyProjects() {
   return useQuery<LinearProject[]>({
