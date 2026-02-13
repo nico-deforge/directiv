@@ -27,6 +27,7 @@ import type {
   DiscoveredRepo,
   ClaudeSessionStatus,
 } from "../../types";
+import { CIStatusIcon } from "./CIStatusIcon";
 import { useStartTask } from "../../hooks/useStartTask";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
@@ -347,6 +348,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             <span className="truncate">PR #{pullRequest.number}</span>
             <ExternalLink className="size-3 shrink-0" />
           </a>
+          <CIStatusIcon status={pullRequest.ciStatus} url={pullRequest.ciUrl} />
         </div>
       )}
 
