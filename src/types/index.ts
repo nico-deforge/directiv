@@ -89,6 +89,16 @@ export interface WorktreeInfo {
 
 // --- GitHub ---
 
+export const CI_STATUSES = {
+  SUCCESS: "SUCCESS",
+  FAILURE: "FAILURE",
+  PENDING: "PENDING",
+  ERROR: "ERROR",
+  EXPECTED: "EXPECTED",
+} as const;
+
+export type CIStatus = (typeof CI_STATUSES)[keyof typeof CI_STATUSES] | null;
+
 export interface PullRequestInfo {
   number: number;
   title: string;
@@ -99,6 +109,8 @@ export interface PullRequestInfo {
   reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
   requestedReviewerCount: number;
   reviews: PullRequestReview[];
+  ciStatus: CIStatus;
+  ciUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
