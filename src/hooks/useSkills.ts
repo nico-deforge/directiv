@@ -5,7 +5,7 @@ import type { BundledSkillInfo } from "../types";
 export function useBundledSkills() {
   return useQuery<BundledSkillInfo[]>({
     queryKey: ["bundled-skills"],
-    queryFn: () => listBundledSkills(),
+    queryFn: listBundledSkills,
     staleTime: 60_000,
   });
 }

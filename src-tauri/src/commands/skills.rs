@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::fs;
+use std::path::PathBuf;
 use tauri::Manager;
 
 #[derive(Debug, Serialize, Clone)]
@@ -32,21 +33,33 @@ fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
     (name, description)
 }
 
-#[tauri::command]
-pub fn get_plugin_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
+fn resolve_plugin_dir(app: &tauri::AppHandle) -> Result<Option<PathBuf>, String> {
     let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
     let plugin_dir = resource_dir.join("claude-skills-plugin");
     if plugin_dir.exists() {
-        Ok(Some(plugin_dir.to_string_lossy().to_string()))
-    } else {
-        Ok(None)
+        return Ok(Some(plugin_dir));
     }
+
+    // Fallback for dev mode: resources live under src-tauri/resources/
+    let dev_dir = resource_dir.join("resources").join("claude-skills-plugin");
+    if dev_dir.exists() {
+        return Ok(Some(dev_dir));
+    }
+
+    Ok(None)
+}
+
+#[tauri::command]
+pub fn get_plugin_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    Ok(resolve_plugin_dir(&app)?.map(|p| p.to_string_lossy().to_string()))
 }
 
 #[tauri::command]
 pub fn list_bundled_skills(app: tauri::AppHandle) -> Result<Vec<BundledSkillInfo>, String> {
-    let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
-    let skills_dir = resource_dir.join("claude-skills-plugin").join("skills");
+    let Some(plugin_dir) = resolve_plugin_dir(&app)? else {
+        return Ok(Vec::new());
+    };
+    let skills_dir = plugin_dir.join("skills");
 
     if !skills_dir.exists() || !skills_dir.is_dir() {
         return Ok(Vec::new());

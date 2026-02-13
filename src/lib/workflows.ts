@@ -15,6 +15,19 @@ import {
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
 
+async function buildClaudeCommand(
+  skill?: string,
+  identifier?: string,
+): Promise<string> {
+  const pluginDir = await getPluginDir();
+  const escapedDir = pluginDir ? pluginDir.replace(/'/g, "'\\''") : null;
+  const pluginFlag = escapedDir ? ` --plugin-dir '${escapedDir}'` : "";
+  if (skill && identifier && pluginDir) {
+    return `claude${pluginFlag} "/${skill} ${identifier}"`;
+  }
+  return `claude${pluginFlag}`;
+}
+
 interface StartTaskParams {
   issueId: string;
   identifier: string;
@@ -64,11 +77,7 @@ export async function startTask({
     try {
       await tmuxWaitForReady(sessionName);
       // 3. Launch Claude only on fresh sessions
-      const pluginDir = await getPluginDir();
-      const pluginFlag = pluginDir ? ` --plugin-dir "${pluginDir}"` : "";
-      const claudeCmd = skill
-        ? `claude${pluginFlag} "/${skill} ${identifier}"`
-        : `claude${pluginFlag}`;
+      const claudeCmd = await buildClaudeCommand(skill, identifier);
       await tmuxSendKeys(sessionName, claudeCmd);
     } catch (err) {
       // Rollback: kill session so retry creates a fresh one
@@ -137,9 +146,8 @@ export async function startFreeTask({
     try {
       await tmuxWaitForReady(sessionName);
       // 3. Launch Claude (plain, no /linear-issue)
-      const pluginDir = await getPluginDir();
-      const pluginFlag = pluginDir ? ` --plugin-dir "${pluginDir}"` : "";
-      await tmuxSendKeys(sessionName, `claude${pluginFlag}`);
+      const claudeCmd = await buildClaudeCommand();
+      await tmuxSendKeys(sessionName, claudeCmd);
     } catch (err) {
       // Rollback: kill session so retry creates a fresh one
       await tmuxKillSession(sessionName).catch(() => {});
