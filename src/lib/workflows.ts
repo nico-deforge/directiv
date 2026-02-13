@@ -55,13 +55,13 @@ export async function startTask({
   const sessions = await tmuxListSessions();
   const existingSession = sessions.find((s) => s.name === sessionName);
   if (!existingSession) {
+    // Run onStart hooks BEFORE tmux session (e.g. mise trust)
+    if (onStart && onStart.length > 0) {
+      await runHooks(onStart, worktree.path);
+    }
     await tmuxCreateSession(sessionName, worktree.path);
     try {
       await tmuxWaitForReady(sessionName);
-      // 2.5 Run onStart hooks in the worktree directory
-      if (onStart && onStart.length > 0) {
-        await runHooks(onStart, worktree.path);
-      }
       // 3. Launch Claude only on fresh sessions
       const claudeCmd = skill ? `claude "/${skill} ${identifier}"` : "claude";
       await tmuxSendKeys(sessionName, claudeCmd);
@@ -124,12 +124,13 @@ export async function startFreeTask({
   const sessions = await tmuxListSessions();
   const existingSession = sessions.find((s) => s.name === sessionName);
   if (!existingSession) {
+    // Run onStart hooks BEFORE tmux session (e.g. mise trust)
+    if (onStart && onStart.length > 0) {
+      await runHooks(onStart, worktree.path);
+    }
     await tmuxCreateSession(sessionName, worktree.path);
     try {
       await tmuxWaitForReady(sessionName);
-      if (onStart && onStart.length > 0) {
-        await runHooks(onStart, worktree.path);
-      }
       // 3. Launch Claude (plain, no /linear-issue)
       await tmuxSendKeys(sessionName, "claude");
     } catch (err) {
