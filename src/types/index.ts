@@ -89,13 +89,15 @@ export interface WorktreeInfo {
 
 // --- GitHub ---
 
-export type CIStatus =
-  | "SUCCESS"
-  | "FAILURE"
-  | "PENDING"
-  | "ERROR"
-  | "EXPECTED"
-  | null;
+export const CI_STATUSES = {
+  SUCCESS: "SUCCESS",
+  FAILURE: "FAILURE",
+  PENDING: "PENDING",
+  ERROR: "ERROR",
+  EXPECTED: "EXPECTED",
+} as const;
+
+export type CIStatus = (typeof CI_STATUSES)[keyof typeof CI_STATUSES] | null;
 
 export interface PullRequestInfo {
   number: number;

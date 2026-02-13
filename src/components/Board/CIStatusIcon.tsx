@@ -1,5 +1,5 @@
 import { CircleCheck, CircleX, Loader2 } from "lucide-react";
-import type { CIStatus } from "../../types";
+import { CI_STATUSES, type CIStatus } from "../../types";
 
 export function CIStatusIcon({
   status,
@@ -14,20 +14,20 @@ export function CIStatusIcon({
   let tooltip: string;
 
   switch (status) {
-    case "SUCCESS":
+    case CI_STATUSES.SUCCESS:
       icon = <CircleCheck className="size-3.5 text-[var(--accent-green)]" />;
       tooltip = "CI passed";
       break;
-    case "FAILURE":
+    case CI_STATUSES.FAILURE:
       icon = <CircleX className="size-3.5 text-[var(--accent-red)]" />;
       tooltip = "CI failed";
       break;
-    case "ERROR":
+    case CI_STATUSES.ERROR:
       icon = <CircleX className="size-3.5 text-[var(--accent-red)]" />;
       tooltip = "CI error";
       break;
-    case "PENDING":
-    case "EXPECTED":
+    case CI_STATUSES.PENDING:
+    case CI_STATUSES.EXPECTED:
       icon = (
         <Loader2 className="size-3.5 animate-spin text-[var(--accent-amber)]" />
       );
