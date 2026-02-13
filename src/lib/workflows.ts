@@ -11,6 +11,7 @@ import {
   tmuxWaitForReady,
   openTerminal,
   runHooks,
+  getPluginDir,
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
 
@@ -63,7 +64,11 @@ export async function startTask({
     try {
       await tmuxWaitForReady(sessionName);
       // 3. Launch Claude only on fresh sessions
-      const claudeCmd = skill ? `claude "/${skill} ${identifier}"` : "claude";
+      const pluginDir = await getPluginDir();
+      const pluginFlag = pluginDir ? ` --plugin-dir "${pluginDir}"` : "";
+      const claudeCmd = skill
+        ? `claude${pluginFlag} "/${skill} ${identifier}"`
+        : `claude${pluginFlag}`;
       await tmuxSendKeys(sessionName, claudeCmd);
     } catch (err) {
       // Rollback: kill session so retry creates a fresh one
@@ -132,7 +137,9 @@ export async function startFreeTask({
     try {
       await tmuxWaitForReady(sessionName);
       // 3. Launch Claude (plain, no /linear-issue)
-      await tmuxSendKeys(sessionName, "claude");
+      const pluginDir = await getPluginDir();
+      const pluginFlag = pluginDir ? ` --plugin-dir "${pluginDir}"` : "";
+      await tmuxSendKeys(sessionName, `claude${pluginFlag}`);
     } catch (err) {
       // Rollback: kill session so retry creates a fresh one
       await tmuxKillSession(sessionName).catch(() => {});

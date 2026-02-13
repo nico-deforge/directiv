@@ -127,7 +127,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const isDisabled = !task.isAssignedToMe;
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
-  const skills = useSettingsStore((s) => s.config.skills);
   const queryClient = useQueryClient();
   const startTask = useStartTask();
 
@@ -136,9 +135,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
-  const [selectedSkill, setSelectedSkill] = useState<string | undefined>(
-    undefined,
-  );
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const hasSession = session !== null;
@@ -164,7 +160,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       ) {
         setDropdownOpen(false);
         setSelectedRepo(null);
-        setSelectedSkill(undefined);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -214,10 +209,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   }
 
   function handleStart(repoPath: string, baseBranch?: string) {
-    const skill = selectedSkill;
     setDropdownOpen(false);
     setSelectedRepo(null);
-    setSelectedSkill(undefined);
     const repo = repos.find((r) => r.path === repoPath);
     startTask.mutate(
       {
@@ -229,7 +222,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         onStart: repo?.onStart,
         baseBranch,
         fetchBefore: repo?.fetchBefore,
-        skill,
+        skill: "directiv:linear-issue",
       },
       {
         onError: (err) => toastError(err),
@@ -379,54 +372,24 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           className="relative flex items-center gap-2 px-3 py-2"
           ref={dropdownRef}
         >
-          {/* Start button(s) with dropdown */}
-          {!hasSession &&
-            (skills.length === 0 ? (
-              <button
-                onClick={() => {
-                  setSelectedSkill(undefined);
-                  setDropdownOpen((prev) => !prev);
-                }}
-                disabled={isLoading || repos.length === 0}
-                className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {startTask.isPending ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <>
-                    <Play className="size-3.5" />
-                    Start
-                    <ChevronDown className="size-3" />
-                  </>
-                )}
-              </button>
-            ) : (
-              skills.map((s, i) => (
-                <button
-                  key={s.skill}
-                  onClick={() => {
-                    setSelectedSkill(s.skill);
-                    setDropdownOpen((prev) => !prev);
-                  }}
-                  disabled={isLoading || repos.length === 0}
-                  className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium hover:opacity-90 disabled:opacity-50 ${
-                    i === 0
-                      ? "bg-[var(--accent-green)] text-white"
-                      : "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                  }`}
-                >
-                  {startTask.isPending && selectedSkill === s.skill ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <>
-                      <Play className="size-3.5" />
-                      {s.label}
-                      <ChevronDown className="size-3" />
-                    </>
-                  )}
-                </button>
-              ))
-            ))}
+          {/* Start button with dropdown */}
+          {!hasSession && (
+            <button
+              onClick={() => setDropdownOpen((prev) => !prev)}
+              disabled={isLoading || repos.length === 0}
+              className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {startTask.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <>
+                  <Play className="size-3.5" />
+                  Start
+                  <ChevronDown className="size-3" />
+                </>
+              )}
+            </button>
+          )}
 
           {/* Terminal button */}
           {hasSession && (

@@ -29,8 +29,8 @@ pub fn run() {
             commands::terminal::open_editor,
             commands::hooks::run_hooks,
             commands::config::load_config,
-            commands::skills::list_skills,
-            commands::skills::read_skill_file,
+            commands::skills::get_plugin_dir,
+            commands::skills::list_bundled_skills,
             commands::workspace::scan_workspace,
         ])
         .run(tauri::generate_context!())

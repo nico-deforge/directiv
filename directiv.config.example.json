@@ -11,6 +11,5 @@
   "linear": {
     "teamIds": ["TEAM_ID"]
   },
-  "theme": "system",
-  "skills": [{ "skill": "linear-issue", "label": "Start" }]
+  "theme": "system"
 }
