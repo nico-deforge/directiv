@@ -124,11 +124,19 @@ pub fn read_plugin_skill_file(
     let plugin_dir =
         resolve_plugin_dir(&app)?.ok_or_else(|| "Plugin directory not found".to_string())?;
 
-    let file_path = plugin_dir.join("skills").join(&skill_name).join(&filename);
+    let skills_dir = plugin_dir.join("skills");
+    let file_path = skills_dir.join(&skill_name).join(&filename);
 
-    if !file_path.exists() {
-        return Err(format!("File not found: {}", file_path.display()));
+    let canonical = file_path
+        .canonicalize()
+        .map_err(|_| format!("File not found: {}", file_path.display()))?;
+    let canonical_skills = skills_dir
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve skills directory: {}", e))?;
+
+    if !canonical.starts_with(&canonical_skills) {
+        return Err("Invalid file path".to_string());
     }
 
-    fs::read_to_string(&file_path).map_err(|e| format!("Failed to read file: {}", e))
+    fs::read_to_string(&canonical).map_err(|e| format!("Failed to read file: {}", e))
 }

@@ -23,7 +23,8 @@ async function buildClaudeCommand(
   const escapedDir = pluginDir ? pluginDir.replace(/'/g, "'\\''") : null;
   const pluginFlag = escapedDir ? ` --plugin-dir '${escapedDir}'` : "";
   if (skill && identifier && pluginDir) {
-    return `claude${pluginFlag} "/${skill} ${identifier}"`;
+    const safeIdentifier = identifier.replace(/"/g, '\\"');
+    return `claude${pluginFlag} "/${skill} ${safeIdentifier}"`;
   }
   return `claude${pluginFlag}`;
 }

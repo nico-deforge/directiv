@@ -91,7 +91,7 @@ Skills are bundled inside the app as a Claude Code plugin — no user installati
 
 - **Location:** `src-tauri/resources/directiv-plugin/` (bundled via `tauri.conf.json` → `bundle.resources`)
 - **Plugin structure:** `.claude-plugin/plugin.json` + `skills/<skill-name>/SKILL.md`
-- **Runtime resolution:** Rust command `get_plugin_dir` resolves the resource path; `list_bundled_skills` scans the `skills/` directory
+- **Runtime resolution:** Rust command `get_plugin_dir` resolves the resource path; `list_plugin_skills` scans the `skills/` directory
 - **Launch:** `workflows.ts` passes `--plugin-dir` to the `claude` CLI so skills are available as `/directiv:<skill-name>`
 - **Start button:** hardcoded to `directiv:linear-issue` — no config needed
 - **Adding a skill:** create a new folder under `skills/` with a `SKILL.md`, rebuild the app
