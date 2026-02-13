@@ -145,7 +145,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const workflowStatus = getWorkflowStatus(session, pullRequest);
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
   const needsInput =
-    claudeStatus === "waiting" || workflowStatus === "personal-review";
+    workflowStatus === "personal-review" ||
+    (claudeStatus === "waiting" && workflowStatus === "in-dev");
 
   useEffect(() => {
     if (!confirmingDelete) return;
