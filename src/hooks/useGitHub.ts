@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { octokit } from "../lib/github";
-import type { PullRequestInfo, ReviewRequestedPR } from "../types";
+import type { CIStatus, PullRequestInfo, ReviewRequestedPR } from "../types";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
 
 interface ReviewNode {
@@ -20,6 +20,15 @@ interface ViewerPRNode {
   reviewDecision: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
   reviewRequests: { totalCount: number };
   latestReviews: { nodes: ReviewNode[] };
+  commits: {
+    nodes: Array<{
+      commit: {
+        statusCheckRollup: {
+          state: "SUCCESS" | "FAILURE" | "PENDING" | "ERROR" | "EXPECTED";
+        } | null;
+      };
+    }>;
+  };
 }
 
 interface ViewerPRsResponse {
@@ -51,6 +60,15 @@ const QUERY = `
               submittedAt
             }
           }
+          commits(last: 1) {
+            nodes {
+              commit {
+                statusCheckRollup {
+                  state
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -63,8 +81,12 @@ export function useGitHubMyOpenPRs() {
     queryFn: async () => {
       if (!octokit) return [];
       const data = await octokit.graphql<ViewerPRsResponse>(QUERY);
-      return data.viewer.pullRequests.nodes.map(
-        (pr): PullRequestInfo => ({
+      return data.viewer.pullRequests.nodes.map((pr): PullRequestInfo => {
+        const rollup = pr.commits.nodes[0]?.commit.statusCheckRollup ?? null;
+        const ciStatus: CIStatus = rollup?.state ?? null;
+        const ciUrl: string | null = rollup ? `${pr.url}/checks` : null;
+
+        return {
           number: pr.number,
           title: pr.title,
           state: "open",
@@ -78,10 +100,12 @@ export function useGitHubMyOpenPRs() {
             state: r.state,
             submittedAt: r.submittedAt,
           })),
+          ciStatus,
+          ciUrl,
           createdAt: pr.createdAt,
           updatedAt: pr.updatedAt,
-        }),
-      );
+        };
+      });
     },
     enabled: !!octokit,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,

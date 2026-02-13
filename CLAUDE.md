@@ -103,6 +103,18 @@ User config lives in `directiv.config.json` at project root:
 - `linear`: team IDs, active project
 - `github`: owner and repo names
 
+## Code Conventions
+
+- **Enums must be `as const` objects** — All enum-like values must be defined as an `as const` object with a derived type from its values. Never use TypeScript `enum` or plain union types for enums. Example:
+  ```typescript
+  export const MY_STATUSES = {
+    ACTIVE: "active",
+    INACTIVE: "inactive",
+  } as const;
+
+  export type MyStatus = (typeof MY_STATUSES)[keyof typeof MY_STATUSES];
+  ```
+
 ## Language
 
 The architecture doc may be in French. Code identifiers, comments in code and commit messages should be in English.

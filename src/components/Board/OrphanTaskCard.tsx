@@ -14,6 +14,7 @@ import {
   Code2,
 } from "lucide-react";
 import type { WorktreeInfo, TmuxSession, PullRequestInfo } from "../../types";
+import { CIStatusIcon } from "./CIStatusIcon";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { LinearIssueStub } from "../../hooks/useLinear";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
@@ -178,6 +179,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             <span className="truncate">PR #{pullRequest.number}</span>
             <ExternalLink className="size-3 shrink-0" />
           </a>
+          <CIStatusIcon status={pullRequest.ciStatus} url={pullRequest.ciUrl} />
         </div>
       )}
 
