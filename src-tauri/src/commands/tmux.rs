@@ -138,34 +138,21 @@ pub async fn tmux_send_keys(
     session: String,
     keys: String,
 ) -> Result<(), String> {
-    // Use set-buffer + paste-buffer to inject raw text without any key interpretation
+    // Send text literally (-l) to avoid tmux interpreting key sequences like C-t
     let output = app
         .shell()
         .command("tmux")
-        .args(["set-buffer", &keys])
+        .args(["send-keys", "-t", &session, "-l", &keys])
         .output()
         .await
         .map_err(|e| format!("Failed to run tmux: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("tmux set-buffer failed: {stderr}"));
+        return Err(format!("tmux send-keys failed: {stderr}"));
     }
 
-    let output = app
-        .shell()
-        .command("tmux")
-        .args(["paste-buffer", "-t", &session])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run tmux: {e}"))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("tmux paste-buffer failed: {stderr}"));
-    }
-
-    // Send Enter to execute the pasted command
+    // Send Enter separately (Enter is a key name, not literal text)
     let output = app
         .shell()
         .command("tmux")
