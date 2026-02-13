@@ -151,7 +151,7 @@ export interface StaleWorktree {
 
 // --- Skills ---
 
-export interface BundledSkillInfo {
+export interface PluginSkillInfo {
   name: string;
   description: string | null;
   files: string[];

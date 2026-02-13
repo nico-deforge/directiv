@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   TmuxSession,
   WorktreeInfo,
-  BundledSkillInfo,
+  PluginSkillInfo,
   DiscoveredRepo,
 } from "../types";
 
@@ -139,6 +139,13 @@ export function getPluginDir(): Promise<string | null> {
   return invoke<string | null>("get_plugin_dir");
 }
 
-export function listBundledSkills(): Promise<BundledSkillInfo[]> {
-  return invoke<BundledSkillInfo[]>("list_bundled_skills");
+export function listPluginSkills(): Promise<PluginSkillInfo[]> {
+  return invoke<PluginSkillInfo[]>("list_plugin_skills");
+}
+
+export function readPluginSkillFile(
+  skillName: string,
+  filename: string,
+): Promise<string> {
+  return invoke<string>("read_plugin_skill_file", { skillName, filename });
 }

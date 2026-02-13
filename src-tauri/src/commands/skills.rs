@@ -5,7 +5,7 @@ use tauri::Manager;
 
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct BundledSkillInfo {
+pub struct PluginSkillInfo {
     pub name: String,
     pub description: Option<String>,
     pub files: Vec<String>,
@@ -55,7 +55,7 @@ pub fn get_plugin_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-pub fn list_bundled_skills(app: tauri::AppHandle) -> Result<Vec<BundledSkillInfo>, String> {
+pub fn list_plugin_skills(app: tauri::AppHandle) -> Result<Vec<PluginSkillInfo>, String> {
     let Some(plugin_dir) = resolve_plugin_dir(&app)? else {
         return Ok(Vec::new());
     };
@@ -108,7 +108,7 @@ pub fn list_bundled_skills(app: tauri::AppHandle) -> Result<Vec<BundledSkillInfo
             Err(_) => Vec::new(),
         };
 
-        skills.push(BundledSkillInfo {
+        skills.push(PluginSkillInfo {
             name: name.unwrap_or(folder_name),
             description,
             files,
@@ -116,4 +116,22 @@ pub fn list_bundled_skills(app: tauri::AppHandle) -> Result<Vec<BundledSkillInfo
     }
 
     Ok(skills)
+}
+
+#[tauri::command]
+pub fn read_plugin_skill_file(
+    app: tauri::AppHandle,
+    skill_name: String,
+    filename: String,
+) -> Result<String, String> {
+    let plugin_dir =
+        resolve_plugin_dir(&app)?.ok_or_else(|| "Plugin directory not found".to_string())?;
+
+    let file_path = plugin_dir.join("skills").join(&skill_name).join(&filename);
+
+    if !file_path.exists() {
+        return Err(format!("File not found: {}", file_path.display()));
+    }
+
+    fs::read_to_string(&file_path).map_err(|e| format!("Failed to read file: {}", e))
 }

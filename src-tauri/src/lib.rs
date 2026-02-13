@@ -30,7 +30,8 @@ pub fn run() {
             commands::hooks::run_hooks,
             commands::config::load_config,
             commands::skills::get_plugin_dir,
-            commands::skills::list_bundled_skills,
+            commands::skills::list_plugin_skills,
+            commands::skills::read_plugin_skill_file,
             commands::workspace::scan_workspace,
         ])
         .run(tauri::generate_context!())
