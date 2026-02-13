@@ -27,7 +27,7 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "resources/claude-skills-plugin": "claude-skills-plugin"
+      "resources/directiv-plugin": "directiv-plugin"
     },
     "icon": [
       "icons/32x32.png",

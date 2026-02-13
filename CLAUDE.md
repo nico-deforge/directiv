@@ -79,7 +79,7 @@ mise run build             # Build production Tauri app
 Triggered by clicking [Start] on a backlog card:
 1. Create git worktree → `git worktree add ../repo-worktrees/ACQ-145 -b ACQ-145 origin/main`
 2. Create tmux session → `tmux new-session -d -s ACQ-145 -c /path/to/worktree`
-3. Launch Claude with context → `tmux send-keys -t ACQ-145 'claude --plugin-dir "<resource>/claude-skills-plugin" "/directiv:linear-issue ACQ-145"' Enter`
+3. Launch Claude with context → `tmux send-keys -t ACQ-145 'claude --plugin-dir "<resource>/directiv-plugin" "/directiv:linear-issue ACQ-145"' Enter`
 4. Update Linear → status to "In Progress"
 5. Refresh board → card moves to "In Dev"
 
@@ -89,7 +89,7 @@ Claude Code starts in interactive mode with `/directiv:linear-issue <issue_id>` 
 
 Skills are bundled inside the app as a Claude Code plugin — no user installation required.
 
-- **Location:** `src-tauri/resources/claude-skills-plugin/` (bundled via `tauri.conf.json` → `bundle.resources`)
+- **Location:** `src-tauri/resources/directiv-plugin/` (bundled via `tauri.conf.json` → `bundle.resources`)
 - **Plugin structure:** `.claude-plugin/plugin.json` + `skills/<skill-name>/SKILL.md`
 - **Runtime resolution:** Rust command `get_plugin_dir` resolves the resource path; `list_bundled_skills` scans the `skills/` directory
 - **Launch:** `workflows.ts` passes `--plugin-dir` to the `claude` CLI so skills are available as `/directiv:<skill-name>`

@@ -36,7 +36,7 @@ fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
 fn resolve_plugin_dir(app: &tauri::AppHandle) -> Result<Option<PathBuf>, String> {
     let plugin_dir = app
         .path()
-        .resolve("claude-skills-plugin", tauri::path::BaseDirectory::Resource)
+        .resolve("directiv-plugin", tauri::path::BaseDirectory::Resource)
         .map_err(|e| e.to_string())?;
 
     if plugin_dir.exists() {
