@@ -30,7 +30,9 @@ export function SkillsSection() {
     );
   }
 
-  const pluginSkills = skills ?? [];
+  const pluginSkills = [...(skills ?? [])].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   return (
     <div className="max-w-3xl space-y-6">
