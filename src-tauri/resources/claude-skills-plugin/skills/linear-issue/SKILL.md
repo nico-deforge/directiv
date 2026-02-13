@@ -30,7 +30,7 @@ Valid tests (optional if no tests are required)
 Launch review independent agent to have quick feedback
 
 ## FINISH
-Execute your /create-pr skill
+Execute your /directiv:create-pr skill
 
 ## NOTES
 If you have any questions, notify me with a comment on the Linear ticket.
