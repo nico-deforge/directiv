@@ -34,19 +34,16 @@ fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
 }
 
 fn resolve_plugin_dir(app: &tauri::AppHandle) -> Result<Option<PathBuf>, String> {
-    let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
-    let plugin_dir = resource_dir.join("claude-skills-plugin");
+    let plugin_dir = app
+        .path()
+        .resolve("claude-skills-plugin", tauri::path::BaseDirectory::Resource)
+        .map_err(|e| e.to_string())?;
+
     if plugin_dir.exists() {
-        return Ok(Some(plugin_dir));
+        Ok(Some(plugin_dir))
+    } else {
+        Ok(None)
     }
-
-    // Fallback for dev mode: resources live under src-tauri/resources/
-    let dev_dir = resource_dir.join("resources").join("claude-skills-plugin");
-    if dev_dir.exists() {
-        return Ok(Some(dev_dir));
-    }
-
-    Ok(None)
 }
 
 #[tauri::command]
