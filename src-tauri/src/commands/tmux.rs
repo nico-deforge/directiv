@@ -138,7 +138,9 @@ pub async fn tmux_send_keys(
     session: String,
     keys: String,
 ) -> Result<(), String> {
-    // Send text literally (-l) to avoid tmux interpreting key sequences like C-t
+    // Two-step send: literal text first, then Enter as a key name.
+    // A single send-keys -l with embedded \n was attempted but reverted (d5a68f9 / e0d5b30)
+    // because -l treats \n as literal text rather than a key press.
     let output = app
         .shell()
         .command("tmux")
@@ -152,7 +154,6 @@ pub async fn tmux_send_keys(
         return Err(format!("tmux send-keys failed: {stderr}"));
     }
 
-    // Send Enter separately (Enter is a key name, not literal text)
     let output = app
         .shell()
         .command("tmux")

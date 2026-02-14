@@ -30,7 +30,7 @@ export function SkillsSection() {
     );
   }
 
-  const pluginSkills = [...(skills ?? [])].sort((a, b) =>
+  const pluginSkills = (skills ?? []).toSorted((a, b) =>
     a.name.localeCompare(b.name),
   );
 

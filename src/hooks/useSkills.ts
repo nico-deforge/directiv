@@ -6,7 +6,7 @@ export function usePluginSkills() {
   return useQuery<PluginSkillInfo[]>({
     queryKey: ["plugin-skills"],
     queryFn: listPluginSkills,
-    staleTime: 60_000,
+    staleTime: Infinity,
   });
 }
 
@@ -15,6 +15,6 @@ export function usePluginSkillFile(skillName: string, filename: string) {
     queryKey: ["plugin-skill-file", skillName, filename],
     queryFn: () => readPluginSkillFile(skillName, filename),
     enabled: !!skillName && !!filename,
-    staleTime: 60_000,
+    staleTime: Infinity,
   });
 }

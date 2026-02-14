@@ -15,6 +15,8 @@ import {
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
 
+export const DEFAULT_SKILL = "directiv:linear-issue" as const;
+
 async function buildClaudeCommand(
   skill?: string,
   identifier?: string,
@@ -22,14 +24,21 @@ async function buildClaudeCommand(
   const pluginDir = await getPluginDir();
   const escapedDir = pluginDir ? pluginDir.replace(/'/g, "'\\''") : null;
   const pluginFlag = escapedDir ? ` --plugin-dir '${escapedDir}'` : "";
-  if (skill && identifier && pluginDir) {
-    const safeIdentifier = identifier.replace(/"/g, '\\"');
-    return `claude "/${skill} ${safeIdentifier}"${pluginFlag}`;
+  if (skill && identifier) {
+    if (!pluginDir) {
+      console.warn(
+        "Plugin directory not found — launching Claude without skill",
+      );
+      return `claude${pluginFlag}`;
+    }
+    // Single-quote prevents all shell interpretation ($, backtick, \, !)
+    const safeArg = `/${skill} ${identifier}`.replace(/'/g, "'\\''");
+    return `claude '${safeArg}'${pluginFlag}`;
   }
   return `claude${pluginFlag}`;
 }
 
-interface StartTaskParams {
+export interface StartTaskParams {
   issueId: string;
   identifier: string;
   repoPath: string;

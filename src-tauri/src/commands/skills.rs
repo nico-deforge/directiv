@@ -121,6 +121,13 @@ pub fn read_plugin_skill_file(
     skill_name: String,
     filename: String,
 ) -> Result<String, String> {
+    if skill_name.contains('/') || skill_name.contains('\\') || skill_name.contains('\0') {
+        return Err("Invalid skill name".to_string());
+    }
+    if filename.contains('/') || filename.contains('\\') || filename.contains('\0') {
+        return Err("Invalid filename".to_string());
+    }
+
     let plugin_dir =
         resolve_plugin_dir(&app)?.ok_or_else(|| "Plugin directory not found".to_string())?;
 

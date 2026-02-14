@@ -29,6 +29,7 @@ import type {
 } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
 import { useStartTask } from "../../hooks/useStartTask";
+import { DEFAULT_SKILL } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
   openTerminal,
@@ -222,7 +223,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         onStart: repo?.onStart,
         baseBranch,
         fetchBefore: repo?.fetchBefore,
-        skill: "directiv:linear-issue",
+        skill: DEFAULT_SKILL,
       },
       {
         onError: (err) => toastError(err),
