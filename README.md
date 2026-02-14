@@ -230,6 +230,15 @@ npm install -g @anthropic-ai/claude-code
 
 Directiv ships with a bundled Claude Code plugin containing the `linear-issue` skill. When you click **[Start]** on a task, Claude Code is launched with `--plugin-dir` pointing to the bundled plugin, so the `/directiv:linear-issue` skill is available out of the box — no manual skill installation required.
 
+#### GitHub CLI (strongly recommended)
+
+The [GitHub CLI](https://cli.github.com/) (`gh`) is strongly recommended for Claude Code to interact with GitHub (create PRs, review code, manage issues, etc.):
+
+```bash
+brew install gh
+gh auth login
+```
+
 ### Clone and setup
 
 ```bash
