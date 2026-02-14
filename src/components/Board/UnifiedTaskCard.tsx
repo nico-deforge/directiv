@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   Code2,
   AlertTriangle,
+  ClipboardList,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -29,6 +30,7 @@ import type {
 } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
 import { useStartTask } from "../../hooks/useStartTask";
+import { SKILLS, type Skill } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
   openTerminal,
@@ -127,7 +129,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const isDisabled = !task.isAssignedToMe;
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
-  const skills = useSettingsStore((s) => s.config.skills);
   const queryClient = useQueryClient();
   const startTask = useStartTask();
 
@@ -136,9 +137,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
-  const [selectedSkill, setSelectedSkill] = useState<string | undefined>(
-    undefined,
-  );
+  const [pendingSkill, setPendingSkill] = useState<Skill>(SKILLS.CODE);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const hasSession = session !== null;
@@ -164,7 +163,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       ) {
         setDropdownOpen(false);
         setSelectedRepo(null);
-        setSelectedSkill(undefined);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -214,10 +212,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   }
 
   function handleStart(repoPath: string, baseBranch?: string) {
-    const skill = selectedSkill;
     setDropdownOpen(false);
     setSelectedRepo(null);
-    setSelectedSkill(undefined);
     const repo = repos.find((r) => r.path === repoPath);
     startTask.mutate(
       {
@@ -229,12 +225,17 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         onStart: repo?.onStart,
         baseBranch,
         fetchBefore: repo?.fetchBefore,
-        skill,
+        skill: pendingSkill,
       },
       {
         onError: (err) => toastError(err),
       },
     );
+  }
+
+  function openDropdown(skill: Skill) {
+    setPendingSkill(skill);
+    setDropdownOpen((prev) => !prev);
   }
 
   async function handleOpenTerminal() {
@@ -379,54 +380,41 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           className="relative flex items-center gap-2 px-3 py-2"
           ref={dropdownRef}
         >
-          {/* Start button(s) with dropdown */}
-          {!hasSession &&
-            (skills.length === 0 ? (
+          {/* Code / Plan buttons with shared dropdown */}
+          {!hasSession && (
+            <>
               <button
-                onClick={() => {
-                  setSelectedSkill(undefined);
-                  setDropdownOpen((prev) => !prev);
-                }}
+                onClick={() => openDropdown(SKILLS.CODE)}
                 disabled={isLoading || repos.length === 0}
                 className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
-                {startTask.isPending ? (
+                {startTask.isPending && pendingSkill === SKILLS.CODE ? (
                   <Loader2 className="size-3.5 animate-spin" />
                 ) : (
                   <>
                     <Play className="size-3.5" />
-                    Start
+                    Code
                     <ChevronDown className="size-3" />
                   </>
                 )}
               </button>
-            ) : (
-              skills.map((s, i) => (
-                <button
-                  key={s.skill}
-                  onClick={() => {
-                    setSelectedSkill(s.skill);
-                    setDropdownOpen((prev) => !prev);
-                  }}
-                  disabled={isLoading || repos.length === 0}
-                  className={`flex items-center gap-1 rounded px-2 py-1 text-xs font-medium hover:opacity-90 disabled:opacity-50 ${
-                    i === 0
-                      ? "bg-[var(--accent-green)] text-white"
-                      : "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                  }`}
-                >
-                  {startTask.isPending && selectedSkill === s.skill ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <>
-                      <Play className="size-3.5" />
-                      {s.label}
-                      <ChevronDown className="size-3" />
-                    </>
-                  )}
-                </button>
-              ))
-            ))}
+              <button
+                onClick={() => openDropdown(SKILLS.PLAN)}
+                disabled={isLoading || repos.length === 0}
+                className="flex items-center gap-1 rounded bg-[var(--accent-blue)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {startTask.isPending && pendingSkill === SKILLS.PLAN ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <ClipboardList className="size-3.5" />
+                    Plan
+                    <ChevronDown className="size-3" />
+                  </>
+                )}
+              </button>
+            </>
+          )}
 
           {/* Terminal button */}
           {hasSession && (

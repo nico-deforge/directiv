@@ -24,7 +24,7 @@ export function ConfigPage() {
         <nav className="flex-1 py-2">
           <MenuItem
             icon={<Sparkles className="size-4" />}
-            label="Claude Skills"
+            label="Skills"
             active={activeSection === "skills"}
             onClick={() => setActiveSection("skills")}
           />

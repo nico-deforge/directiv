@@ -11,10 +11,39 @@ import {
   tmuxWaitForReady,
   openTerminal,
   runHooks,
+  getPluginDir,
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
 
-interface StartTaskParams {
+export const SKILLS = {
+  CODE: "directiv:linear-issue",
+  PLAN: "directiv:linear-tactic",
+} as const;
+
+export type Skill = (typeof SKILLS)[keyof typeof SKILLS];
+
+async function buildClaudeCommand(
+  skill?: string,
+  identifier?: string,
+): Promise<string> {
+  const pluginDir = await getPluginDir();
+  const escapedDir = pluginDir ? pluginDir.replace(/'/g, "'\\''") : null;
+  const pluginFlag = escapedDir ? ` --plugin-dir '${escapedDir}'` : "";
+  if (skill && identifier) {
+    if (!pluginDir) {
+      console.warn(
+        "Plugin directory not found — launching Claude without skill",
+      );
+      return `claude${pluginFlag}`;
+    }
+    // Single-quote prevents all shell interpretation ($, backtick, \, !)
+    const safeArg = `/${skill} ${identifier}`.replace(/'/g, "'\\''");
+    return `claude '${safeArg}'${pluginFlag}`;
+  }
+  return `claude${pluginFlag}`;
+}
+
+export interface StartTaskParams {
   issueId: string;
   identifier: string;
   repoPath: string;
@@ -63,7 +92,7 @@ export async function startTask({
     try {
       await tmuxWaitForReady(sessionName);
       // 3. Launch Claude only on fresh sessions
-      const claudeCmd = skill ? `claude "/${skill} ${identifier}"` : "claude";
+      const claudeCmd = await buildClaudeCommand(skill, identifier);
       await tmuxSendKeys(sessionName, claudeCmd);
     } catch (err) {
       // Rollback: kill session so retry creates a fresh one
@@ -132,7 +161,8 @@ export async function startFreeTask({
     try {
       await tmuxWaitForReady(sessionName);
       // 3. Launch Claude (plain, no /linear-issue)
-      await tmuxSendKeys(sessionName, "claude");
+      const claudeCmd = await buildClaudeCommand();
+      await tmuxSendKeys(sessionName, claudeCmd);
     } catch (err) {
       // Rollback: kill session so retry creates a fresh one
       await tmuxKillSession(sessionName).catch(() => {});

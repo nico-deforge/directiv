@@ -1,17 +1,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { startTask, startFreeTask } from "../lib/workflows";
-
-interface StartTaskParams {
-  issueId: string;
-  identifier: string;
-  repoPath: string;
-  terminal: string;
-  copyPaths?: string[];
-  onStart?: string[];
-  baseBranch?: string;
-  fetchBefore?: boolean;
-  skill?: string;
-}
+import {
+  startTask,
+  startFreeTask,
+  type StartTaskParams,
+} from "../lib/workflows";
 
 export function useStartTask() {
   const queryClient = useQueryClient();
