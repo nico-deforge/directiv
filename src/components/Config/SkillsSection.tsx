@@ -1,17 +1,16 @@
 import { useState } from "react";
 import {
-  Globe,
-  FolderGit2,
+  Loader2,
+  FileText,
+  Package,
   ChevronRight,
   ChevronDown,
-  FileText,
-  Loader2,
 } from "lucide-react";
-import { useSkills, useSkillFile } from "../../hooks/useSkills";
-import type { SkillInfo } from "../../types";
+import { usePluginSkills, usePluginSkillFile } from "../../hooks/useSkills";
+import type { PluginSkillInfo } from "../../types";
 
 export function SkillsSection() {
-  const { data: skills, isLoading, error } = useSkills();
+  const { data: skills, isLoading, error } = usePluginSkills();
 
   if (isLoading) {
     return (
@@ -31,63 +30,39 @@ export function SkillsSection() {
     );
   }
 
-  const globalSkills = skills?.globalSkills ?? [];
-  const repoSkills = skills?.repoSkills ?? [];
+  const pluginSkills = (skills ?? []).toSorted((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   return (
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-          Claude Skills
+          Directiv Skills
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Skills are reusable prompts and instructions for Claude Code.
+          Skills shipped with the Directiv plugin for Claude Code.
         </p>
       </div>
 
-      {/* Global Skills */}
       <section>
         <div className="mb-3 flex items-center gap-2">
-          <Globe className="size-4 text-[var(--accent-blue)]" />
+          <Package className="size-4 text-[var(--accent-blue)]" />
           <h2 className="text-sm font-medium text-[var(--text-secondary)]">
-            Global Skills
+            Plugin Skills
           </h2>
           <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-xs text-[var(--text-muted)]">
-            {globalSkills.length}
+            {pluginSkills.length}
           </span>
         </div>
-        {globalSkills.length === 0 ? (
+        {pluginSkills.length === 0 ? (
           <p className="text-sm text-[var(--text-muted)]">
-            No global skills found in ~/.claude/skills
+            No plugin skills found.
           </p>
         ) : (
           <div className="space-y-2">
-            {globalSkills.map((skill) => (
-              <SkillCard key={skill.path} skill={skill} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Repository Skills */}
-      <section>
-        <div className="mb-3 flex items-center gap-2">
-          <FolderGit2 className="size-4 text-[var(--accent-green)]" />
-          <h2 className="text-sm font-medium text-[var(--text-secondary)]">
-            Repository Skills
-          </h2>
-          <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-xs text-[var(--text-muted)]">
-            {repoSkills.length}
-          </span>
-        </div>
-        {repoSkills.length === 0 ? (
-          <p className="text-sm text-[var(--text-muted)]">
-            No repository skills found in .claude/skills
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {repoSkills.map((skill) => (
-              <SkillCard key={skill.path} skill={skill} />
+            {pluginSkills.map((skill) => (
+              <SkillCard key={skill.name} skill={skill} />
             ))}
           </div>
         )}
@@ -96,11 +71,9 @@ export function SkillsSection() {
   );
 }
 
-function SkillCard({ skill }: { skill: SkillInfo }) {
+function SkillCard({ skill }: { skill: PluginSkillInfo }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-
-  const repoId = skill.source.type === "repo" ? skill.source.repoId : undefined;
 
   return (
     <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)]">
@@ -114,16 +87,9 @@ function SkillCard({ skill }: { skill: SkillInfo }) {
           <ChevronRight className="size-4 shrink-0 text-[var(--text-muted)]" />
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-[var(--text-primary)]">
-              {skill.name}
-            </span>
-            {repoId && (
-              <span className="rounded bg-[var(--accent-green)]/20 px-1.5 py-0.5 text-xs text-[var(--accent-green)]">
-                {repoId}
-              </span>
-            )}
-          </div>
+          <span className="font-medium text-[var(--text-primary)]">
+            {skill.name}
+          </span>
           {skill.description && (
             <p className="mt-0.5 truncate text-sm text-[var(--text-muted)]">
               {skill.description}
@@ -161,7 +127,7 @@ function SkillCard({ skill }: { skill: SkillInfo }) {
             {/* File content */}
             <div className="flex-1 p-4">
               {selectedFile ? (
-                <FileContent skillPath={skill.path} filename={selectedFile} />
+                <FileContent skillName={skill.name} filename={selectedFile} />
               ) : (
                 <p className="text-sm text-[var(--text-muted)]">
                   Select a file to view its content
@@ -176,13 +142,17 @@ function SkillCard({ skill }: { skill: SkillInfo }) {
 }
 
 function FileContent({
-  skillPath,
+  skillName,
   filename,
 }: {
-  skillPath: string;
+  skillName: string;
   filename: string;
 }) {
-  const { data: content, isLoading, error } = useSkillFile(skillPath, filename);
+  const {
+    data: content,
+    isLoading,
+    error,
+  } = usePluginSkillFile(skillName, filename);
 
   if (isLoading) {
     return (

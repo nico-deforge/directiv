@@ -138,10 +138,13 @@ pub async fn tmux_send_keys(
     session: String,
     keys: String,
 ) -> Result<(), String> {
+    // Two-step send: literal text first, then Enter as a key name.
+    // A single send-keys -l with embedded \n was attempted but reverted (d5a68f9 / e0d5b30)
+    // because -l treats \n as literal text rather than a key press.
     let output = app
         .shell()
         .command("tmux")
-        .args(["send-keys", "-t", &session, &keys, "Enter"])
+        .args(["send-keys", "-t", &session, "-l", &keys])
         .output()
         .await
         .map_err(|e| format!("Failed to run tmux: {e}"))?;
@@ -149,6 +152,19 @@ pub async fn tmux_send_keys(
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!("tmux send-keys failed: {stderr}"));
+    }
+
+    let output = app
+        .shell()
+        .command("tmux")
+        .args(["send-keys", "-t", &session, "Enter"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run tmux: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("tmux send-keys (Enter) failed: {stderr}"));
     }
 
     Ok(())

@@ -151,27 +151,13 @@ export interface StaleWorktree {
 
 // --- Skills ---
 
-export type SkillSource = { type: "global" } | { type: "repo"; repoId: string };
-
-export interface SkillInfo {
+export interface PluginSkillInfo {
   name: string;
   description: string | null;
-  path: string;
-  source: SkillSource;
   files: string[];
 }
 
-export interface SkillsResult {
-  globalSkills: SkillInfo[];
-  repoSkills: SkillInfo[];
-}
-
 // --- Config ---
-
-export interface SkillConfig {
-  skill: string;
-  label: string;
-}
 
 export type TerminalEmulator = "ghostty" | "iterm2";
 export type CodeEditor = "zed" | "cursor" | "vscode" | "code";
@@ -203,5 +189,4 @@ export interface DirectivConfig {
   workspaces: WorkspaceConfig[];
   linear: LinearConfig;
   theme: Theme;
-  skills: SkillConfig[];
 }

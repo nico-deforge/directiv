@@ -9,7 +9,6 @@ export const defaultConfig: DirectivConfig = {
     teamIds: [],
   },
   theme: "dark",
-  skills: [],
 };
 
 export async function loadConfigFromDisk(): Promise<DirectivConfig> {
@@ -33,8 +32,5 @@ export function validateConfig(
     ),
     linear: config.linear ?? defaultConfig.linear,
     theme: config.theme ?? defaultConfig.theme,
-    skills: (config.skills ?? []).filter(
-      (s) => typeof s.skill === "string" && typeof s.label === "string",
-    ),
   };
 }

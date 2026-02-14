@@ -99,10 +99,7 @@ Create `directiv.config.json` in your home directory or project root:
   "linear": {
     "teamIds": ["TEAM_ID"]             // Team IDs or keys (e.g., "ENG" or UUID)
   },
-  "theme": "system" | "light" | "dark",
-  "skills": [                            // Claude Code skills to run on task start (optional)
-    { "skill": "linear-issue", "label": "Start" }
-  ]
+  "theme": "system" | "light" | "dark"
 }
 ```
 
@@ -231,11 +228,16 @@ For AI agent integration:
 npm install -g @anthropic-ai/claude-code
 ```
 
-> **🚧 Skills support is a work in progress**
->
-> For now, you need a local Claude Code skill named `linear-issue` that takes the Linear ticket ID as argument.
->
-> Example skill location: `~/.claude/skills/linear-issue/SKILL.md`
+Directiv ships with a bundled Claude Code plugin containing the `linear-issue` skill. When you click **[Start]** on a task, Claude Code is launched with `--plugin-dir` pointing to the bundled plugin, so the `/directiv:linear-issue` skill is available out of the box — no manual skill installation required.
+
+#### GitHub CLI (strongly recommended)
+
+The [GitHub CLI](https://cli.github.com/) (`gh`) is strongly recommended for Claude Code to interact with GitHub (create PRs, review code, manage issues, etc.):
+
+```bash
+brew install gh
+gh auth login
+```
 
 ### Clone and setup
 
