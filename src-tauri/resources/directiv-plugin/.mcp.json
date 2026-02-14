@@ -3,6 +3,10 @@
     "linear-server": {
       "type": "sse",
       "url": "https://mcp.linear.app/sse"
+    },
+    "sentry": {
+      "type": "http",
+      "url": "https://mcp.sentry.dev/mcp"
     }
   }
 }
