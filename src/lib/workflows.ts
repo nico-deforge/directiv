@@ -15,7 +15,12 @@ import {
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
 
-export const DEFAULT_SKILL = "directiv:linear-issue" as const;
+export const SKILLS = {
+  CODE: "directiv:linear-issue",
+  PLAN: "directiv:linear-tactic",
+} as const;
+
+export type Skill = (typeof SKILLS)[keyof typeof SKILLS];
 
 async function buildClaudeCommand(
   skill?: string,

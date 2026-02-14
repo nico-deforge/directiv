@@ -33,6 +33,24 @@ fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
     (name, description)
 }
 
+fn collect_files_recursive(base: &PathBuf, dir: &PathBuf) -> Vec<String> {
+    let mut files = Vec::new();
+    let Ok(entries) = fs::read_dir(dir) else {
+        return files;
+    };
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_file() {
+            if let Ok(rel) = p.strip_prefix(base) {
+                files.push(rel.to_string_lossy().to_string());
+            }
+        } else if p.is_dir() {
+            files.extend(collect_files_recursive(base, &p));
+        }
+    }
+    files
+}
+
 fn resolve_plugin_dir(app: &tauri::AppHandle) -> Result<Option<PathBuf>, String> {
     let plugin_dir = app
         .path()
@@ -88,22 +106,7 @@ pub fn list_plugin_skills(app: tauri::AppHandle) -> Result<Vec<PluginSkillInfo>,
             (None, None)
         };
 
-        let files = match fs::read_dir(&path) {
-            Ok(entries) => entries
-                .flatten()
-                .filter_map(|e| {
-                    let p = e.path();
-                    if p.is_file() {
-                        p.file_name()
-                            .and_then(|n| n.to_str())
-                            .map(|s| s.to_string())
-                    } else {
-                        None
-                    }
-                })
-                .collect(),
-            Err(_) => Vec::new(),
-        };
+        let files = collect_files_recursive(&path, &path);
 
         skills.push(PluginSkillInfo {
             name: name.unwrap_or(folder_name),
@@ -124,7 +127,7 @@ pub fn read_plugin_skill_file(
     if skill_name.contains('/') || skill_name.contains('\\') || skill_name.contains('\0') {
         return Err("Invalid skill name".to_string());
     }
-    if filename.contains('/') || filename.contains('\\') || filename.contains('\0') {
+    if filename.contains('\\') || filename.contains('\0') || filename.contains("..") {
         return Err("Invalid filename".to_string());
     }
 
