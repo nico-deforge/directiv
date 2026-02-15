@@ -72,6 +72,7 @@ export function worktreeCreateExistingBranch(
   copyPaths?: string[],
   baseBranch?: string,
   resetToBase?: boolean,
+  forceReset?: boolean,
 ): Promise<WorktreeInfo> {
   return invoke<WorktreeInfo>("worktree_create_existing_branch", {
     repoPath,
@@ -79,6 +80,7 @@ export function worktreeCreateExistingBranch(
     copyPaths,
     baseBranch,
     resetToBase: resetToBase ?? false,
+    forceReset: forceReset ?? false,
   });
 }
 

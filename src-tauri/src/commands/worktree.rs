@@ -734,12 +734,11 @@ pub async fn worktree_check_merged(
             ])
             .output()
             .await;
-        if matches!(&base_check, Ok(out) if out.status.success()) {
-            return Ok(true);
-        }
+        // For stacked branches, only the specified base is meaningful
+        return Ok(matches!(&base_check, Ok(out) if out.status.success()));
     }
 
-    // Method 3: Fallback to merge-base check against default branch
+    // Method 3: Fallback to merge-base check against default branch (no base_branch specified)
     let detected = detect_default_branch(&app, &repo_path).await;
     let default_base = strip_origin(&detected).to_string();
 
@@ -771,6 +770,7 @@ pub async fn worktree_create_existing_branch(
     copy_paths: Option<Vec<String>>,
     base_branch: Option<String>,
     reset_to_base: bool,
+    force_reset: Option<bool>,
 ) -> Result<WorktreeInfo, String> {
     let repo = Path::new(&repo_path);
     let worktree_path = resolve_worktree_path(repo, &issue_id)?;
@@ -781,9 +781,11 @@ pub async fn worktree_create_existing_branch(
     let validated_paths = validate_copy_paths(repo, &copy_paths)?;
 
     if reset_to_base {
-        let is_synced = check_branch_synced_inner(&app, &repo_path, &issue_id).await?;
-        if !is_synced {
-            return Err(format!("BRANCH_HAS_UNPUSHED:{issue_id}"));
+        if force_reset != Some(true) {
+            let is_synced = check_branch_synced_inner(&app, &repo_path, &issue_id).await?;
+            if !is_synced {
+                return Err(format!("BRANCH_HAS_UNPUSHED:{issue_id}"));
+            }
         }
 
         let raw_base = strip_origin(base_branch.as_deref().unwrap_or("main"));
@@ -822,8 +824,9 @@ pub async fn worktree_create_existing_branch(
         return Err(format!("git worktree add failed: {stderr}"));
     }
 
-    // Persist base branch in git config
-    if let Some(ref base) = base_branch {
+    // Persist base branch in git config and compute stored value
+    let stored_base = if let Some(ref base) = base_branch {
+        let raw_base = strip_origin(base).to_string();
         let _ = app
             .shell()
             .command("git")
@@ -832,15 +835,16 @@ pub async fn worktree_create_existing_branch(
                 &repo_path,
                 "config",
                 &format!("branch.{issue_id}.directiv-base"),
-                strip_origin(base),
+                &raw_base,
             ])
             .output()
             .await;
-    }
+        Some(raw_base)
+    } else {
+        None
+    };
 
     copy_validated_paths(repo, &worktree_path, &validated_paths)?;
-
-    let stored_base = read_base_branch(&app, &repo_path, &issue_id).await;
 
     Ok(WorktreeInfo {
         branch: issue_id.clone(),

@@ -685,37 +685,42 @@ function CleanupSection() {
   const scanForStale = useCallback(async () => {
     setScanning(true);
     try {
-      const stale: StaleWorktree[] = [];
+      // Fetch all repos in parallel
+      await Promise.allSettled(repos.map((repo) => gitFetchPrune(repo.path)));
 
-      for (const repo of repos) {
-        // Fetch and prune to detect deleted remote branches (merged PRs)
-        try {
-          await gitFetchPrune(repo.path);
-        } catch {
-          // Continue even if fetch fails (e.g., offline)
-        }
-
-        const worktrees = await worktreeList(repo.path);
-        // Skip the main worktree (first entry)
-        for (const wt of worktrees.slice(1)) {
+      // Check all repos and their worktrees in parallel
+      const repoResults = await Promise.all(
+        repos.map(async (repo) => {
           try {
-            const merged = await worktreeCheckMerged(
-              repo.path,
-              wt.branch,
-              wt.baseBranch ?? undefined,
+            const worktrees = await worktreeList(repo.path);
+            const mergeChecks = await Promise.allSettled(
+              worktrees.slice(1).map(async (wt) => {
+                const merged = await worktreeCheckMerged(
+                  repo.path,
+                  wt.branch,
+                  wt.baseBranch ?? undefined,
+                );
+                return { wt, merged };
+              }),
             );
-            if (merged) {
-              stale.push({
-                worktree: wt,
-                repoId: repo.id,
-                repoPath: repo.path,
-              });
+            const repoStale: StaleWorktree[] = [];
+            for (const result of mergeChecks) {
+              if (result.status === "fulfilled" && result.value.merged) {
+                repoStale.push({
+                  worktree: result.value.wt,
+                  repoId: repo.id,
+                  repoPath: repo.path,
+                });
+              }
             }
+            return repoStale;
           } catch {
-            // Skip branches that can't be checked
+            return [];
           }
-        }
-      }
+        }),
+      );
+
+      const stale = repoResults.flat();
       setStaleWorktrees(stale);
       setSelected(
         new Set(stale.map((s) => `${s.repoPath}:${s.worktree.branch}`)),

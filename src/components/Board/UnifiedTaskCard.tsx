@@ -283,6 +283,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         repo?.copyPaths,
         baseBranch,
         resetToBase,
+        force,
       );
       startTask.mutate(
         {
