@@ -14,7 +14,6 @@ import {
   Circle,
   SquareKanban,
   ExternalLink,
-  ChevronLeft,
   Code2,
   AlertTriangle,
   ClipboardList,
@@ -30,15 +29,22 @@ import type {
 } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
 import { useStartTask } from "../../hooks/useStartTask";
-import { SKILLS, type Skill } from "../../lib/workflows";
+import {
+  SKILLS,
+  type Skill,
+  BranchExistsError,
+  BaseNotFoundError,
+  BranchHasUnpushedError,
+} from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
   openTerminal,
   openEditor,
   tmuxKillSession,
   worktreeRemove,
+  worktreeCreateExistingBranch,
 } from "../../lib/tauri";
-import { useWorktrees } from "../../hooks/useWorktrees";
+import { BranchSelector } from "../shared/BranchSelector";
 
 type WorkflowStatus =
   | "todo"
@@ -139,6 +145,12 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
   const [pendingSkill, setPendingSkill] = useState<Skill>(SKILLS.CODE);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [branchError, setBranchError] = useState<{
+    type: "exists" | "not-found" | "unpushed";
+    branch: string;
+    baseBranch?: string;
+    repoPath: string;
+  } | null>(null);
 
   const hasSession = session !== null;
   const isLoading = startTask.isPending || killingSession || deletingWorktree;
@@ -214,6 +226,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   function handleStart(repoPath: string, baseBranch?: string) {
     setDropdownOpen(false);
     setSelectedRepo(null);
+    setBranchError(null);
     const repo = repos.find((r) => r.path === repoPath);
     startTask.mutate(
       {
@@ -228,13 +241,90 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         skill: pendingSkill,
       },
       {
-        onError: (err) => toastError(err),
+        onError: (err) => {
+          if (err instanceof BranchExistsError) {
+            setBranchError({
+              type: "exists",
+              branch: err.branchName,
+              baseBranch: err.baseBranch,
+              repoPath: err.repoPath,
+            });
+          } else if (err instanceof BaseNotFoundError) {
+            setBranchError({
+              type: "not-found",
+              branch: err.baseName,
+              baseBranch: undefined,
+              repoPath,
+            });
+          } else if (err instanceof BranchHasUnpushedError) {
+            setBranchError({
+              type: "unpushed",
+              branch: err.branchName,
+              baseBranch,
+              repoPath,
+            });
+          } else {
+            toastError(err);
+          }
+        },
       },
     );
   }
 
+  async function handleExistingBranch(resetToBase: boolean) {
+    if (!branchError) return;
+    const { repoPath, baseBranch } = branchError;
+    setBranchError(null);
+    const repo = repos.find((r) => r.path === repoPath);
+    try {
+      await worktreeCreateExistingBranch(
+        repoPath,
+        task.identifier,
+        repo?.copyPaths,
+        baseBranch,
+        resetToBase,
+      );
+      // Continue the start flow (create session, launch claude, etc.)
+      startTask.mutate(
+        {
+          issueId: task.id,
+          identifier: task.identifier,
+          repoPath,
+          terminal,
+          copyPaths: repo?.copyPaths,
+          onStart: repo?.onStart,
+          baseBranch,
+          fetchBefore: false, // Already fetched
+          skill: pendingSkill,
+        },
+        {
+          onError: (err) => toastError(err),
+        },
+      );
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message.includes("BRANCH_HAS_UNPUSHED:")
+      ) {
+        setBranchError({
+          type: "unpushed",
+          branch: task.identifier,
+          baseBranch,
+          repoPath,
+        });
+      } else {
+        toastError(err);
+      }
+    }
+  }
+
   function openDropdown(skill: Skill) {
     setPendingSkill(skill);
+    // If worktree already exists, skip branch selection and start directly
+    if (worktree && worktreeRepoPath) {
+      handleStart(worktreeRepoPath);
+      return;
+    }
     setDropdownOpen((prev) => !prev);
   }
 
@@ -528,74 +618,115 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               )}
             </div>
           )}
-        </div>
-      )}
-    </div>
-  );
-}
 
-// Inline BranchSelector for the card
-function BranchSelector({
-  repoPath,
-  repoId,
-  configWarning,
-  onSelect,
-  onBack,
-}: {
-  repoPath: string;
-  repoId?: string;
-  configWarning?: string;
-  onSelect: (baseBranch?: string) => void;
-  onBack?: () => void;
-}) {
-  const { data: worktrees } = useWorktrees(repoPath);
-  const availableBranches =
-    worktrees
-      ?.slice(1)
-      .map((wt) => wt.branch)
-      .filter(Boolean) ?? [];
-
-  return (
-    <div className="min-w-48">
-      {configWarning && (
-        <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[var(--accent-amber)]">
-          <AlertTriangle className="size-3 shrink-0" />
-          <span className="line-clamp-2">.directiv.json error</span>
+          {/* Branch error panel */}
+          {branchError && (
+            <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] p-3 shadow-lg">
+              {branchError.type === "exists" && (
+                <>
+                  <p className="mb-2 text-xs text-[var(--text-secondary)]">
+                    Branch{" "}
+                    <span className="font-medium">{branchError.branch}</span>{" "}
+                    already exists.
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      onClick={() => handleExistingBranch(false)}
+                      className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
+                    >
+                      Use existing branch
+                    </button>
+                    <button
+                      onClick={() => handleExistingBranch(true)}
+                      className="rounded bg-[var(--accent-amber)]/20 px-2 py-1 text-xs text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30"
+                    >
+                      Reset to base
+                    </button>
+                    <button
+                      onClick={() => setBranchError(null)}
+                      className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+              {branchError.type === "not-found" && (
+                <>
+                  <p className="mb-2 text-xs text-[var(--accent-red)]">
+                    Base branch{" "}
+                    <span className="font-medium">{branchError.branch}</span>{" "}
+                    not found.
+                  </p>
+                  <button
+                    onClick={() => setBranchError(null)}
+                    className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                  >
+                    Dismiss
+                  </button>
+                </>
+              )}
+              {branchError.type === "unpushed" && (
+                <>
+                  <p className="mb-2 text-xs text-[var(--accent-amber)]">
+                    Branch{" "}
+                    <span className="font-medium">{branchError.branch}</span>{" "}
+                    has unpushed commits. Reset anyway?
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      onClick={() => {
+                        // Force reset: call create_existing_branch directly with the force flag handled by backend
+                        const { repoPath, baseBranch } = branchError;
+                        setBranchError(null);
+                        const repo = repos.find((r) => r.path === repoPath);
+                        worktreeCreateExistingBranch(
+                          repoPath,
+                          task.identifier,
+                          repo?.copyPaths,
+                          baseBranch,
+                          true,
+                        )
+                          .then(() => {
+                            startTask.mutate(
+                              {
+                                issueId: task.id,
+                                identifier: task.identifier,
+                                repoPath,
+                                terminal,
+                                copyPaths: repo?.copyPaths,
+                                onStart: repo?.onStart,
+                                baseBranch,
+                                fetchBefore: false,
+                                skill: pendingSkill,
+                              },
+                              { onError: (err) => toastError(err) },
+                            );
+                          })
+                          .catch((err) => toastError(err));
+                      }}
+                      className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
+                    >
+                      Force reset
+                    </button>
+                    <button
+                      onClick={() => handleExistingBranch(false)}
+                      className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
+                    >
+                      Use existing branch
+                    </button>
+                    <button
+                      onClick={() => setBranchError(null)}
+                      className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
-      )}
-      {onBack && (
-        <button
-          onClick={onBack}
-          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
-        >
-          <ChevronLeft className="size-3" />
-          {repoId ?? "Back"}
-        </button>
-      )}
-      <button
-        onClick={() => onSelect(undefined)}
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
-      >
-        <GitBranch className="size-3 text-[var(--text-muted)]" />
-        Default (main)
-      </button>
-      {availableBranches.length > 0 && (
-        <>
-          <div className="mx-2 my-1 border-t border-[var(--border-default)]" />
-          <div className="px-2 py-1 text-xs text-[var(--text-muted)]">
-            From worktree
-          </div>
-          {availableBranches.map((branch) => (
-            <button
-              key={branch}
-              onClick={() => onSelect(branch)}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
-            >
-              <GitBranch className="size-3 text-[var(--accent-green)]" />
-              <span className="truncate">{branch}</span>
-            </button>
-          ))}
-        </>
       )}
     </div>
   );

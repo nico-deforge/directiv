@@ -15,6 +15,64 @@ import {
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
 
+// --- Typed errors for worktree creation ---
+
+export class BranchExistsError extends Error {
+  branchName: string;
+  baseBranch: string | undefined;
+  repoPath: string;
+  constructor(
+    branchName: string,
+    baseBranch: string | undefined,
+    repoPath: string,
+  ) {
+    super(`Branch '${branchName}' already exists`);
+    this.name = "BranchExistsError";
+    this.branchName = branchName;
+    this.baseBranch = baseBranch;
+    this.repoPath = repoPath;
+  }
+}
+
+export class BaseNotFoundError extends Error {
+  baseName: string;
+  constructor(baseName: string) {
+    super(`Base branch '${baseName}' not found`);
+    this.name = "BaseNotFoundError";
+    this.baseName = baseName;
+  }
+}
+
+export class BranchHasUnpushedError extends Error {
+  branchName: string;
+  constructor(branchName: string) {
+    super(`Branch '${branchName}' has unpushed commits`);
+    this.name = "BranchHasUnpushedError";
+    this.branchName = branchName;
+  }
+}
+
+function parseWorktreeError(
+  err: unknown,
+  baseBranch: string | undefined,
+  repoPath: string,
+): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes("BRANCH_EXISTS:")) {
+    const branch = msg.split("BRANCH_EXISTS:")[1];
+    return new BranchExistsError(branch, baseBranch, repoPath);
+  }
+  if (msg.includes("BASE_NOT_FOUND:")) {
+    const base = msg.split("BASE_NOT_FOUND:")[1];
+    return new BaseNotFoundError(base);
+  }
+  if (msg.includes("BRANCH_HAS_UNPUSHED:")) {
+    const branch = msg.split("BRANCH_HAS_UNPUSHED:")[1];
+    return new BranchHasUnpushedError(branch);
+  }
+  return err instanceof Error ? err : new Error(msg);
+}
+
 export const SKILLS = {
   CODE: "directiv:linear-issue",
   PLAN: "directiv:linear-tactic",
@@ -70,13 +128,17 @@ export async function startTask({
   const worktrees = await worktreeList(repoPath);
   let worktree = worktrees.find((w) => w.branch === identifier);
   if (!worktree) {
-    worktree = await worktreeCreate(
-      repoPath,
-      identifier,
-      copyPaths,
-      baseBranch,
-      fetchBefore,
-    );
+    try {
+      worktree = await worktreeCreate(
+        repoPath,
+        identifier,
+        copyPaths,
+        baseBranch,
+        fetchBefore,
+      );
+    } catch (err) {
+      throw parseWorktreeError(err, baseBranch, repoPath);
+    }
   }
 
   // 2. Reuse or create tmux session (with rollback on failure)
@@ -139,13 +201,17 @@ export async function startFreeTask({
   const worktrees = await worktreeList(repoPath);
   let worktree = worktrees.find((w) => w.branch === branchName);
   if (!worktree) {
-    worktree = await worktreeCreate(
-      repoPath,
-      branchName,
-      copyPaths,
-      baseBranch,
-      fetchBefore,
-    );
+    try {
+      worktree = await worktreeCreate(
+        repoPath,
+        branchName,
+        copyPaths,
+        baseBranch,
+        fetchBefore,
+      );
+    } catch (err) {
+      throw parseWorktreeError(err, baseBranch, repoPath);
+    }
   }
 
   // 2. Reuse or create tmux session (with rollback on failure)

@@ -66,13 +66,41 @@ export function worktreeRemove(
   });
 }
 
+export function worktreeCreateExistingBranch(
+  repoPath: string,
+  issueId: string,
+  copyPaths?: string[],
+  baseBranch?: string,
+  resetToBase?: boolean,
+): Promise<WorktreeInfo> {
+  return invoke<WorktreeInfo>("worktree_create_existing_branch", {
+    repoPath,
+    issueId,
+    copyPaths,
+    baseBranch,
+    resetToBase: resetToBase ?? false,
+  });
+}
+
+export function worktreeCheckBranchSynced(
+  repoPath: string,
+  branch: string,
+): Promise<boolean> {
+  return invoke<boolean>("worktree_check_branch_synced", {
+    repoPath,
+    branch,
+  });
+}
+
 export function worktreeCheckMerged(
   repoPath: string,
   branch: string,
+  baseBranch?: string,
 ): Promise<boolean> {
   return invoke<boolean>("worktree_check_merged", {
     repoPath,
     branch,
+    baseBranch,
   });
 }
 

@@ -85,6 +85,7 @@ export interface WorktreeInfo {
   isDirty: boolean;
   ahead: number;
   behind: number;
+  baseBranch: string | null;
 }
 
 // --- GitHub ---

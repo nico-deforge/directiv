@@ -16,8 +16,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::worktree::worktree_list,
             commands::worktree::worktree_create,
+            commands::worktree::worktree_create_existing_branch,
             commands::worktree::worktree_remove,
             commands::worktree::worktree_check_merged,
+            commands::worktree::worktree_check_branch_synced,
             commands::worktree::git_fetch_prune,
             commands::tmux::tmux_list_sessions,
             commands::tmux::tmux_create_session,

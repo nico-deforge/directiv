@@ -64,10 +64,14 @@ export function useWorktreeRemove() {
     mutationFn: ({
       repoPath,
       worktreePath,
+      branch,
+      deleteBranch,
     }: {
       repoPath: string;
       worktreePath: string;
-    }) => worktreeRemove(repoPath, worktreePath),
+      branch?: string;
+      deleteBranch?: boolean;
+    }) => worktreeRemove(repoPath, worktreePath, branch, deleteBranch),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["worktrees"] }),
   });
 }

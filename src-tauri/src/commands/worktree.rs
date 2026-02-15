@@ -66,6 +66,7 @@ pub struct WorktreeInfo {
     pub is_dirty: bool,
     pub ahead: u32,
     pub behind: u32,
+    pub base_branch: Option<String>,
 }
 
 #[tauri::command]
@@ -130,6 +131,9 @@ pub async fn worktree_list(
         });
     }
 
+    // Batch-read all stored base branches
+    let base_branches = read_all_base_branches(&app, &repo_path).await;
+
     // Second pass: enrich each worktree with health data
     let mut worktrees: Vec<WorktreeInfo> = Vec::new();
     for (i, rw) in raw.iter().enumerate() {
@@ -146,6 +150,8 @@ pub async fn worktree_list(
             get_worktree_health(&app, &rw.path, &rw.branch).await
         };
 
+        let base_branch = base_branches.get(&rw.branch).cloned();
+
         worktrees.push(WorktreeInfo {
             branch: rw.branch.clone(),
             path: rw.path.clone(),
@@ -153,6 +159,7 @@ pub async fn worktree_list(
             is_dirty,
             ahead,
             behind,
+            base_branch,
         });
     }
 
@@ -176,8 +183,7 @@ async fn get_worktree_health(
         _ => false,
     };
 
-    // Check ahead/behind: git rev-list --left-right --count <branch>...origin/<base>
-    // We try against the upstream tracking branch first, then fall back to origin/main
+    // Check ahead/behind: try upstream tracking branch, then fall back to origin/<branch>
     let revlist_arg = format!("{branch}...{branch}@{{upstream}}");
     let (ahead, behind) = match app
         .shell()
@@ -196,10 +202,92 @@ async fn get_worktree_health(
         Ok(out) if out.status.success() => {
             parse_ahead_behind(&String::from_utf8_lossy(&out.stdout))
         }
-        _ => (0, 0),
+        _ => {
+            // No upstream set — fall back to origin/<branch> for branches that haven't been pushed
+            let fallback_arg = format!("{branch}...origin/{branch}");
+            match app
+                .shell()
+                .command("git")
+                .args([
+                    "-C",
+                    worktree_path,
+                    "rev-list",
+                    "--left-right",
+                    "--count",
+                    &fallback_arg,
+                ])
+                .output()
+                .await
+            {
+                Ok(out) if out.status.success() => {
+                    parse_ahead_behind(&String::from_utf8_lossy(&out.stdout))
+                }
+                _ => (0, 0),
+            }
+        }
     };
 
     (is_dirty, ahead, behind)
+}
+
+/// Read the stored base branch for a single branch from git config.
+async fn read_base_branch(app: &tauri::AppHandle, repo_path: &str, branch: &str) -> Option<String> {
+    let key = format!("branch.{branch}.directiv-base");
+    if let Ok(out) = app
+        .shell()
+        .command("git")
+        .args(["-C", repo_path, "config", "--get", &key])
+        .output()
+        .await
+    {
+        if out.status.success() {
+            let val = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !val.is_empty() {
+                return Some(val);
+            }
+        }
+    }
+    None
+}
+
+/// Batch-read all stored directiv-base config entries into a HashMap.
+async fn read_all_base_branches(
+    app: &tauri::AppHandle,
+    repo_path: &str,
+) -> std::collections::HashMap<String, String> {
+    let mut map = std::collections::HashMap::new();
+    if let Ok(out) = app
+        .shell()
+        .command("git")
+        .args([
+            "-C",
+            repo_path,
+            "config",
+            "--get-regexp",
+            r"^branch\..*\.directiv-base$",
+        ])
+        .output()
+        .await
+    {
+        if out.status.success() {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            for line in stdout.lines() {
+                // Format: "branch.<name>.directiv-base <value>"
+                let parts: Vec<&str> = line.splitn(2, ' ').collect();
+                if parts.len() == 2 {
+                    let key = parts[0];
+                    let value = parts[1].trim().to_string();
+                    // Extract branch name from "branch.<name>.directiv-base"
+                    if let Some(rest) = key.strip_prefix("branch.") {
+                        if let Some(branch_name) = rest.strip_suffix(".directiv-base") {
+                            map.insert(branch_name.to_string(), value);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    map
 }
 
 fn parse_ahead_behind(output: &str) -> (u32, u32) {
@@ -382,6 +470,8 @@ pub async fn worktree_create(
                     // Valid worktree on the correct branch → return directly (idempotent)
                     let (is_dirty, ahead, behind) =
                         get_worktree_health(&app, &worktree_path_str, &issue_id).await;
+                    // Read stored base branch from git config
+                    let stored_base = read_base_branch(&app, &repo_path, &issue_id).await;
                     return Ok(WorktreeInfo {
                         branch: issue_id.clone(),
                         path: worktree_path_str,
@@ -389,6 +479,7 @@ pub async fn worktree_create(
                         is_dirty,
                         ahead,
                         behind,
+                        base_branch: stored_base,
                     });
                 }
             }
@@ -399,12 +490,46 @@ pub async fn worktree_create(
             .map_err(|e| format!("Cannot clean stale directory {}: {e}", worktree_path_str))?;
     }
 
-    let base = match base_branch {
-        Some(ref b) if !b.is_empty() => b.clone(),
-        _ => detect_default_branch(&app, &repo_path).await,
+    // Resolve the raw base branch name (without origin/ prefix)
+    let raw_base = match base_branch {
+        Some(ref b) if !b.is_empty() => b.strip_prefix("origin/").unwrap_or(b).to_string(),
+        _ => {
+            let detected = detect_default_branch(&app, &repo_path).await;
+            detected
+                .strip_prefix("origin/")
+                .unwrap_or(&detected)
+                .to_string()
+        }
     };
 
-    // Try creating a new branch from base_branch
+    // Resolve the ref to branch from: prefer origin/<base>, fall back to local <base>
+    let remote_ref = format!("origin/{raw_base}");
+    let base_ref = {
+        let check_remote = app
+            .shell()
+            .command("git")
+            .args(["-C", &repo_path, "rev-parse", "--verify", &remote_ref])
+            .output()
+            .await;
+        if matches!(&check_remote, Ok(out) if out.status.success()) {
+            remote_ref.clone()
+        } else {
+            // Try local branch
+            let check_local = app
+                .shell()
+                .command("git")
+                .args(["-C", &repo_path, "rev-parse", "--verify", &raw_base])
+                .output()
+                .await;
+            if matches!(&check_local, Ok(out) if out.status.success()) {
+                raw_base.clone()
+            } else {
+                return Err(format!("BASE_NOT_FOUND:{raw_base}"));
+            }
+        }
+    };
+
+    // Try creating a new branch from the resolved base ref
     let output = app
         .shell()
         .command("git")
@@ -416,7 +541,7 @@ pub async fn worktree_create(
             &worktree_path_str,
             "-b",
             &issue_id,
-            &base,
+            &base_ref,
         ])
         .output()
         .await
@@ -425,31 +550,27 @@ pub async fn worktree_create(
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
 
-        // Branch already exists — checkout the existing branch instead
+        // Branch already exists — return error so the UI can offer choices
         if stderr.contains("already exists") {
-            let output2 = app
-                .shell()
-                .command("git")
-                .args([
-                    "-C",
-                    &repo_path,
-                    "worktree",
-                    "add",
-                    &worktree_path_str,
-                    &issue_id,
-                ])
-                .output()
-                .await
-                .map_err(|e| format!("Failed to run git: {e}"))?;
-
-            if !output2.status.success() {
-                let stderr2 = String::from_utf8_lossy(&output2.stderr);
-                return Err(format!("git worktree add failed: {stderr2}"));
-            }
+            return Err(format!("BRANCH_EXISTS:{issue_id}"));
         } else {
             return Err(format!("git worktree add failed: {stderr}"));
         }
     }
+
+    // Persist base branch metadata in git config
+    let _ = app
+        .shell()
+        .command("git")
+        .args([
+            "-C",
+            &repo_path,
+            "config",
+            &format!("branch.{issue_id}.directiv-base"),
+            &raw_base,
+        ])
+        .output()
+        .await;
 
     // Copy validated paths into the worktree
     for rel in &validated_paths {
@@ -465,6 +586,7 @@ pub async fn worktree_create(
         is_dirty: false,
         ahead: 0,
         behind: 0,
+        base_branch: Some(raw_base),
     })
 }
 
@@ -510,6 +632,14 @@ pub async fn worktree_remove(
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(format!("git worktree remove failed: {stderr}"));
         }
+
+        // Prune stale worktree metadata after force-remove
+        let _ = app
+            .shell()
+            .command("git")
+            .args(["-C", &repo_path, "worktree", "prune"])
+            .output()
+            .await;
     }
 
     // Optionally delete the branch after worktree removal
@@ -566,6 +696,7 @@ pub async fn worktree_check_merged(
     app: tauri::AppHandle,
     repo_path: String,
     branch: String,
+    base_branch: Option<String>,
 ) -> Result<bool, String> {
     // Method 1: Check if the remote tracking branch has been deleted
     // This handles squash-and-merge workflows where the commit hash changes
@@ -583,9 +714,30 @@ pub async fn worktree_check_merged(
         return Ok(true);
     }
 
-    // Method 2: Fallback to merge-base check for regular merges
+    // Method 2: Check if merged into the specific base branch (for branch-on-branch)
+    if let Some(ref base) = base_branch {
+        let origin_base = format!("origin/{base}");
+        let base_check = app
+            .shell()
+            .command("git")
+            .args([
+                "-C",
+                &repo_path,
+                "merge-base",
+                "--is-ancestor",
+                &branch,
+                &origin_base,
+            ])
+            .output()
+            .await;
+        if matches!(&base_check, Ok(out) if out.status.success()) {
+            return Ok(true);
+        }
+    }
+
+    // Method 3: Fallback to merge-base check against default branch
     let detected = detect_default_branch(&app, &repo_path).await;
-    let base = detected
+    let default_base = detected
         .strip_prefix("origin/")
         .unwrap_or(&detected)
         .to_string();
@@ -599,7 +751,7 @@ pub async fn worktree_check_merged(
             "merge-base",
             "--is-ancestor",
             &branch,
-            &base,
+            &default_base,
         ])
         .output()
         .await
@@ -607,4 +759,193 @@ pub async fn worktree_check_merged(
 
     // Exit code 0 = is ancestor (merged), non-zero = not merged
     Ok(output.status.success())
+}
+
+/// Create a worktree using an existing branch, with optional reset to base.
+#[tauri::command]
+pub async fn worktree_create_existing_branch(
+    app: tauri::AppHandle,
+    repo_path: String,
+    issue_id: String,
+    copy_paths: Option<Vec<String>>,
+    base_branch: Option<String>,
+    reset_to_base: bool,
+) -> Result<WorktreeInfo, String> {
+    let repo = Path::new(&repo_path);
+    let repo_basename = repo
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or("Invalid repo path")?;
+
+    let worktrees_dir = format!("{}-worktrees", repo_basename);
+    let worktrees_base = repo
+        .parent()
+        .ok_or("Repo has no parent directory")?
+        .join(&worktrees_dir);
+
+    std::fs::create_dir_all(&worktrees_base)
+        .map_err(|e| format!("Failed to create worktrees directory: {e}"))?;
+
+    let worktree_path = worktrees_base.join(&issue_id);
+    let worktree_path_str = worktree_path
+        .to_str()
+        .ok_or("Invalid worktree path")?
+        .to_string();
+
+    // Validate copy_paths
+    let validated_paths = if let Some(ref paths) = copy_paths {
+        let mut validated = Vec::new();
+        for rel in paths {
+            validate_relative_path(rel)?;
+            let src = repo.join(rel);
+            if !src.exists() {
+                return Err(format!(
+                    "copyPaths: source does not exist: {}",
+                    src.display()
+                ));
+            }
+            validated.push(rel.clone());
+        }
+        validated
+    } else {
+        Vec::new()
+    };
+
+    if reset_to_base {
+        // Safety check: verify branch has no unpushed commits before resetting
+        let is_synced = check_branch_synced_inner(&app, &repo_path, &issue_id).await?;
+        if !is_synced {
+            return Err(format!("BRANCH_HAS_UNPUSHED:{issue_id}"));
+        }
+
+        // Reset the branch to the base ref
+        let raw_base = base_branch
+            .as_deref()
+            .unwrap_or("main")
+            .strip_prefix("origin/")
+            .unwrap_or(base_branch.as_deref().unwrap_or("main"));
+        let target_ref = format!("origin/{raw_base}");
+        let reset_output = app
+            .shell()
+            .command("git")
+            .args(["-C", &repo_path, "branch", "-f", &issue_id, &target_ref])
+            .output()
+            .await
+            .map_err(|e| format!("Failed to run git branch -f: {e}"))?;
+
+        if !reset_output.status.success() {
+            let stderr = String::from_utf8_lossy(&reset_output.stderr);
+            return Err(format!("git branch -f failed: {stderr}"));
+        }
+    }
+
+    // Create worktree using the existing branch
+    let output = app
+        .shell()
+        .command("git")
+        .args([
+            "-C",
+            &repo_path,
+            "worktree",
+            "add",
+            &worktree_path_str,
+            &issue_id,
+        ])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run git: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git worktree add failed: {stderr}"));
+    }
+
+    // Persist base branch in git config
+    if let Some(ref base) = base_branch {
+        let raw_base = base.strip_prefix("origin/").unwrap_or(base);
+        let _ = app
+            .shell()
+            .command("git")
+            .args([
+                "-C",
+                &repo_path,
+                "config",
+                &format!("branch.{issue_id}.directiv-base"),
+                raw_base,
+            ])
+            .output()
+            .await;
+    }
+
+    // Copy validated paths into the worktree
+    for rel in &validated_paths {
+        let src = repo.join(rel);
+        let dst = worktree_path.join(rel);
+        copy_path(&src, &dst)?;
+    }
+
+    let stored_base = read_base_branch(&app, &repo_path, &issue_id).await;
+
+    Ok(WorktreeInfo {
+        branch: issue_id.clone(),
+        path: worktree_path_str,
+        issue_id: Some(issue_id),
+        is_dirty: false,
+        ahead: 0,
+        behind: 0,
+        base_branch: stored_base,
+    })
+}
+
+/// Internal helper: check if a branch has unpushed commits relative to origin.
+async fn check_branch_synced_inner(
+    app: &tauri::AppHandle,
+    repo_path: &str,
+    branch: &str,
+) -> Result<bool, String> {
+    // Check if origin/<branch> exists
+    let remote_ref = format!("origin/{branch}");
+    let remote_check = app
+        .shell()
+        .command("git")
+        .args(["-C", repo_path, "rev-parse", "--verify", &remote_ref])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run git: {e}"))?;
+
+    if !remote_check.status.success() {
+        // No remote branch — not synced (has unpushed commits)
+        return Ok(false);
+    }
+
+    // Count commits in local branch that aren't in remote
+    let range = format!("{remote_ref}..{branch}");
+    let count_output = app
+        .shell()
+        .command("git")
+        .args(["-C", repo_path, "rev-list", "--count", &range])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run git: {e}"))?;
+
+    if !count_output.status.success() {
+        return Ok(false);
+    }
+
+    let count: u32 = String::from_utf8_lossy(&count_output.stdout)
+        .trim()
+        .parse()
+        .unwrap_or(1);
+
+    Ok(count == 0)
+}
+
+/// Check if a branch has unpushed commits (not synced with origin).
+#[tauri::command]
+pub async fn worktree_check_branch_synced(
+    app: tauri::AppHandle,
+    repo_path: String,
+    branch: String,
+) -> Result<bool, String> {
+    check_branch_synced_inner(&app, &repo_path, &branch).await
 }

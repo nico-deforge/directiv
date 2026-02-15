@@ -41,8 +41,11 @@ import type {
 } from "../../types";
 import { useGitHubReviewRequests } from "../../hooks/useGitHub";
 import { useStartFreeTask } from "../../hooks/useStartTask";
+import { BranchExistsError, BaseNotFoundError } from "../../lib/workflows";
+import { worktreeCreateExistingBranch } from "../../lib/tauri";
 import { toSessionName } from "../../lib/tmux-utils";
 import { WorkspaceSelector } from "./WorkspaceSelector";
+import { BranchSelector } from "../shared/BranchSelector";
 
 interface ProjectSelectorProps {
   projects: Project[];
@@ -258,6 +261,13 @@ function NewWorktreeSection() {
   const [showForm, setShowForm] = useState(false);
   const [branchName, setBranchName] = useState("");
   const [selectedRepoIndex, setSelectedRepoIndex] = useState(0);
+  const [baseBranch, setBaseBranch] = useState<string | undefined>(undefined);
+  const [showBranchSelector, setShowBranchSelector] = useState(false);
+  const [branchExistsPrompt, setBranchExistsPrompt] = useState<{
+    branch: string;
+    repoPath: string;
+    baseBranch?: string;
+  } | null>(null);
 
   const isValidBranchName = (name: string) =>
     /^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(name);
@@ -269,6 +279,7 @@ function NewWorktreeSection() {
 
   async function handleCreate() {
     const repo = repos[selectedRepoIndex];
+    setBranchExistsPrompt(null);
     startFreeTask.mutate(
       {
         branchName: branchName.trim(),
@@ -276,16 +287,67 @@ function NewWorktreeSection() {
         terminal,
         copyPaths: repo.copyPaths,
         onStart: repo.onStart,
+        baseBranch,
         fetchBefore: repo.fetchBefore,
       },
       {
         onSuccess: () => {
           setShowForm(false);
           setBranchName("");
+          setBaseBranch(undefined);
         },
-        onError: (err) => toastError(err),
+        onError: (err) => {
+          if (err instanceof BranchExistsError) {
+            setBranchExistsPrompt({
+              branch: err.branchName,
+              repoPath: err.repoPath,
+              baseBranch: err.baseBranch,
+            });
+          } else if (err instanceof BaseNotFoundError) {
+            toastError(`Base branch '${err.baseName}' not found`);
+          } else {
+            toastError(err);
+          }
+        },
       },
     );
+  }
+
+  async function handleUseExisting(resetToBase: boolean) {
+    if (!branchExistsPrompt) return;
+    const { repoPath, baseBranch: promptBase } = branchExistsPrompt;
+    const repo = repos.find((r) => r.path === repoPath);
+    setBranchExistsPrompt(null);
+    try {
+      await worktreeCreateExistingBranch(
+        repoPath,
+        branchName.trim(),
+        repo?.copyPaths,
+        promptBase,
+        resetToBase,
+      );
+      startFreeTask.mutate(
+        {
+          branchName: branchName.trim(),
+          repoPath,
+          terminal,
+          copyPaths: repo?.copyPaths,
+          onStart: repo?.onStart,
+          baseBranch: promptBase,
+          fetchBefore: false,
+        },
+        {
+          onSuccess: () => {
+            setShowForm(false);
+            setBranchName("");
+            setBaseBranch(undefined);
+          },
+          onError: (err) => toastError(err),
+        },
+      );
+    } catch (err) {
+      toastError(err);
+    }
   }
 
   if (repos.length === 0) return null;
@@ -331,20 +393,74 @@ function NewWorktreeSection() {
             }}
             autoFocus
           />
-          <button
-            onClick={handleCreate}
-            disabled={!canCreate}
-            className="w-full rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30 disabled:opacity-50"
-          >
-            {startFreeTask.isPending ? (
-              <span className="flex items-center justify-center gap-1.5">
-                <Loader2 className="size-3 animate-spin" />
-                Creating...
+          {/* Base branch selector */}
+          <div className="relative mb-2">
+            <button
+              onClick={() => setShowBranchSelector((prev) => !prev)}
+              className="flex w-full items-center gap-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-secondary)]"
+            >
+              <GitBranch className="size-3 text-[var(--text-muted)]" />
+              Base: {baseBranch ?? "main"}
+              <span className="ml-auto text-[10px] text-[var(--text-muted)]">
+                Change
               </span>
-            ) : (
-              "Create & Open"
+            </button>
+            {showBranchSelector && (
+              <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+                <BranchSelector
+                  repoPath={repos[selectedRepoIndex].path}
+                  onSelect={(branch) => {
+                    setBaseBranch(branch);
+                    setShowBranchSelector(false);
+                  }}
+                />
+              </div>
             )}
-          </button>
+          </div>
+          {branchExistsPrompt ? (
+            <div className="rounded border border-[var(--border-default)] bg-[var(--bg-primary)] p-2">
+              <p className="mb-1.5 text-[10px] text-[var(--text-secondary)]">
+                Branch{" "}
+                <span className="font-medium">{branchExistsPrompt.branch}</span>{" "}
+                already exists.
+              </p>
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => handleUseExisting(false)}
+                  className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-[10px] text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
+                >
+                  Use existing
+                </button>
+                <button
+                  onClick={() => handleUseExisting(true)}
+                  className="rounded bg-[var(--accent-amber)]/20 px-2 py-1 text-[10px] text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30"
+                >
+                  Reset to base
+                </button>
+                <button
+                  onClick={() => setBranchExistsPrompt(null)}
+                  className="rounded px-2 py-1 text-[10px] text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleCreate}
+              disabled={!canCreate}
+              className="w-full rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30 disabled:opacity-50"
+            >
+              {startFreeTask.isPending ? (
+                <span className="flex items-center justify-center gap-1.5">
+                  <Loader2 className="size-3 animate-spin" />
+                  Creating...
+                </span>
+              ) : (
+                "Create & Open"
+              )}
+            </button>
+          )}
         </div>
       ) : (
         <button
@@ -583,7 +699,11 @@ function CleanupSection() {
         // Skip the main worktree (first entry)
         for (const wt of worktrees.slice(1)) {
           try {
-            const merged = await worktreeCheckMerged(repo.path, wt.branch);
+            const merged = await worktreeCheckMerged(
+              repo.path,
+              wt.branch,
+              wt.baseBranch ?? undefined,
+            );
             if (merged) {
               stale.push({
                 worktree: wt,

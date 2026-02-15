@@ -18,7 +18,12 @@ import { CIStatusIcon } from "./CIStatusIcon";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { LinearIssueStub } from "../../hooks/useLinear";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
-import { tmuxKillSession, openTerminal, openEditor } from "../../lib/tauri";
+import {
+  tmuxKillSession,
+  openTerminal,
+  openEditor,
+  worktreeCheckBranchSynced,
+} from "../../lib/tauri";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -43,13 +48,17 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [killingSession, setKillingSession] = useState(false);
+  const [hasUnpushed, setHasUnpushed] = useState(false);
 
   const hasSession = session !== null;
   const isDeleting = removeWorktree.isPending;
 
   useEffect(() => {
     if (!confirmingDelete) return;
-    const timer = setTimeout(() => setConfirmingDelete(false), 3000);
+    const timer = setTimeout(() => {
+      setConfirmingDelete(false);
+      setHasUnpushed(false);
+    }, 5000);
     return () => clearTimeout(timer);
   }, [confirmingDelete]);
 
@@ -85,10 +94,21 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
   async function handleDelete() {
     if (!confirmingDelete) {
+      // First click: check for unpushed commits, then show confirmation
       setConfirmingDelete(true);
+      try {
+        const synced = await worktreeCheckBranchSynced(
+          repoPath,
+          worktree.branch,
+        );
+        setHasUnpushed(!synced);
+      } catch {
+        setHasUnpushed(false);
+      }
       return;
     }
     setConfirmingDelete(false);
+    setHasUnpushed(false);
 
     // Kill tmux session first if exists
     try {
@@ -98,7 +118,12 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     }
 
     removeWorktree.mutate(
-      { repoPath, worktreePath: worktree.path },
+      {
+        repoPath,
+        worktreePath: worktree.path,
+        branch: worktree.branch,
+        deleteBranch: true,
+      },
       {
         onSuccess: () =>
           queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] }),
@@ -225,6 +250,14 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         {/* Delete worktree button */}
         {confirmingDelete ? (
           <span className="flex items-center gap-2 text-xs">
+            {hasUnpushed && (
+              <span
+                className="text-[var(--accent-amber)]"
+                title="Branch has unpushed commits"
+              >
+                Unpushed!
+              </span>
+            )}
             <button
               onClick={handleDelete}
               disabled={isDeleting}
@@ -234,7 +267,10 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             </button>
             <span className="text-[var(--text-muted)]">/</span>
             <button
-              onClick={() => setConfirmingDelete(false)}
+              onClick={() => {
+                setConfirmingDelete(false);
+                setHasUnpushed(false);
+              }}
               className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
               Cancel
