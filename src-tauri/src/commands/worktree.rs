@@ -2,6 +2,61 @@ use serde::Serialize;
 use std::path::{Component, Path, PathBuf};
 use tauri_plugin_shell::ShellExt;
 
+/// Strip the `origin/` prefix from a branch ref, if present.
+fn strip_origin(branch: &str) -> &str {
+    branch.strip_prefix("origin/").unwrap_or(branch)
+}
+
+/// Resolve the worktree directory path for a given repo and issue ID.
+fn resolve_worktree_path(repo: &Path, issue_id: &str) -> Result<PathBuf, String> {
+    let repo_basename = repo
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or("Invalid repo path")?;
+
+    let worktrees_dir = format!("{repo_basename}-worktrees");
+    let worktrees_base = repo
+        .parent()
+        .ok_or("Repo has no parent directory")?
+        .join(&worktrees_dir);
+
+    std::fs::create_dir_all(&worktrees_base)
+        .map_err(|e| format!("Failed to create worktrees directory: {e}"))?;
+
+    Ok(worktrees_base.join(issue_id))
+}
+
+/// Validate and collect copy paths, ensuring they exist in the source repo.
+fn validate_copy_paths(
+    repo: &Path,
+    copy_paths: &Option<Vec<String>>,
+) -> Result<Vec<String>, String> {
+    let Some(paths) = copy_paths else {
+        return Ok(Vec::new());
+    };
+    let mut validated = Vec::new();
+    for rel in paths {
+        validate_relative_path(rel)?;
+        let src = repo.join(rel);
+        if !src.exists() {
+            return Err(format!(
+                "copyPaths: source does not exist: {}",
+                src.display()
+            ));
+        }
+        validated.push(rel.clone());
+    }
+    Ok(validated)
+}
+
+/// Copy validated relative paths from the source repo into the worktree.
+fn copy_validated_paths(repo: &Path, worktree: &Path, paths: &[String]) -> Result<(), String> {
+    for rel in paths {
+        copy_path(&repo.join(rel), &worktree.join(rel))?;
+    }
+    Ok(())
+}
+
 /// Auto-detect the default branch on `origin`.
 ///
 /// 1. `git symbolic-ref refs/remotes/origin/HEAD` → parse branch name
@@ -137,11 +192,7 @@ pub async fn worktree_list(
     // Second pass: enrich each worktree with health data
     let mut worktrees: Vec<WorktreeInfo> = Vec::new();
     for (i, rw) in raw.iter().enumerate() {
-        let issue_id = if rw.branch.is_empty() {
-            None
-        } else {
-            Some(rw.branch.clone())
-        };
+        let issue_id = (!rw.branch.is_empty()).then(|| rw.branch.clone());
 
         // Skip health checks for the main worktree (first entry)
         let (is_dirty, ahead, behind) = if i == 0 {
@@ -378,45 +429,12 @@ pub async fn worktree_create(
     fetch_before: Option<bool>,
 ) -> Result<WorktreeInfo, String> {
     let repo = Path::new(&repo_path);
-    let repo_basename = repo
-        .file_name()
-        .and_then(|n| n.to_str())
-        .ok_or("Invalid repo path")?;
-
-    let worktrees_dir = format!("{}-worktrees", repo_basename);
-    let worktrees_base = repo
-        .parent()
-        .ok_or("Repo has no parent directory")?
-        .join(&worktrees_dir);
-
-    // Create the worktrees directory if it doesn't exist
-    std::fs::create_dir_all(&worktrees_base)
-        .map_err(|e| format!("Failed to create worktrees directory: {e}"))?;
-
-    let worktree_path = worktrees_base.join(&issue_id);
+    let worktree_path = resolve_worktree_path(repo, &issue_id)?;
     let worktree_path_str = worktree_path
         .to_str()
         .ok_or("Invalid worktree path")?
         .to_string();
-
-    // Validate all copy_paths BEFORE creating the worktree
-    let validated_paths = if let Some(ref paths) = copy_paths {
-        let mut validated = Vec::new();
-        for rel in paths {
-            validate_relative_path(rel)?;
-            let src = repo.join(rel);
-            if !src.exists() {
-                return Err(format!(
-                    "copyPaths: source does not exist: {}",
-                    src.display()
-                ));
-            }
-            validated.push(rel.clone());
-        }
-        validated
-    } else {
-        Vec::new()
-    };
+    let validated_paths = validate_copy_paths(repo, &copy_paths)?;
 
     // Fetch from origin before creating worktree (default: true)
     if fetch_before != Some(false) {
@@ -492,14 +510,8 @@ pub async fn worktree_create(
 
     // Resolve the raw base branch name (without origin/ prefix)
     let raw_base = match base_branch {
-        Some(ref b) if !b.is_empty() => b.strip_prefix("origin/").unwrap_or(b).to_string(),
-        _ => {
-            let detected = detect_default_branch(&app, &repo_path).await;
-            detected
-                .strip_prefix("origin/")
-                .unwrap_or(&detected)
-                .to_string()
-        }
+        Some(ref b) if !b.is_empty() => strip_origin(b).to_string(),
+        _ => strip_origin(&detect_default_branch(&app, &repo_path).await).to_string(),
     };
 
     // Resolve the ref to branch from: prefer origin/<base>, fall back to local <base>
@@ -549,13 +561,10 @@ pub async fn worktree_create(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-
-        // Branch already exists — return error so the UI can offer choices
         if stderr.contains("already exists") {
             return Err(format!("BRANCH_EXISTS:{issue_id}"));
-        } else {
-            return Err(format!("git worktree add failed: {stderr}"));
         }
+        return Err(format!("git worktree add failed: {stderr}"));
     }
 
     // Persist base branch metadata in git config
@@ -572,12 +581,7 @@ pub async fn worktree_create(
         .output()
         .await;
 
-    // Copy validated paths into the worktree
-    for rel in &validated_paths {
-        let src = repo.join(rel);
-        let dst = worktree_path.join(rel);
-        copy_path(&src, &dst)?;
-    }
+    copy_validated_paths(repo, &worktree_path, &validated_paths)?;
 
     Ok(WorktreeInfo {
         branch: issue_id.clone(),
@@ -737,10 +741,7 @@ pub async fn worktree_check_merged(
 
     // Method 3: Fallback to merge-base check against default branch
     let detected = detect_default_branch(&app, &repo_path).await;
-    let default_base = detected
-        .strip_prefix("origin/")
-        .unwrap_or(&detected)
-        .to_string();
+    let default_base = strip_origin(&detected).to_string();
 
     let output = app
         .shell()
@@ -772,58 +773,20 @@ pub async fn worktree_create_existing_branch(
     reset_to_base: bool,
 ) -> Result<WorktreeInfo, String> {
     let repo = Path::new(&repo_path);
-    let repo_basename = repo
-        .file_name()
-        .and_then(|n| n.to_str())
-        .ok_or("Invalid repo path")?;
-
-    let worktrees_dir = format!("{}-worktrees", repo_basename);
-    let worktrees_base = repo
-        .parent()
-        .ok_or("Repo has no parent directory")?
-        .join(&worktrees_dir);
-
-    std::fs::create_dir_all(&worktrees_base)
-        .map_err(|e| format!("Failed to create worktrees directory: {e}"))?;
-
-    let worktree_path = worktrees_base.join(&issue_id);
+    let worktree_path = resolve_worktree_path(repo, &issue_id)?;
     let worktree_path_str = worktree_path
         .to_str()
         .ok_or("Invalid worktree path")?
         .to_string();
-
-    // Validate copy_paths
-    let validated_paths = if let Some(ref paths) = copy_paths {
-        let mut validated = Vec::new();
-        for rel in paths {
-            validate_relative_path(rel)?;
-            let src = repo.join(rel);
-            if !src.exists() {
-                return Err(format!(
-                    "copyPaths: source does not exist: {}",
-                    src.display()
-                ));
-            }
-            validated.push(rel.clone());
-        }
-        validated
-    } else {
-        Vec::new()
-    };
+    let validated_paths = validate_copy_paths(repo, &copy_paths)?;
 
     if reset_to_base {
-        // Safety check: verify branch has no unpushed commits before resetting
         let is_synced = check_branch_synced_inner(&app, &repo_path, &issue_id).await?;
         if !is_synced {
             return Err(format!("BRANCH_HAS_UNPUSHED:{issue_id}"));
         }
 
-        // Reset the branch to the base ref
-        let raw_base = base_branch
-            .as_deref()
-            .unwrap_or("main")
-            .strip_prefix("origin/")
-            .unwrap_or(base_branch.as_deref().unwrap_or("main"));
+        let raw_base = strip_origin(base_branch.as_deref().unwrap_or("main"));
         let target_ref = format!("origin/{raw_base}");
         let reset_output = app
             .shell()
@@ -839,7 +802,6 @@ pub async fn worktree_create_existing_branch(
         }
     }
 
-    // Create worktree using the existing branch
     let output = app
         .shell()
         .command("git")
@@ -862,7 +824,6 @@ pub async fn worktree_create_existing_branch(
 
     // Persist base branch in git config
     if let Some(ref base) = base_branch {
-        let raw_base = base.strip_prefix("origin/").unwrap_or(base);
         let _ = app
             .shell()
             .command("git")
@@ -871,18 +832,13 @@ pub async fn worktree_create_existing_branch(
                 &repo_path,
                 "config",
                 &format!("branch.{issue_id}.directiv-base"),
-                raw_base,
+                strip_origin(base),
             ])
             .output()
             .await;
     }
 
-    // Copy validated paths into the worktree
-    for rel in &validated_paths {
-        let src = repo.join(rel);
-        let dst = worktree_path.join(rel);
-        copy_path(&src, &dst)?;
-    }
+    copy_validated_paths(repo, &worktree_path, &validated_paths)?;
 
     let stored_base = read_base_branch(&app, &repo_path, &issue_id).await;
 

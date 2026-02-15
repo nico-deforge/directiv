@@ -271,7 +271,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     );
   }
 
-  async function handleExistingBranch(resetToBase: boolean) {
+  async function handleExistingBranch(resetToBase: boolean, force = false) {
     if (!branchError) return;
     const { repoPath, baseBranch } = branchError;
     setBranchError(null);
@@ -284,7 +284,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         baseBranch,
         resetToBase,
       );
-      // Continue the start flow (create session, launch claude, etc.)
       startTask.mutate(
         {
           issueId: task.id,
@@ -294,15 +293,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           copyPaths: repo?.copyPaths,
           onStart: repo?.onStart,
           baseBranch,
-          fetchBefore: false, // Already fetched
+          fetchBefore: false,
           skill: pendingSkill,
         },
-        {
-          onError: (err) => toastError(err),
-        },
+        { onError: (err) => toastError(err) },
       );
     } catch (err) {
       if (
+        !force &&
         err instanceof Error &&
         err.message.includes("BRANCH_HAS_UNPUSHED:")
       ) {
@@ -675,36 +673,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                   </p>
                   <div className="flex flex-col gap-1.5">
                     <button
-                      onClick={() => {
-                        // Force reset: call create_existing_branch directly with the force flag handled by backend
-                        const { repoPath, baseBranch } = branchError;
-                        setBranchError(null);
-                        const repo = repos.find((r) => r.path === repoPath);
-                        worktreeCreateExistingBranch(
-                          repoPath,
-                          task.identifier,
-                          repo?.copyPaths,
-                          baseBranch,
-                          true,
-                        )
-                          .then(() => {
-                            startTask.mutate(
-                              {
-                                issueId: task.id,
-                                identifier: task.identifier,
-                                repoPath,
-                                terminal,
-                                copyPaths: repo?.copyPaths,
-                                onStart: repo?.onStart,
-                                baseBranch,
-                                fetchBefore: false,
-                                skill: pendingSkill,
-                              },
-                              { onError: (err) => toastError(err) },
-                            );
-                          })
-                          .catch((err) => toastError(err));
-                      }}
+                      onClick={() => handleExistingBranch(true, true)}
                       className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
                     >
                       Force reset
