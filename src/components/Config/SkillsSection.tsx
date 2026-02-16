@@ -97,7 +97,11 @@ export function SkillsSection() {
   );
 }
 
-function SkillCard({ skill }: { skill: PluginSkillInfo }) {
+interface SkillCardProps {
+  skill: PluginSkillInfo;
+}
+
+function SkillCard({ skill }: SkillCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
 
@@ -174,13 +178,12 @@ function SkillCard({ skill }: { skill: PluginSkillInfo }) {
   );
 }
 
-function FileContent({
-  skillName,
-  filename,
-}: {
+interface FileContentProps {
   skillName: string;
   filename: string;
-}) {
+}
+
+function FileContent({ skillName, filename }: FileContentProps) {
   const {
     data: content,
     isLoading,

@@ -1,6 +1,7 @@
 use serde::Serialize;
+use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::SystemTime;
 use tauri::Manager;
@@ -11,17 +12,17 @@ use super::config::find_config_file;
 #[serde(rename_all = "camelCase")]
 pub struct PluginSkillInfo {
     pub name: String,
+    pub folder_name: String,
     pub description: Option<String>,
     pub files: Vec<String>,
     pub is_override: bool,
 }
 
-// --- Merged plugin state for temp dir lifecycle ---
-
 pub struct MergedPluginState {
     inner: Mutex<MergedPluginInner>,
 }
 
+#[derive(Default)]
 struct MergedPluginInner {
     cached_dir: Option<PathBuf>,
     cached_mtime: Option<SystemTime>,
@@ -30,23 +31,18 @@ struct MergedPluginInner {
 impl MergedPluginState {
     pub fn new() -> Self {
         Self {
-            inner: Mutex::new(MergedPluginInner {
-                cached_dir: None,
-                cached_mtime: None,
-            }),
+            inner: Mutex::new(MergedPluginInner::default()),
         }
     }
 
     pub fn cleanup_all(&self) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(dir) = inner.cached_dir.take() {
             let _ = fs::remove_dir_all(&dir);
         }
         inner.cached_mtime = None;
     }
 }
-
-// --- Helpers ---
 
 fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
     let mut name = None;
@@ -70,7 +66,7 @@ fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
     (name, description)
 }
 
-fn collect_files_recursive(base: &PathBuf, dir: &PathBuf) -> Vec<String> {
+fn collect_files_recursive(base: &Path, dir: &Path) -> Vec<String> {
     let mut files = Vec::new();
     let Ok(entries) = fs::read_dir(dir) else {
         return files;
@@ -88,14 +84,21 @@ fn collect_files_recursive(base: &PathBuf, dir: &PathBuf) -> Vec<String> {
     files
 }
 
-fn copy_dir_recursive(src: &PathBuf, dst: &PathBuf) -> Result<(), String> {
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     fs::create_dir_all(dst).map_err(|e| format!("Failed to create dir {}: {e}", dst.display()))?;
     let entries =
         fs::read_dir(src).map_err(|e| format!("Failed to read dir {}: {e}", src.display()))?;
     for entry in entries.flatten() {
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
-        if src_path.is_dir() {
+        let metadata = entry
+            .metadata()
+            .map_err(|e| format!("Failed to read metadata {}: {e}", src_path.display()))?;
+        // Skip symlinks to avoid following links outside the skills dir
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
             copy_dir_recursive(&src_path, &dst_path)?;
         } else {
             fs::copy(&src_path, &dst_path).map_err(|e| {
@@ -110,40 +113,48 @@ fn copy_dir_recursive(src: &PathBuf, dst: &PathBuf) -> Result<(), String> {
     Ok(())
 }
 
-/// Resolve user skills directory: config `skillsDir` > ~/.directiv/skills/ > None
+/// Read `skillsDir` from `directiv.config.json` if present
+fn skills_dir_from_config() -> Option<PathBuf> {
+    let content = fs::read_to_string(find_config_file().ok()?).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let path = PathBuf::from(json.get("skillsDir")?.as_str()?);
+    path.is_dir().then(|| path.canonicalize().ok())?
+}
+
+/// Resolve user skills directory: config `skillsDir` > `~/.directiv/skills/` > None
 fn resolve_user_skills_dir() -> Option<PathBuf> {
-    // Try reading skillsDir from config
-    if let Ok(config_path) = find_config_file() {
-        if let Ok(content) = fs::read_to_string(&config_path) {
-            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(skills_dir) = json.get("skillsDir").and_then(|v| v.as_str()) {
-                    let path = PathBuf::from(skills_dir);
-                    if path.is_dir() {
-                        return Some(path);
-                    }
-                }
+    if let Some(dir) = skills_dir_from_config() {
+        return Some(dir);
+    }
+
+    let default_dir = dirs::home_dir()?.join(".directiv").join("skills");
+    default_dir
+        .is_dir()
+        .then(|| default_dir.canonicalize().ok())?
+}
+
+/// Compute max mtime across all files in a directory tree (detects file edits, not just dir changes)
+fn max_mtime_recursive(dir: &Path) -> Option<SystemTime> {
+    let mut max: Option<SystemTime> = fs::metadata(dir).ok().and_then(|m| m.modified().ok());
+    fn walk(path: &Path, max: &mut Option<SystemTime>) {
+        let Ok(entries) = fs::read_dir(path) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if let Ok(mt) = fs::metadata(&p).and_then(|m| m.modified()) {
+                *max = Some(max.map_or(mt, |prev| prev.max(mt)));
+            }
+            if p.is_dir() {
+                walk(&p, max);
             }
         }
     }
-
-    // Fallback: ~/.directiv/skills/
-    if let Some(home) = dirs::home_dir() {
-        let default_dir = home.join(".directiv").join("skills");
-        if default_dir.is_dir() {
-            return Some(default_dir);
-        }
-    }
-
-    None
+    walk(dir, &mut max);
+    max
 }
 
-/// Get the mtime of a directory (modification time of the dir itself)
-fn dir_mtime(path: &PathBuf) -> Option<SystemTime> {
-    fs::metadata(path).ok().and_then(|m| m.modified().ok())
-}
-
-/// Scan a skills directory and return PluginSkillInfo entries
-fn scan_skills_dir(skills_dir: &PathBuf, is_override: bool) -> Vec<PluginSkillInfo> {
+fn scan_skills_dir(skills_dir: &Path, is_override: bool) -> Vec<PluginSkillInfo> {
     let mut skills = Vec::new();
     let Ok(entries) = fs::read_dir(skills_dir) else {
         return skills;
@@ -159,20 +170,15 @@ fn scan_skills_dir(skills_dir: &PathBuf, is_override: bool) -> Vec<PluginSkillIn
             .unwrap_or("unknown")
             .to_string();
 
-        let skill_md = path.join("SKILL.md");
-        let (name, description) = if skill_md.exists() {
-            match fs::read_to_string(&skill_md) {
-                Ok(content) => parse_skill_frontmatter(&content),
-                Err(_) => (None, None),
-            }
-        } else {
-            (None, None)
-        };
+        let (name, description) = fs::read_to_string(path.join("SKILL.md"))
+            .map(|content| parse_skill_frontmatter(&content))
+            .unwrap_or_default();
 
         let files = collect_files_recursive(&path, &path);
 
         skills.push(PluginSkillInfo {
-            name: name.unwrap_or(folder_name),
+            name: name.unwrap_or_else(|| folder_name.clone()),
+            folder_name,
             description,
             files,
             is_override,
@@ -181,24 +187,22 @@ fn scan_skills_dir(skills_dir: &PathBuf, is_override: bool) -> Vec<PluginSkillIn
     skills
 }
 
-/// Create a merged plugin dir: copy bundled, then overlay user skills
 fn create_merged_plugin_dir(
     app: &tauri::AppHandle,
-    bundled: &PathBuf,
-    user_skills: &PathBuf,
+    bundled: &Path,
+    user_skills: &Path,
 ) -> Result<PathBuf, String> {
     let temp_base = app.path().temp_dir().map_err(|e| e.to_string())?;
     let merged_base = temp_base.join("directiv-plugins");
     let ts = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
-        .as_millis();
-    let merged_dir = merged_base.join(format!("merged-{ts}"));
+        .as_nanos();
+    let merged_dir = merged_base.join(format!("merged-{ts}-{}", std::process::id()));
 
-    // Copy entire bundled plugin to temp
     copy_dir_recursive(bundled, &merged_dir)?;
 
-    // Overlay user skills: for each user skill dir, replace the corresponding bundled one
+    // Overlay: replace bundled skills with user versions
     let merged_skills = merged_dir.join("skills");
     let Ok(entries) = fs::read_dir(user_skills) else {
         return Ok(merged_dir);
@@ -210,9 +214,7 @@ fn create_merged_plugin_dir(
         }
         if let Some(name) = path.file_name() {
             let target = merged_skills.join(name);
-            // Remove bundled skill if it exists
             let _ = fs::remove_dir_all(&target);
-            // Copy user skill
             copy_dir_recursive(&path, &target)?;
         }
     }
@@ -233,7 +235,19 @@ fn resolve_plugin_dir(app: &tauri::AppHandle) -> Result<Option<PathBuf>, String>
     }
 }
 
-// --- Tauri commands ---
+/// Read a file if it exists and is safely contained within `base_dir` (no path traversal)
+fn read_file_safely(base_dir: &Path, skill_name: &str, filename: &str) -> Option<String> {
+    let file_path = base_dir.join(skill_name).join(filename);
+    if !file_path.exists() {
+        return None;
+    }
+    let canonical = file_path.canonicalize().ok()?;
+    let canonical_base = base_dir.canonicalize().ok()?;
+    if !canonical.starts_with(&canonical_base) {
+        return None;
+    }
+    fs::read_to_string(&canonical).ok()
+}
 
 #[tauri::command]
 pub fn get_plugin_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
@@ -242,15 +256,13 @@ pub fn get_plugin_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
     };
 
     let Some(user_skills) = resolve_user_skills_dir() else {
-        // No user overrides: return bundled directly (zero overhead)
         return Ok(Some(bundled.to_string_lossy().to_string()));
     };
 
-    // Check cache in MergedPluginState
     let state = app.state::<MergedPluginState>();
-    let mut inner = state.inner.lock().unwrap();
+    let mut inner = state.inner.lock().unwrap_or_else(|e| e.into_inner());
 
-    let current_mtime = dir_mtime(&user_skills);
+    let current_mtime = max_mtime_recursive(&user_skills);
 
     if let (Some(ref cached_dir), Some(cached_mt)) = (&inner.cached_dir, inner.cached_mtime) {
         if cached_dir.exists() && current_mtime == Some(cached_mt) {
@@ -258,12 +270,10 @@ pub fn get_plugin_dir(app: tauri::AppHandle) -> Result<Option<String>, String> {
         }
     }
 
-    // Clean up previous cached dir if any
     if let Some(old_dir) = inner.cached_dir.take() {
         let _ = fs::remove_dir_all(&old_dir);
     }
 
-    // Create new merged dir
     let merged = create_merged_plugin_dir(&app, &bundled, &user_skills)?;
     inner.cached_dir = Some(merged.clone());
     inner.cached_mtime = current_mtime;
@@ -278,20 +288,17 @@ pub fn list_plugin_skills(app: tauri::AppHandle) -> Result<Vec<PluginSkillInfo>,
     };
     let bundled_skills_dir = plugin_dir.join("skills");
 
-    // Scan bundled skills
     let mut bundled_skills = if bundled_skills_dir.exists() && bundled_skills_dir.is_dir() {
         scan_skills_dir(&bundled_skills_dir, false)
     } else {
         Vec::new()
     };
 
-    // If user overrides exist, overlay them
     if let Some(user_skills_dir) = resolve_user_skills_dir() {
         let user_skills = scan_skills_dir(&user_skills_dir, true);
-        let user_names: std::collections::HashSet<&str> =
-            user_skills.iter().map(|s| s.name.as_str()).collect();
-        // Remove bundled skills that are overridden
-        bundled_skills.retain(|s| !user_names.contains(s.name.as_str()));
+        let user_folders: HashSet<&str> =
+            user_skills.iter().map(|s| s.folder_name.as_str()).collect();
+        bundled_skills.retain(|s| !user_folders.contains(s.folder_name.as_str()));
         bundled_skills.extend(user_skills);
     }
 
@@ -311,40 +318,19 @@ pub fn read_plugin_skill_file(
         return Err("Invalid filename".to_string());
     }
 
-    // Try user skills first
+    // Try user skills first, then fall back to bundled
     if let Some(user_skills_dir) = resolve_user_skills_dir() {
-        let user_file = user_skills_dir.join(&skill_name).join(&filename);
-        if user_file.exists() {
-            if let Ok(canonical) = user_file.canonicalize() {
-                if let Ok(canonical_base) = user_skills_dir.canonicalize() {
-                    if canonical.starts_with(&canonical_base) {
-                        return fs::read_to_string(&canonical)
-                            .map_err(|e| format!("Failed to read file: {e}"));
-                    }
-                }
-            }
+        if let Some(content) = read_file_safely(&user_skills_dir, &skill_name, &filename) {
+            return Ok(content);
         }
     }
 
-    // Fallback to bundled
     let plugin_dir =
         resolve_plugin_dir(&app)?.ok_or_else(|| "Plugin directory not found".to_string())?;
-
     let skills_dir = plugin_dir.join("skills");
-    let file_path = skills_dir.join(&skill_name).join(&filename);
 
-    let canonical = file_path
-        .canonicalize()
-        .map_err(|_| format!("File not found: {}", file_path.display()))?;
-    let canonical_skills = skills_dir
-        .canonicalize()
-        .map_err(|e| format!("Failed to resolve skills directory: {e}"))?;
-
-    if !canonical.starts_with(&canonical_skills) {
-        return Err("Invalid file path".to_string());
-    }
-
-    fs::read_to_string(&canonical).map_err(|e| format!("Failed to read file: {e}"))
+    read_file_safely(&skills_dir, &skill_name, &filename)
+        .ok_or_else(|| format!("File not found: {}/{}", skill_name, filename))
 }
 
 #[tauri::command]

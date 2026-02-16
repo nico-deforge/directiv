@@ -154,6 +154,7 @@ export interface StaleWorktree {
 
 export interface PluginSkillInfo {
   name: string;
+  folderName: string;
   description: string | null;
   files: string[];
   isOverride: boolean;
