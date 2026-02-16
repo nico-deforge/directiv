@@ -1,5 +1,8 @@
 mod commands;
 
+use commands::skills::MergedPluginState;
+use tauri::{Manager, RunEvent};
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
@@ -12,7 +15,16 @@ pub fn run() {
         );
     }
 
-    builder
+    let app = builder
+        .manage(MergedPluginState::new())
+        .setup(|app| {
+            // Cleanup stale merged plugin dirs from previous sessions
+            if let Ok(temp) = app.path().temp_dir() {
+                let stale = temp.join("directiv-plugins");
+                let _ = std::fs::remove_dir_all(&stale);
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::worktree::worktree_list,
             commands::worktree::worktree_create,
@@ -34,8 +46,16 @@ pub fn run() {
             commands::skills::get_plugin_dir,
             commands::skills::list_plugin_skills,
             commands::skills::read_plugin_skill_file,
+            commands::skills::get_user_skills_dir,
+            commands::skills::cleanup_merged_plugins,
             commands::workspace::scan_workspace,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|handle, event| {
+        if let RunEvent::Exit = event {
+            handle.state::<MergedPluginState>().cleanup_all();
+        }
+    });
 }

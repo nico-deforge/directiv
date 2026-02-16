@@ -5,12 +5,18 @@ import {
   Package,
   ChevronRight,
   ChevronDown,
+  FolderOpen,
 } from "lucide-react";
-import { usePluginSkills, usePluginSkillFile } from "../../hooks/useSkills";
+import {
+  usePluginSkills,
+  usePluginSkillFile,
+  useUserSkillsDir,
+} from "../../hooks/useSkills";
 import type { PluginSkillInfo } from "../../types";
 
 export function SkillsSection() {
   const { data: skills, isLoading, error } = usePluginSkills();
+  const { data: userSkillsDir } = useUserSkillsDir();
 
   if (isLoading) {
     return (
@@ -33,6 +39,7 @@ export function SkillsSection() {
   const pluginSkills = (skills ?? []).toSorted((a, b) =>
     a.name.localeCompare(b.name),
   );
+  const overrideCount = pluginSkills.filter((s) => s.isOverride).length;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -44,6 +51,25 @@ export function SkillsSection() {
           Skills shipped with the Directiv plugin for Claude Code.
         </p>
       </div>
+
+      {userSkillsDir && (
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] px-4 py-3">
+          <FolderOpen className="size-4 shrink-0 text-[var(--accent-blue)]" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-[var(--text-secondary)]">
+              User skills directory
+            </p>
+            <p className="truncate text-xs text-[var(--text-muted)]">
+              {userSkillsDir}
+            </p>
+          </div>
+          {overrideCount > 0 && (
+            <span className="shrink-0 rounded-full bg-[var(--accent-amber)]/15 px-2 py-0.5 text-xs font-medium text-[var(--accent-amber)]">
+              {overrideCount} override{overrideCount !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+      )}
 
       <section>
         <div className="mb-3 flex items-center gap-2">
@@ -87,9 +113,16 @@ function SkillCard({ skill }: { skill: PluginSkillInfo }) {
           <ChevronRight className="size-4 shrink-0 text-[var(--text-muted)]" />
         )}
         <div className="min-w-0 flex-1">
-          <span className="font-medium text-[var(--text-primary)]">
-            {skill.name}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-[var(--text-primary)]">
+              {skill.name}
+            </span>
+            {skill.isOverride && (
+              <span className="rounded bg-[var(--accent-amber)]/15 px-1.5 py-0.5 text-[10px] font-medium leading-none text-[var(--accent-amber)]">
+                override
+              </span>
+            )}
+          </div>
           {skill.description && (
             <p className="mt-0.5 truncate text-sm text-[var(--text-muted)]">
               {skill.description}

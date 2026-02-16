@@ -156,6 +156,7 @@ export interface PluginSkillInfo {
   name: string;
   description: string | null;
   files: string[];
+  isOverride: boolean;
 }
 
 // --- Config ---
@@ -191,4 +192,5 @@ export interface DirectivConfig {
   workspaces: WorkspaceConfig[];
   linear: LinearConfig;
   theme: Theme;
+  skillsDir?: string;
 }

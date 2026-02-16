@@ -180,3 +180,11 @@ export function readPluginSkillFile(
 ): Promise<string> {
   return invoke<string>("read_plugin_skill_file", { skillName, filename });
 }
+
+export function getUserSkillsDir(): Promise<string | null> {
+  return invoke<string | null>("get_user_skills_dir");
+}
+
+export function cleanupMergedPlugins(): Promise<void> {
+  return invoke<void>("cleanup_merged_plugins");
+}

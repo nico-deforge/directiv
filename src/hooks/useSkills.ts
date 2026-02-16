@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { listPluginSkills, readPluginSkillFile } from "../lib/tauri";
+import {
+  listPluginSkills,
+  readPluginSkillFile,
+  getUserSkillsDir,
+} from "../lib/tauri";
 import type { PluginSkillInfo } from "../types";
 
 export function usePluginSkills() {
@@ -15,6 +19,14 @@ export function usePluginSkillFile(skillName: string, filename: string) {
     queryKey: ["plugin-skill-file", skillName, filename],
     queryFn: () => readPluginSkillFile(skillName, filename),
     enabled: !!skillName && !!filename,
+    staleTime: Infinity,
+  });
+}
+
+export function useUserSkillsDir() {
+  return useQuery<string | null>({
+    queryKey: ["user-skills-dir"],
+    queryFn: getUserSkillsDir,
     staleTime: Infinity,
   });
 }
