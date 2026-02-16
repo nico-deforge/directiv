@@ -91,7 +91,7 @@ export const SKILLS = {
 
 export type Skill = (typeof SKILLS)[keyof typeof SKILLS];
 
-async function buildClaudeCommand(
+export async function buildClaudeCommand(
   skill?: string,
   identifier?: string,
 ): Promise<string> {

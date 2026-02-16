@@ -20,10 +20,14 @@ import type { LinearIssueStub } from "../../hooks/useLinear";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
 import {
   tmuxKillSession,
+  tmuxCreateSession,
+  tmuxWaitForReady,
+  tmuxSendKeys,
   openTerminal,
   openEditor,
   worktreeCheckBranchSynced,
 } from "../../lib/tauri";
+import { buildClaudeCommand } from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -48,6 +52,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [killingSession, setKillingSession] = useState(false);
+  const [launchingSession, setLaunchingSession] = useState(false);
   const [hasUnpushed, setHasUnpushed] = useState(false);
 
   const hasSession = session !== null;
@@ -61,6 +66,23 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     }, 5000);
     return () => clearTimeout(timer);
   }, [confirmingDelete]);
+
+  async function handleLaunchSession() {
+    const sessionName = toSessionName(worktree.branch);
+    setLaunchingSession(true);
+    try {
+      await tmuxCreateSession(sessionName, worktree.path);
+      await tmuxWaitForReady(sessionName);
+      const cmd = await buildClaudeCommand();
+      await tmuxSendKeys(sessionName, cmd);
+      await openTerminal(terminal, sessionName);
+      queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] });
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setLaunchingSession(false);
+    }
+  }
 
   async function handleOpenTerminal() {
     if (!session) return;
@@ -210,14 +232,27 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
       {/* Actions */}
       <div className="flex items-center gap-2 px-3 py-2">
-        {/* Terminal button */}
-        {hasSession && (
+        {/* Terminal / Launch button */}
+        {hasSession ? (
           <button
             onClick={handleOpenTerminal}
             className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
           >
             <Terminal className="size-3.5" />
             Terminal
+          </button>
+        ) : (
+          <button
+            onClick={handleLaunchSession}
+            disabled={launchingSession}
+            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {launchingSession ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Terminal className="size-3.5" />
+            )}
+            Launch Claude
           </button>
         )}
 
