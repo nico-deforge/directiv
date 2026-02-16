@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { worktreeList, worktreeCreate, worktreeRemove } from "../lib/tauri";
+import { worktreeList, worktreeCreate } from "../lib/tauri";
+import { removeWorktreeFlow } from "../lib/workflows";
 import type { WorktreeInfo, DiscoveredRepo } from "../types";
 import { LOCAL_REFRESH_INTERVAL_SLOW } from "../constants/intervals";
 
@@ -66,12 +67,27 @@ export function useWorktreeRemove() {
       worktreePath,
       branch,
       deleteBranch,
+      sessionName,
+      beforeRemove,
     }: {
       repoPath: string;
       worktreePath: string;
       branch?: string;
       deleteBranch?: boolean;
-    }) => worktreeRemove(repoPath, worktreePath, branch, deleteBranch),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["worktrees"] }),
+      sessionName?: string;
+      beforeRemove?: string[];
+    }) =>
+      removeWorktreeFlow({
+        repoPath,
+        worktreePath,
+        branch,
+        deleteBranch,
+        sessionName,
+        beforeRemove,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["worktrees"] });
+      queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] });
+    },
   });
 }

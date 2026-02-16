@@ -18,6 +18,7 @@ import { CIStatusIcon } from "./CIStatusIcon";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { LinearIssueStub } from "../../hooks/useLinear";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
+import { useWorkspaceRepos } from "../../hooks/useWorkspace";
 import {
   tmuxKillSession,
   tmuxCreateSession,
@@ -48,6 +49,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
   const removeWorktree = useWorktreeRemove();
+  const repos = useWorkspaceRepos();
   const queryClient = useQueryClient();
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -132,23 +134,17 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     setConfirmingDelete(false);
     setHasUnpushed(false);
 
-    // Kill tmux session first if exists
-    try {
-      await tmuxKillSession(toSessionName(worktree.branch));
-    } catch {
-      // Session may not exist
-    }
-
+    const repo = repos.find((r) => r.path === repoPath);
     removeWorktree.mutate(
       {
         repoPath,
         worktreePath: worktree.path,
         branch: worktree.branch,
         deleteBranch: true,
+        sessionName: session ? toSessionName(worktree.branch) : undefined,
+        beforeRemove: repo?.beforeRemove,
       },
       {
-        onSuccess: () =>
-          queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] }),
         onError: (err) => toastError(err),
       },
     );

@@ -4,6 +4,7 @@ import { linearClient } from "./linear";
 import {
   worktreeCreate,
   worktreeList,
+  worktreeRemove,
   tmuxCreateSession,
   tmuxKillSession,
   tmuxListSessions,
@@ -171,6 +172,32 @@ async function ensureSession(
     await tmuxKillSession(sessionName).catch(() => {});
     throw err;
   }
+}
+
+export interface RemoveWorktreeFlowParams {
+  repoPath: string;
+  worktreePath: string;
+  branch?: string;
+  sessionName?: string;
+  beforeRemove?: string[];
+  deleteBranch?: boolean;
+}
+
+export async function removeWorktreeFlow({
+  repoPath,
+  worktreePath,
+  branch,
+  sessionName,
+  beforeRemove,
+  deleteBranch = true,
+}: RemoveWorktreeFlowParams): Promise<void> {
+  if (beforeRemove && beforeRemove.length > 0) {
+    await runHooks(beforeRemove, worktreePath);
+  }
+  if (sessionName) {
+    await tmuxKillSession(sessionName).catch(() => {});
+  }
+  await worktreeRemove(repoPath, worktreePath, branch, deleteBranch);
 }
 
 function openTerminalBestEffort(terminal: string, sessionName: string): void {

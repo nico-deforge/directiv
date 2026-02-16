@@ -35,13 +35,13 @@ import {
   BranchExistsError,
   BaseNotFoundError,
   BranchHasUnpushedError,
+  removeWorktreeFlow,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
   openTerminal,
   openEditor,
   tmuxKillSession,
-  worktreeRemove,
   worktreeCreateExistingBranch,
 } from "../../lib/tauri";
 import { BranchSelector } from "../shared/BranchSelector";
@@ -199,21 +199,15 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setDeletingWorktree(true);
     setConfirmingDelete(false);
     try {
-      // Kill session if it exists
-      if (session) {
-        try {
-          await tmuxKillSession(session.name);
-        } catch {
-          // Session may already be dead
-        }
-      }
-      // Remove worktree and delete branch
-      await worktreeRemove(
-        worktreeRepoPath,
-        worktree.path,
-        worktree.branch,
-        true,
-      );
+      const repo = repos.find((r) => r.path === worktreeRepoPath);
+      await removeWorktreeFlow({
+        repoPath: worktreeRepoPath,
+        worktreePath: worktree.path,
+        branch: worktree.branch,
+        deleteBranch: true,
+        sessionName: session?.name,
+        beforeRemove: repo?.beforeRemove,
+      });
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {

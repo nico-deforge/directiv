@@ -13,6 +13,7 @@ interface RawDiscoveredRepo {
   path: string;
   copyPaths: string[];
   onStart: string[];
+  beforeRemove: string[];
   fetchBefore: boolean;
   configWarning?: string;
 }

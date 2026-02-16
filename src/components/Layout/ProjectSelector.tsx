@@ -29,11 +29,11 @@ import { useWorkspaceRepos } from "../../hooks/useWorkspace";
 import {
   worktreeList,
   worktreeCheckMerged,
-  worktreeRemove,
   tmuxKillSession,
   tmuxListSessions,
   gitFetchPrune,
 } from "../../lib/tauri";
+import { removeWorktreeFlow } from "../../lib/workflows";
 import type {
   StaleWorktree,
   ReviewRequestedPR,
@@ -739,19 +739,15 @@ function CleanupSection() {
       for (const sw of staleWorktrees) {
         const key = `${sw.repoPath}:${sw.worktree.branch}`;
         if (!selected.has(key)) continue;
-        // Kill tmux session if one exists for this branch
-        try {
-          await tmuxKillSession(toSessionName(sw.worktree.branch));
-        } catch {
-          // Session may not exist
-        }
-        // Remove worktree + delete branch
-        await worktreeRemove(
-          sw.repoPath,
-          sw.worktree.path,
-          sw.worktree.branch,
-          true,
-        );
+        const repo = repos.find((r) => r.path === sw.repoPath);
+        await removeWorktreeFlow({
+          repoPath: sw.repoPath,
+          worktreePath: sw.worktree.path,
+          branch: sw.worktree.branch,
+          deleteBranch: true,
+          sessionName: toSessionName(sw.worktree.branch),
+          beforeRemove: repo?.beforeRemove,
+        });
       }
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
@@ -763,7 +759,7 @@ function CleanupSection() {
     } finally {
       setCleaning(false);
     }
-  }, [staleWorktrees, selected, queryClient]);
+  }, [staleWorktrees, selected, repos, queryClient]);
 
   function toggleSelection(key: string) {
     setSelected((prev) => {

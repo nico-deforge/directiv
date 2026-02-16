@@ -5,6 +5,7 @@
     "node_modules"
   ],
   "onStart": ["bun install"],
+  "beforeRemove": [],
   "baseBranch": "main",
   "fetchBefore": true
 }
