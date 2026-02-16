@@ -43,6 +43,17 @@ export class BaseNotFoundError extends Error {
   }
 }
 
+export class BranchCheckedOutError extends Error {
+  branchName: string;
+  worktreePath: string;
+  constructor(branchName: string, worktreePath: string) {
+    super(`Branch '${branchName}' is already checked out in ${worktreePath}`);
+    this.name = "BranchCheckedOutError";
+    this.branchName = branchName;
+    this.worktreePath = worktreePath;
+  }
+}
+
 export class BranchHasUnpushedError extends Error {
   branchName: string;
   constructor(branchName: string) {
@@ -121,8 +132,11 @@ async function ensureWorktree(
   fetchBefore?: boolean,
 ): Promise<{ path: string }> {
   const worktrees = await worktreeList(repoPath);
-  const existing = worktrees.find((w) => w.branch === branchName);
-  if (existing) return existing;
+  const existingIndex = worktrees.findIndex((w) => w.branch === branchName);
+  if (existingIndex > 0) return worktrees[existingIndex];
+  if (existingIndex === 0) {
+    throw new BranchCheckedOutError(branchName, worktrees[0].path);
+  }
   try {
     return await worktreeCreate(
       repoPath,
