@@ -135,6 +135,8 @@ Create `.directiv.json` at the root of each repository:
 }
 ```
 
+> **Note:** `onStart` hooks run in the user's login shell (`$SHELL -lc`), so your full PATH from `.zshrc` / `.bashrc` is available. Commands like `psql`, `mise`, or Homebrew-installed tools will work as expected.
+
 ## Deployment
 
 > **🚧 Work in Progress**
