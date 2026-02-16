@@ -4,6 +4,7 @@ import { linearClient } from "./linear";
 import {
   worktreeCreate,
   worktreeList,
+  worktreeRemove,
   tmuxCreateSession,
   tmuxKillSession,
   tmuxListSessions,
@@ -15,6 +16,75 @@ import {
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
 
+// --- Typed errors for worktree creation ---
+
+export class BranchExistsError extends Error {
+  branchName: string;
+  baseBranch: string | undefined;
+  repoPath: string;
+  constructor(
+    branchName: string,
+    baseBranch: string | undefined,
+    repoPath: string,
+  ) {
+    super(`Branch '${branchName}' already exists`);
+    this.name = "BranchExistsError";
+    this.branchName = branchName;
+    this.baseBranch = baseBranch;
+    this.repoPath = repoPath;
+  }
+}
+
+export class BaseNotFoundError extends Error {
+  baseName: string;
+  constructor(baseName: string) {
+    super(`Base branch '${baseName}' not found`);
+    this.name = "BaseNotFoundError";
+    this.baseName = baseName;
+  }
+}
+
+export class BranchCheckedOutError extends Error {
+  branchName: string;
+  worktreePath: string;
+  constructor(branchName: string, worktreePath: string) {
+    super(`Branch '${branchName}' is already checked out in ${worktreePath}`);
+    this.name = "BranchCheckedOutError";
+    this.branchName = branchName;
+    this.worktreePath = worktreePath;
+  }
+}
+
+export class BranchHasUnpushedError extends Error {
+  branchName: string;
+  constructor(branchName: string) {
+    super(`Branch '${branchName}' has unpushed commits`);
+    this.name = "BranchHasUnpushedError";
+    this.branchName = branchName;
+  }
+}
+
+function parseWorktreeError(
+  err: unknown,
+  baseBranch: string | undefined,
+  repoPath: string,
+): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.includes("BRANCH_EXISTS:")) {
+    const branch = msg.split("BRANCH_EXISTS:")[1];
+    return new BranchExistsError(branch, baseBranch, repoPath);
+  }
+  if (msg.includes("BASE_NOT_FOUND:")) {
+    const base = msg.split("BASE_NOT_FOUND:")[1];
+    return new BaseNotFoundError(base);
+  }
+  if (msg.includes("BRANCH_HAS_UNPUSHED:")) {
+    const branch = msg.split("BRANCH_HAS_UNPUSHED:")[1];
+    return new BranchHasUnpushedError(branch);
+  }
+  return err instanceof Error ? err : new Error(msg);
+}
+
 export const SKILLS = {
   CODE: "directiv:linear-issue",
   PLAN: "directiv:linear-tactic",
@@ -22,7 +92,7 @@ export const SKILLS = {
 
 export type Skill = (typeof SKILLS)[keyof typeof SKILLS];
 
-async function buildClaudeCommand(
+export async function buildClaudeCommand(
   skill?: string,
   identifier?: string,
 ): Promise<string> {
@@ -55,6 +125,89 @@ export interface StartTaskParams {
   skill?: string;
 }
 
+async function ensureWorktree(
+  repoPath: string,
+  branchName: string,
+  copyPaths?: string[],
+  baseBranch?: string,
+  fetchBefore?: boolean,
+): Promise<{ path: string }> {
+  const worktrees = await worktreeList(repoPath);
+  const existingIndex = worktrees.findIndex((w) => w.branch === branchName);
+  if (existingIndex > 0) return worktrees[existingIndex];
+  if (existingIndex === 0) {
+    throw new BranchCheckedOutError(branchName, worktrees[0].path);
+  }
+  try {
+    return await worktreeCreate(
+      repoPath,
+      branchName,
+      copyPaths,
+      baseBranch,
+      fetchBefore,
+    );
+  } catch (err) {
+    throw parseWorktreeError(err, baseBranch, repoPath);
+  }
+}
+
+async function ensureSession(
+  sessionName: string,
+  worktreePath: string,
+  onStart?: string[],
+  claudeCmd?: string,
+): Promise<void> {
+  const sessions = await tmuxListSessions();
+  if (sessions.find((s) => s.name === sessionName)) return;
+
+  if (onStart && onStart.length > 0) {
+    await runHooks(onStart, worktreePath);
+  }
+  await tmuxCreateSession(sessionName, worktreePath);
+  try {
+    await tmuxWaitForReady(sessionName);
+    const cmd = claudeCmd ?? (await buildClaudeCommand());
+    await tmuxSendKeys(sessionName, cmd);
+  } catch (err) {
+    await tmuxKillSession(sessionName).catch(() => {});
+    throw err;
+  }
+}
+
+export interface RemoveWorktreeFlowParams {
+  repoPath: string;
+  worktreePath: string;
+  branch?: string;
+  sessionName?: string;
+  beforeRemove?: string[];
+  deleteBranch?: boolean;
+}
+
+export async function removeWorktreeFlow({
+  repoPath,
+  worktreePath,
+  branch,
+  sessionName,
+  beforeRemove,
+  deleteBranch = true,
+}: RemoveWorktreeFlowParams): Promise<void> {
+  if (beforeRemove && beforeRemove.length > 0) {
+    await runHooks(beforeRemove, worktreePath);
+  }
+  if (sessionName) {
+    await tmuxKillSession(sessionName).catch(() => {});
+  }
+  await worktreeRemove(repoPath, worktreePath, branch, deleteBranch);
+}
+
+function openTerminalBestEffort(terminal: string, sessionName: string): void {
+  openTerminal(terminal, sessionName).catch((err) => {
+    toast.warning(
+      `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
+}
+
 export async function startTask({
   issueId,
   identifier,
@@ -66,49 +219,20 @@ export async function startTask({
   fetchBefore,
   skill,
 }: StartTaskParams): Promise<void> {
-  // 1. Reuse or create git worktree
-  const worktrees = await worktreeList(repoPath);
-  let worktree = worktrees.find((w) => w.branch === identifier);
-  if (!worktree) {
-    worktree = await worktreeCreate(
-      repoPath,
-      identifier,
-      copyPaths,
-      baseBranch,
-      fetchBefore,
-    );
-  }
+  const worktree = await ensureWorktree(
+    repoPath,
+    identifier,
+    copyPaths,
+    baseBranch,
+    fetchBefore,
+  );
 
-  // 2. Reuse or create tmux session (with rollback on failure)
   const sessionName = toSessionName(identifier);
-  const sessions = await tmuxListSessions();
-  const existingSession = sessions.find((s) => s.name === sessionName);
-  if (!existingSession) {
-    // Run onStart hooks BEFORE tmux session (e.g. mise trust)
-    if (onStart && onStart.length > 0) {
-      await runHooks(onStart, worktree.path);
-    }
-    await tmuxCreateSession(sessionName, worktree.path);
-    try {
-      await tmuxWaitForReady(sessionName);
-      // 3. Launch Claude only on fresh sessions
-      const claudeCmd = await buildClaudeCommand(skill, identifier);
-      await tmuxSendKeys(sessionName, claudeCmd);
-    } catch (err) {
-      // Rollback: kill session so retry creates a fresh one
-      await tmuxKillSession(sessionName).catch(() => {});
-      throw err;
-    }
-  }
+  const claudeCmd = await buildClaudeCommand(skill, identifier);
+  await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
-  // 4. Open terminal (fire-and-forget — failure shouldn't block the flow)
-  openTerminal(terminal, sessionName).catch((err) => {
-    toast.warning(
-      `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  });
+  openTerminalBestEffort(terminal, sessionName);
 
-  // 5. Update Linear status (best-effort — everything critical is already done)
   await updateLinearStatusToStarted(issueId).catch((err) => {
     toast.warning(
       `Failed to update Linear status: ${err instanceof Error ? err.message : String(err)}`,
@@ -135,47 +259,18 @@ export async function startFreeTask({
   baseBranch,
   fetchBefore,
 }: StartFreeTaskParams): Promise<void> {
-  // 1. Reuse or create git worktree
-  const worktrees = await worktreeList(repoPath);
-  let worktree = worktrees.find((w) => w.branch === branchName);
-  if (!worktree) {
-    worktree = await worktreeCreate(
-      repoPath,
-      branchName,
-      copyPaths,
-      baseBranch,
-      fetchBefore,
-    );
-  }
+  const worktree = await ensureWorktree(
+    repoPath,
+    branchName,
+    copyPaths,
+    baseBranch,
+    fetchBefore,
+  );
 
-  // 2. Reuse or create tmux session (with rollback on failure)
   const sessionName = toSessionName(branchName);
-  const sessions = await tmuxListSessions();
-  const existingSession = sessions.find((s) => s.name === sessionName);
-  if (!existingSession) {
-    // Run onStart hooks BEFORE tmux session (e.g. mise trust)
-    if (onStart && onStart.length > 0) {
-      await runHooks(onStart, worktree.path);
-    }
-    await tmuxCreateSession(sessionName, worktree.path);
-    try {
-      await tmuxWaitForReady(sessionName);
-      // 3. Launch Claude (plain, no /linear-issue)
-      const claudeCmd = await buildClaudeCommand();
-      await tmuxSendKeys(sessionName, claudeCmd);
-    } catch (err) {
-      // Rollback: kill session so retry creates a fresh one
-      await tmuxKillSession(sessionName).catch(() => {});
-      throw err;
-    }
-  }
+  await ensureSession(sessionName, worktree.path, onStart);
 
-  // 4. Open terminal (fire-and-forget — failure shouldn't block the flow)
-  openTerminal(terminal, sessionName).catch((err) => {
-    toast.warning(
-      `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  });
+  openTerminalBestEffort(terminal, sessionName);
 }
 
 async function updateLinearStatusToStarted(issueId: string): Promise<void> {

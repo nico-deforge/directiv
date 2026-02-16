@@ -130,10 +130,15 @@ Create `.directiv.json` at the root of each repository:
     "node_modules"
   ],
   "onStart": ["bun install"],  // Commands to run after worktree creation
+  "beforeRemove": [],          // Commands to run before worktree deletion
   "baseBranch": "main" | "master" | "develop",
   "fetchBefore": true | false
 }
 ```
+
+> **Note:** Hooks (`onStart`, `beforeRemove`) run in the user's login shell (`$SHELL -lc`), so your full PATH from `.zshrc` / `.bashrc` is available. Commands like `psql`, `mise`, or Homebrew-installed tools will work as expected.
+>
+> `beforeRemove` hooks run while the worktree directory still exists, so you can use them to save state, backup files, or run cleanup scripts. If a hook fails, the removal is aborted.
 
 ## Deployment
 

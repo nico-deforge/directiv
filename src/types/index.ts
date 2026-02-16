@@ -85,6 +85,7 @@ export interface WorktreeInfo {
   isDirty: boolean;
   ahead: number;
   behind: number;
+  baseBranch: string | null;
 }
 
 // --- GitHub ---
@@ -175,6 +176,7 @@ export interface DiscoveredRepo {
   workspaceId: string;
   copyPaths: string[];
   onStart: string[];
+  beforeRemove: string[];
   fetchBefore: boolean;
   configWarning?: string;
 }

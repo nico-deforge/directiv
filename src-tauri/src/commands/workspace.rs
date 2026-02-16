@@ -9,6 +9,7 @@ pub struct DiscoveredRepo {
     pub path: String,
     pub copy_paths: Vec<String>,
     pub on_start: Vec<String>,
+    pub before_remove: Vec<String>,
     pub fetch_before: bool,
     pub config_warning: Option<String>,
 }
@@ -20,6 +21,8 @@ struct RepoConfig {
     copy_paths: Vec<String>,
     #[serde(default)]
     on_start: Vec<String>,
+    #[serde(default)]
+    before_remove: Vec<String>,
     #[serde(default = "default_fetch_before")]
     fetch_before: bool,
 }
@@ -98,6 +101,7 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
             path: repo_path,
             copy_paths: config.copy_paths,
             on_start: config.on_start,
+            before_remove: config.before_remove,
             fetch_before: config.fetch_before,
             config_warning,
         });

@@ -18,7 +18,17 @@ import { CIStatusIcon } from "./CIStatusIcon";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { LinearIssueStub } from "../../hooks/useLinear";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
-import { tmuxKillSession, openTerminal, openEditor } from "../../lib/tauri";
+import { useWorkspaceRepos } from "../../hooks/useWorkspace";
+import {
+  tmuxKillSession,
+  tmuxCreateSession,
+  tmuxWaitForReady,
+  tmuxSendKeys,
+  openTerminal,
+  openEditor,
+  worktreeCheckBranchSynced,
+} from "../../lib/tauri";
+import { buildClaudeCommand } from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -39,19 +49,42 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
   const removeWorktree = useWorktreeRemove();
+  const repos = useWorkspaceRepos();
   const queryClient = useQueryClient();
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [killingSession, setKillingSession] = useState(false);
+  const [launchingSession, setLaunchingSession] = useState(false);
+  const [hasUnpushed, setHasUnpushed] = useState(false);
 
   const hasSession = session !== null;
   const isDeleting = removeWorktree.isPending;
 
   useEffect(() => {
     if (!confirmingDelete) return;
-    const timer = setTimeout(() => setConfirmingDelete(false), 3000);
+    const timer = setTimeout(() => {
+      setConfirmingDelete(false);
+      setHasUnpushed(false);
+    }, 5000);
     return () => clearTimeout(timer);
   }, [confirmingDelete]);
+
+  async function handleLaunchSession() {
+    const sessionName = toSessionName(worktree.branch);
+    setLaunchingSession(true);
+    try {
+      await tmuxCreateSession(sessionName, worktree.path);
+      await tmuxWaitForReady(sessionName);
+      const cmd = await buildClaudeCommand();
+      await tmuxSendKeys(sessionName, cmd);
+      await openTerminal(terminal, sessionName);
+      queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] });
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setLaunchingSession(false);
+    }
+  }
 
   async function handleOpenTerminal() {
     if (!session) return;
@@ -85,23 +118,33 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
   async function handleDelete() {
     if (!confirmingDelete) {
+      // First click: check for unpushed commits, then show confirmation
       setConfirmingDelete(true);
+      try {
+        const synced = await worktreeCheckBranchSynced(
+          repoPath,
+          worktree.branch,
+        );
+        setHasUnpushed(!synced);
+      } catch {
+        setHasUnpushed(false);
+      }
       return;
     }
     setConfirmingDelete(false);
+    setHasUnpushed(false);
 
-    // Kill tmux session first if exists
-    try {
-      await tmuxKillSession(toSessionName(worktree.branch));
-    } catch {
-      // Session may not exist
-    }
-
+    const repo = repos.find((r) => r.path === repoPath);
     removeWorktree.mutate(
-      { repoPath, worktreePath: worktree.path },
       {
-        onSuccess: () =>
-          queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] }),
+        repoPath,
+        worktreePath: worktree.path,
+        branch: worktree.branch,
+        deleteBranch: true,
+        sessionName: session ? toSessionName(worktree.branch) : undefined,
+        beforeRemove: repo?.beforeRemove,
+      },
+      {
         onError: (err) => toastError(err),
       },
     );
@@ -185,14 +228,27 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
       {/* Actions */}
       <div className="flex items-center gap-2 px-3 py-2">
-        {/* Terminal button */}
-        {hasSession && (
+        {/* Terminal / Launch button */}
+        {hasSession ? (
           <button
             onClick={handleOpenTerminal}
             className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
           >
             <Terminal className="size-3.5" />
             Terminal
+          </button>
+        ) : (
+          <button
+            onClick={handleLaunchSession}
+            disabled={launchingSession}
+            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+          >
+            {launchingSession ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Terminal className="size-3.5" />
+            )}
+            Launch Claude
           </button>
         )}
 
@@ -225,6 +281,14 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         {/* Delete worktree button */}
         {confirmingDelete ? (
           <span className="flex items-center gap-2 text-xs">
+            {hasUnpushed && (
+              <span
+                className="text-[var(--accent-amber)]"
+                title="Branch has unpushed commits"
+              >
+                Unpushed!
+              </span>
+            )}
             <button
               onClick={handleDelete}
               disabled={isDeleting}
@@ -234,7 +298,10 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             </button>
             <span className="text-[var(--text-muted)]">/</span>
             <button
-              onClick={() => setConfirmingDelete(false)}
+              onClick={() => {
+                setConfirmingDelete(false);
+                setHasUnpushed(false);
+              }}
               className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
               Cancel
