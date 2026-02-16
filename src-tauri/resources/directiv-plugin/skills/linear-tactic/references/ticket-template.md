@@ -3,25 +3,25 @@
 Use this template when creating or updating a Linear issue description. Write all content in French.
 
 ```markdown
-## Contexte
+## 💬 Contexte
 
 [Résumé concis du contexte métier et technique. Pourquoi cette tâche existe.]
 
-## Objectif
+## 🎯 Objectif
 
 [Ce que la tâche doit accomplir. Résultat attendu clair et mesurable.]
 
-## Validation
+## ✅ Validation
 
 [Critères d'acceptation. Liste des conditions pour considérer la tâche comme terminée.]
 - [ ] Critère 1
 - [ ] Critère 2
 
-## Maquette
+## 🎨 Maquette
 
 [Si une maquette Figma existe, inclure le lien Figma et une capture d'écran via l'outil get_screenshot.]
 
-## Tactique
+## 🛠️ Tactique
 
 [Plan d'implémentation structuré, étape par étape. Chaque étape doit être actionnable.]
 
@@ -33,7 +33,7 @@ Use this template when creating or updating a Linear issue description. Write al
 ### Étape 2 : [Titre]
 ...
 
-## Questions / Décisions
+## ❓ Questions / Décisions
 
 [Questions ouvertes, hypothèses formulées, décisions à prendre.]
 - Question 1
@@ -46,5 +46,5 @@ Use this template when creating or updating a Linear issue description. Write al
 - **Objectif**: Single clear outcome. Not a list of tasks.
 - **Validation**: Testable criteria. Include edge cases.
 - **Maquette**: Include only when a Figma link exists. Use Figma's `get_screenshot` tool to capture the relevant node, then attach the image to the Linear issue using `create_attachment`. Add the Figma link for reference. Omit this section entirely if no design exists.
-- **Tactique**: The core deliverable. Each step must specify: file path, action, and implementation details. Use imperative French verbs.
+- **Tactique**: The core deliverable. Each step must specify: file path, action, and implementation details. Use imperative French verbs. Do not code in this section, be concise and just mention entrypoint.
 - **Questions**: Only include if real blockers or assumptions exist. Do not add placeholder questions.

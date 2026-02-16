@@ -46,6 +46,7 @@ Write a synthetic, structured tactic in **French** using the template in [refere
 - Flag gaps or ambiguities instead of assuming requirements.
 - Keep it self-contained: a developer agent reading only the tactic should have everything needed.
 - Prefer existing patterns over introducing new ones.
+- Do now write code in the tactic, all tactic should be concise and easy to iterate with
 
 ### 5. Update Linear
 
