@@ -32,5 +32,6 @@ export function validateConfig(
     ),
     linear: config.linear ?? defaultConfig.linear,
     theme: config.theme ?? defaultConfig.theme,
+    skills: config.skills,
   };
 }

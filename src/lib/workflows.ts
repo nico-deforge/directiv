@@ -15,6 +15,7 @@ import {
   getPluginDir,
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
+import type { SkillOverrides } from "../types";
 
 // --- Typed errors for worktree creation ---
 
@@ -90,17 +91,41 @@ export const SKILLS = {
   PLAN: "directiv:linear-tactic",
 } as const;
 
-export type Skill = (typeof SKILLS)[keyof typeof SKILLS];
+export type SkillKey = keyof typeof SKILLS;
+
+const SKILL_FIELD: Record<SkillKey, keyof SkillOverrides> = {
+  CODE: "code",
+  PLAN: "plan",
+};
+
+export function resolveSkill(
+  key: SkillKey,
+  repoOverrides?: SkillOverrides,
+  globalOverrides?: SkillOverrides,
+): string {
+  const field = SKILL_FIELD[key];
+  return repoOverrides?.[field] ?? globalOverrides?.[field] ?? SKILLS[key];
+}
+
+export function isOverriddenSkill(
+  key: SkillKey,
+  repoOverrides?: SkillOverrides,
+  globalOverrides?: SkillOverrides,
+): boolean {
+  const field = SKILL_FIELD[key];
+  return !!(repoOverrides?.[field] ?? globalOverrides?.[field]);
+}
 
 export async function buildClaudeCommand(
   skill?: string,
   identifier?: string,
+  usePlugin = true,
 ): Promise<string> {
-  const pluginDir = await getPluginDir();
+  const pluginDir = usePlugin ? await getPluginDir() : null;
   const escapedDir = pluginDir ? pluginDir.replace(/'/g, "'\\''") : null;
   const pluginFlag = escapedDir ? ` --plugin-dir '${escapedDir}'` : "";
   if (skill && identifier) {
-    if (!pluginDir) {
+    if (usePlugin && !pluginDir) {
       console.warn(
         "Plugin directory not found — launching Claude without skill",
       );
@@ -123,6 +148,7 @@ export interface StartTaskParams {
   baseBranch?: string;
   fetchBefore?: boolean;
   skill?: string;
+  usePlugin?: boolean;
 }
 
 async function ensureWorktree(
@@ -227,6 +253,7 @@ export async function startTask({
   baseBranch,
   fetchBefore,
   skill,
+  usePlugin,
 }: StartTaskParams): Promise<void> {
   const worktree = await ensureWorktree(
     repoPath,
@@ -237,7 +264,7 @@ export async function startTask({
   );
 
   const sessionName = toSessionName(identifier);
-  const claudeCmd = await buildClaudeCommand(skill, identifier);
+  const claudeCmd = await buildClaudeCommand(skill, identifier, usePlugin);
   await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
   openTerminalWithToast(terminal, sessionName);

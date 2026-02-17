@@ -30,8 +30,9 @@ import type {
 import { CIStatusIcon } from "./CIStatusIcon";
 import { useStartTask } from "../../hooks/useStartTask";
 import {
-  SKILLS,
-  type Skill,
+  type SkillKey,
+  resolveSkill,
+  isOverriddenSkill,
   BranchExistsError,
   BaseNotFoundError,
   BranchHasUnpushedError,
@@ -135,6 +136,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const isDisabled = !task.isAssignedToMe;
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
+  const globalSkills = useSettingsStore((s) => s.config.skills);
   const queryClient = useQueryClient();
   const startTask = useStartTask();
 
@@ -143,7 +145,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
-  const [pendingSkill, setPendingSkill] = useState<Skill>(SKILLS.CODE);
+  const [pendingSkillKey, setPendingSkillKey] = useState<SkillKey>("CODE");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [branchError, setBranchError] = useState<{
     type: "exists" | "not-found" | "unpushed";
@@ -217,11 +219,29 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
-  function handleStart(repoPath: string, baseBranch?: string) {
+  function getRepoSkillParams(
+    repoPath: string,
+    key: SkillKey,
+  ): {
+    skill: string;
+    usePlugin: boolean;
+  } {
+    const repo = repos.find((r) => r.path === repoPath);
+    return {
+      skill: resolveSkill(key, repo?.skills, globalSkills),
+      usePlugin: !isOverriddenSkill(key, repo?.skills, globalSkills),
+    };
+  }
+
+  function handleStart(repoPath: string, baseBranch?: string, key?: SkillKey) {
     setDropdownOpen(false);
     setSelectedRepo(null);
     setBranchError(null);
     const repo = repos.find((r) => r.path === repoPath);
+    const { skill, usePlugin } = getRepoSkillParams(
+      repoPath,
+      key ?? pendingSkillKey,
+    );
     startTask.mutate(
       {
         issueId: task.id,
@@ -232,7 +252,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         onStart: repo?.onStart,
         baseBranch,
         fetchBefore: repo?.fetchBefore,
-        skill: pendingSkill,
+        skill,
+        usePlugin,
       },
       {
         onError: (err) => {
@@ -270,6 +291,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     const { repoPath, baseBranch } = branchError;
     setBranchError(null);
     const repo = repos.find((r) => r.path === repoPath);
+    const { skill, usePlugin } = getRepoSkillParams(repoPath, pendingSkillKey);
     try {
       await worktreeCreateExistingBranch(
         repoPath,
@@ -289,7 +311,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           onStart: repo?.onStart,
           baseBranch,
           fetchBefore: false,
-          skill: pendingSkill,
+          skill,
+          usePlugin,
         },
         { onError: (err) => toastError(err) },
       );
@@ -311,11 +334,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
-  function openDropdown(skill: Skill) {
-    setPendingSkill(skill);
+  function openDropdown(key: SkillKey) {
+    setPendingSkillKey(key);
     // If worktree already exists, skip branch selection and start directly
     if (worktree && worktreeRepoPath) {
-      handleStart(worktreeRepoPath);
+      handleStart(worktreeRepoPath, undefined, key);
       return;
     }
     setDropdownOpen((prev) => !prev);
@@ -463,11 +486,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           {!hasSession && (
             <>
               <button
-                onClick={() => openDropdown(SKILLS.CODE)}
+                onClick={() => openDropdown("CODE")}
                 disabled={isLoading || repos.length === 0}
                 className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
-                {startTask.isPending && pendingSkill === SKILLS.CODE ? (
+                {startTask.isPending && pendingSkillKey === "CODE" ? (
                   <Loader2 className="size-3.5 animate-spin" />
                 ) : (
                   <>
@@ -478,11 +501,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                 )}
               </button>
               <button
-                onClick={() => openDropdown(SKILLS.PLAN)}
+                onClick={() => openDropdown("PLAN")}
                 disabled={isLoading || repos.length === 0}
                 className="flex items-center gap-1 rounded bg-[var(--accent-blue)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
-                {startTask.isPending && pendingSkill === SKILLS.PLAN ? (
+                {startTask.isPending && pendingSkillKey === "PLAN" ? (
                   <Loader2 className="size-3.5 animate-spin" />
                 ) : (
                   <>

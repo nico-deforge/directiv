@@ -11,5 +11,9 @@
   "linear": {
     "teamIds": ["TEAM_ID"]
   },
-  "theme": "system"
+  "theme": "system",
+  "skills": {
+    "code": "my-org:implementation-skill",
+    "plan": "my-org:planning-skill"
+  }
 }
