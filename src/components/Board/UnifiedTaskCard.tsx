@@ -36,7 +36,7 @@ import {
   BaseNotFoundError,
   BranchHasUnpushedError,
   removeWorktreeFlow,
-  openTerminalNotify,
+  openTerminalWithToast,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
@@ -321,13 +321,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setDropdownOpen((prev) => !prev);
   }
 
-  async function handleOpenTerminal() {
+  function handleOpenTerminal() {
     if (!session) return;
-    try {
-      await openTerminalNotify(terminal, session.name);
-    } catch (err) {
-      toastError(err);
-    }
+    openTerminalWithToast(terminal, session.name);
   }
 
   async function handleOpenEditor() {
