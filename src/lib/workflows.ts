@@ -200,12 +200,21 @@ export async function removeWorktreeFlow({
   await worktreeRemove(repoPath, worktreePath, branch, deleteBranch);
 }
 
-function openTerminalBestEffort(terminal: string, sessionName: string): void {
-  openTerminal(terminal, sessionName).catch((err) => {
-    toast.warning(
-      `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  });
+export function openTerminalWithToast(
+  terminal: string,
+  sessionName: string,
+): void {
+  openTerminal(terminal, sessionName)
+    .then((alreadyOpen) => {
+      if (alreadyOpen) {
+        toast.success("Terminal already open");
+      }
+    })
+    .catch((err) => {
+      toast.warning(
+        `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
 }
 
 export async function startTask({
@@ -231,7 +240,7 @@ export async function startTask({
   const claudeCmd = await buildClaudeCommand(skill, identifier);
   await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
-  openTerminalBestEffort(terminal, sessionName);
+  openTerminalWithToast(terminal, sessionName);
 
   await updateLinearStatusToStarted(issueId).catch((err) => {
     toast.warning(
@@ -270,7 +279,7 @@ export async function startFreeTask({
   const sessionName = toSessionName(branchName);
   await ensureSession(sessionName, worktree.path, onStart);
 
-  openTerminalBestEffort(terminal, sessionName);
+  openTerminalWithToast(terminal, sessionName);
 }
 
 async function updateLinearStatusToStarted(issueId: string): Promise<void> {

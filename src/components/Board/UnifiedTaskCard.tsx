@@ -36,10 +36,10 @@ import {
   BaseNotFoundError,
   BranchHasUnpushedError,
   removeWorktreeFlow,
+  openTerminalWithToast,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
-  openTerminal,
   openEditor,
   tmuxKillSession,
   worktreeCreateExistingBranch,
@@ -321,13 +321,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setDropdownOpen((prev) => !prev);
   }
 
-  async function handleOpenTerminal() {
+  function handleOpenTerminal() {
     if (!session) return;
-    try {
-      await openTerminal(terminal, session.name);
-    } catch (err) {
-      toastError(err);
-    }
+    openTerminalWithToast(terminal, session.name);
   }
 
   async function handleOpenEditor() {

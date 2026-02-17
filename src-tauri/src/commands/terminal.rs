@@ -1,11 +1,26 @@
 use tauri_plugin_shell::ShellExt;
 
+async fn has_attached_clients(app: &tauri::AppHandle, session: &str) -> bool {
+    app.shell()
+        .command("tmux")
+        .args(["list-clients", "-t", session])
+        .output()
+        .await
+        .is_ok_and(|output| {
+            output.status.success() && !String::from_utf8_lossy(&output.stdout).trim().is_empty()
+        })
+}
+
 #[tauri::command]
 pub async fn open_terminal(
     app: tauri::AppHandle,
     emulator: String,
     session: String,
-) -> Result<(), String> {
+) -> Result<bool, String> {
+    if has_attached_clients(&app, &session).await {
+        return Ok(true);
+    }
+
     let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
     let tmux_cmd = format!("tmux attach -t {session}");
 
@@ -45,7 +60,7 @@ end tell"#
         _ => return Err(format!("Unknown terminal emulator: {emulator}")),
     }
 
-    Ok(())
+    Ok(false)
 }
 
 #[tauri::command]

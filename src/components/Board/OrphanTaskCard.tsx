@@ -28,7 +28,7 @@ import {
   openEditor,
   worktreeCheckBranchSynced,
 } from "../../lib/tauri";
-import { buildClaudeCommand } from "../../lib/workflows";
+import { buildClaudeCommand, openTerminalWithToast } from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -86,13 +86,9 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     }
   }
 
-  async function handleOpenTerminal() {
+  function handleOpenTerminal() {
     if (!session) return;
-    try {
-      await openTerminal(terminal, session.name);
-    } catch (err) {
-      toastError(err);
-    }
+    openTerminalWithToast(terminal, session.name);
   }
 
   async function handleOpenEditor() {
