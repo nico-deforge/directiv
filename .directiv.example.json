@@ -7,5 +7,9 @@
   "onStart": ["bun install"],
   "beforeRemove": [],
   "baseBranch": "main",
-  "fetchBefore": true
+  "fetchBefore": true,
+  "skills": {
+    "code": "my-org:implementation-skill",
+    "plan": "my-org:planning-skill"
+  }
 }

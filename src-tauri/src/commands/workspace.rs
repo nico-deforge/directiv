@@ -2,6 +2,12 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+pub struct SkillOverrides {
+    pub code: Option<String>,
+    pub plan: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredRepo {
@@ -12,6 +18,7 @@ pub struct DiscoveredRepo {
     pub before_remove: Vec<String>,
     pub fetch_before: bool,
     pub config_warning: Option<String>,
+    pub skills: Option<SkillOverrides>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -25,6 +32,8 @@ struct RepoConfig {
     before_remove: Vec<String>,
     #[serde(default = "default_fetch_before")]
     fetch_before: bool,
+    #[serde(default)]
+    skills: Option<SkillOverrides>,
 }
 
 fn default_fetch_before() -> bool {
@@ -104,6 +113,7 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
             before_remove: config.before_remove,
             fetch_before: config.fetch_before,
             config_warning,
+            skills: config.skills,
         });
     }
 

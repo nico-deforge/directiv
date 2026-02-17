@@ -99,7 +99,11 @@ Create `directiv.config.json` in your home directory or project root:
   "linear": {
     "teamIds": ["TEAM_ID"]             // Team IDs or keys (e.g., "ENG" or UUID)
   },
-  "theme": "system" | "light" | "dark"
+  "theme": "system" | "light" | "dark",
+  "skills": {                            // Global skill overrides (optional)
+    "code": "my-org:implementation-skill",
+    "plan": "my-org:planning-skill"
+  }
 }
 ```
 
@@ -132,13 +136,47 @@ Create `.directiv.json` at the root of each repository:
   "onStart": ["bun install"],  // Commands to run after worktree creation
   "beforeRemove": [],          // Commands to run before worktree deletion
   "baseBranch": "main" | "master" | "develop",
-  "fetchBefore": true | false
+  "fetchBefore": true | false,
+  "skills": {              // Override Claude Code skills (optional)
+    "code": "my-org:implementation-skill",
+    "plan": "my-org:planning-skill"
+  }
 }
 ```
 
 > **Note:** Hooks (`onStart`, `beforeRemove`) run in the user's login shell (`$SHELL -lc`), so your full PATH from `.zshrc` / `.bashrc` is available. Commands like `psql`, `mise`, or Homebrew-installed tools will work as expected.
 >
 > `beforeRemove` hooks run while the worktree directory still exists, so you can use them to save state, backup files, or run cleanup scripts. If a hook fails, the removal is aborted.
+
+#### Skill overrides
+
+By default, the **Code** and **Plan** buttons launch Claude Code with the bundled Directiv plugin (`--plugin-dir`) and built-in skills (`directiv:linear-issue`, `directiv:linear-tactic`). You can override skills at two levels:
+
+**Global overrides** — in `directiv.config.json`, apply to all repos:
+
+```jsonc
+{
+  "skills": {
+    "code": "my-org:implementation-skill",
+    "plan": "my-org:planning-skill"
+  }
+}
+```
+
+**Per-repo overrides** — in `.directiv.json`, apply to a single repo:
+
+```jsonc
+{
+  "skills": {
+    "code": "my-org:repo-specific-skill",
+    "plan": "my-org:repo-specific-plan"
+  }
+}
+```
+
+**Priority chain:** repo `.directiv.json` > global `directiv.config.json` > bundled plugin defaults.
+
+When `skills` is present with at least one override (at either level), the bundled `--plugin-dir` flag is omitted — Claude Code will rely on the repo's own plugin/skill setup instead. Both `code` and `plan` are optional; omit either to keep the default skill name (but still without `--plugin-dir`). An empty `"skills": {}` is a no-op and the bundled plugin is still used.
 
 ## Deployment
 
@@ -233,7 +271,7 @@ For AI agent integration:
 npm install -g @anthropic-ai/claude-code
 ```
 
-Directiv ships with a bundled Claude Code plugin containing the `linear-issue` skill. When you click **[Start]** on a task, Claude Code is launched with `--plugin-dir` pointing to the bundled plugin, so the `/directiv:linear-issue` skill is available out of the box — no manual skill installation required.
+Directiv ships with a bundled Claude Code plugin containing the `linear-issue` skill. When you click **[Start]** on a task, Claude Code is launched with `--plugin-dir` pointing to the bundled plugin, so the `/directiv:linear-issue` skill is available out of the box — no manual skill installation required. You can also override skills per-repo to use your own — see [Skill overrides](#skill-overrides).
 
 #### GitHub CLI (strongly recommended)
 
