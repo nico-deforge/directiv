@@ -4,6 +4,7 @@ import type {
   WorktreeInfo,
   PluginSkillInfo,
   DiscoveredRepo,
+  SkillOverrides,
 } from "../types";
 
 // --- Workspace commands ---
@@ -16,6 +17,7 @@ interface RawDiscoveredRepo {
   beforeRemove: string[];
   fetchBefore: boolean;
   configWarning?: string;
+  skills?: SkillOverrides;
 }
 
 export async function scanWorkspace(

@@ -170,6 +170,11 @@ export interface WorkspaceConfig {
   path: string;
 }
 
+export interface SkillOverrides {
+  code?: string;
+  plan?: string;
+}
+
 export interface DiscoveredRepo {
   id: string;
   path: string;
@@ -179,6 +184,7 @@ export interface DiscoveredRepo {
   beforeRemove: string[];
   fetchBefore: boolean;
   configWarning?: string;
+  skills?: SkillOverrides;
 }
 
 export interface LinearConfig {
@@ -191,4 +197,5 @@ export interface DirectivConfig {
   workspaces: WorkspaceConfig[];
   linear: LinearConfig;
   theme: Theme;
+  skills?: SkillOverrides;
 }
