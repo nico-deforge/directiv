@@ -154,8 +154,11 @@ export function runHooks(
 
 // --- Terminal commands ---
 
-export function openTerminal(emulator: string, session: string): Promise<void> {
-  return invoke<void>("open_terminal", { emulator, session });
+export function openTerminal(
+  emulator: string,
+  session: string,
+): Promise<boolean> {
+  return invoke<boolean>("open_terminal", { emulator, session });
 }
 
 // --- Editor commands ---

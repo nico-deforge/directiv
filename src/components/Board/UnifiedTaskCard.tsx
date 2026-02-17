@@ -36,10 +36,10 @@ import {
   BaseNotFoundError,
   BranchHasUnpushedError,
   removeWorktreeFlow,
+  openTerminalNotify,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
-  openTerminal,
   openEditor,
   tmuxKillSession,
   worktreeCreateExistingBranch,
@@ -324,7 +324,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   async function handleOpenTerminal() {
     if (!session) return;
     try {
-      await openTerminal(terminal, session.name);
+      await openTerminalNotify(terminal, session.name);
     } catch (err) {
       toastError(err);
     }

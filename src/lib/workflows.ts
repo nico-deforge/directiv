@@ -200,8 +200,18 @@ export async function removeWorktreeFlow({
   await worktreeRemove(repoPath, worktreePath, branch, deleteBranch);
 }
 
+export async function openTerminalNotify(
+  terminal: string,
+  sessionName: string,
+): Promise<void> {
+  const alreadyOpen = await openTerminal(terminal, sessionName);
+  if (alreadyOpen) {
+    toast.success("Terminal already open");
+  }
+}
+
 function openTerminalBestEffort(terminal: string, sessionName: string): void {
-  openTerminal(terminal, sessionName).catch((err) => {
+  openTerminalNotify(terminal, sessionName).catch((err) => {
     toast.warning(
       `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
     );
