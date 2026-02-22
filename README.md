@@ -56,14 +56,16 @@ Switch between tasks instantly. Never lose your place.
 - **GitHub integration** — Track PRs, reviews, and merge status
 - **Git worktree management** — Create, switch, and cleanup worktrees via GUI
 - **tmux orchestration** — Persistent sessions that survive terminal crashes
-- **Terminal delegation** — Works with Ghostty, iTerm2
+- **Integrated terminal** — Built-in xterm.js terminal connected to tmux via Rust PTY, with full-screen tab system
+- **External terminal fallback** — Optional delegation to Ghostty or iTerm2 via `terminalMode: "external"` config
 - **Claude Code integration** — Launch AI agents with issue context pre-loaded
 - **Multi-repo support** — Manage multiple repositories from one board
 
 ## Tech Stack
 
 - **Framework:** Tauri 2.0 (Rust backend, React frontend)
-- **Frontend:** React, TypeScript, Zustand, TanStack Query, Tailwind CSS
+- **Frontend:** React, TypeScript, Zustand, TanStack Query, Tailwind CSS, xterm.js
+- **Backend:** Rust with portable-pty (PTY management), tauri-plugin-shell (system commands)
 - **Integrations:** Linear SDK, Octokit, tmux, git worktree
 
 ## Getting Started
@@ -87,7 +89,9 @@ Create `directiv.config.json` in your home directory or project root:
 
 ```jsonc
 {
-  "terminal": "ghostty" | "iterm2",
+  "terminal": "ghostty" | "iterm2",       // External emulator (used when terminalMode is "external")
+  "terminalMode": "internal" | "external", // "internal" (default): built-in xterm.js terminal
+                                           // "external": delegates to Ghostty/iTerm2
   "editor": "zed" | "cursor" | "vscode" | "code",
   "workspaces": [
     {
@@ -106,6 +110,8 @@ Create `directiv.config.json` in your home directory or project root:
   }
 }
 ```
+
+> **Terminal mode:** By default, Directiv uses a built-in terminal (xterm.js + Rust PTY) that renders tmux sessions directly in the app as full-screen tabs. To revert to the previous behavior of opening Ghostty or iTerm2, set `"terminalMode": "external"` in your config.
 
 ### Environment Variables
 
@@ -227,8 +233,8 @@ With mise installed, `bun` and `rust` are automatically installed at the correct
 
 ```bash
 # True Color support (24-bit)
-set -as terminal-features ",xterm-ghostty:RGB"  # Ghostty
-# set -as terminal-features ",xterm-256color:RGB" # iTerm2
+set -as terminal-features ",xterm-256color:RGB"  # Integrated terminal + iTerm2
+set -as terminal-features ",xterm-ghostty:RGB"   # Ghostty (external mode)
 
 # Default terminal
 set -g default-terminal "tmux-256color"
@@ -332,14 +338,18 @@ mise tasks
 ```
 directiv/
 ├── src/                  # React frontend
+│   ├── assets/fonts/     # Bundled fonts (JetBrains Mono)
 │   ├── components/       # UI components
+│   │   ├── Board/        # Task cards, dependency graph
+│   │   ├── Terminal/     # TerminalPanel (xterm.js), TabBar
+│   │   └── Layout/       # RootLayout with tab system
 │   ├── hooks/            # TanStack Query hooks
-│   ├── stores/           # Zustand stores
-│   ├── lib/              # SDK clients, business logic
+│   ├── stores/           # Zustand stores (workflow, settings, terminal)
+│   ├── lib/              # SDK clients, business logic, PTY wrappers
 │   └── types/            # TypeScript types
 ├── src-tauri/            # Rust backend
 │   └── src/
-│       ├── commands/     # Tauri commands (worktree, tmux, terminal)
+│       ├── commands/     # Tauri commands (worktree, tmux, pty, terminal)
 │       └── lib.rs        # Main entry point
 └── directiv.config.json  # User configuration
 ```
