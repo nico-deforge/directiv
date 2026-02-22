@@ -425,10 +425,16 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             </span>
           )}
           {needsInput && (
-            <span className="ml-auto flex items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-red)]/20 text-[var(--accent-red)]">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenTerminal();
+              }}
+              className="ml-auto flex cursor-pointer items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-red)]/20 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 transition-colors"
+            >
               <AlertTriangle className="size-3" />
               Needs Input
-            </span>
+            </button>
           )}
         </div>
         <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
