@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { open } from "@tauri-apps/plugin-shell";
 import { Channel } from "@tauri-apps/api/core";
 import {
   ptySpawn,
@@ -62,7 +63,11 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
     const fitAddon = new FitAddon();
     fitAddonRef.current = fitAddon;
     term.loadAddon(fitAddon);
-    term.loadAddon(new WebLinksAddon());
+    term.loadAddon(
+      new WebLinksAddon((_event, uri) => {
+        open(uri).catch(() => {});
+      }),
+    );
 
     term.open(containerRef.current);
     fitAddon.fit();
