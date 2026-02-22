@@ -29,6 +29,7 @@ import {
   worktreeCheckBranchSynced,
 } from "../../lib/tauri";
 import { buildClaudeCommand, openTerminalWithToast } from "../../lib/workflows";
+import { useTerminalStore } from "../../stores/terminalStore";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -77,7 +78,16 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       await tmuxWaitForReady(sessionName);
       const cmd = await buildClaudeCommand();
       await tmuxSendKeys(sessionName, cmd);
-      await openTerminal(terminal, sessionName);
+      const terminalMode = useSettingsStore.getState().config.terminalMode;
+      if (terminalMode === "external") {
+        await openTerminal(terminal, sessionName);
+      } else {
+        useTerminalStore.getState().openTerminal({
+          sessionName,
+          identifier: worktree.branch,
+          title: linearIssue?.title ?? worktree.branch,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] });
     } catch (err) {
       toastError(err);
@@ -88,7 +98,16 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
   function handleOpenTerminal() {
     if (!session) return;
-    openTerminalWithToast(terminal, session.name);
+    const terminalMode = useSettingsStore.getState().config.terminalMode;
+    if (terminalMode === "external") {
+      openTerminalWithToast(terminal, session.name);
+    } else {
+      useTerminalStore.getState().openTerminal({
+        sessionName: session.name,
+        identifier: worktree.branch,
+        title: linearIssue?.title ?? worktree.branch,
+      });
+    }
   }
 
   async function handleOpenEditor() {

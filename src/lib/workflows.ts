@@ -15,7 +15,8 @@ import {
   getPluginDir,
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
-import type { SkillOverrides } from "../types";
+import type { SkillOverrides, TerminalMode } from "../types";
+import { useTerminalStore } from "../stores/terminalStore";
 
 // --- Typed errors for worktree creation ---
 
@@ -141,8 +142,10 @@ export async function buildClaudeCommand(
 export interface StartTaskParams {
   issueId: string;
   identifier: string;
+  title: string;
   repoPath: string;
   terminal: string;
+  terminalMode?: TerminalMode;
   copyPaths?: string[];
   onStart?: string[];
   baseBranch?: string;
@@ -246,8 +249,10 @@ export function openTerminalWithToast(
 export async function startTask({
   issueId,
   identifier,
+  title,
   repoPath,
   terminal,
+  terminalMode,
   copyPaths,
   onStart,
   baseBranch,
@@ -267,7 +272,13 @@ export async function startTask({
   const claudeCmd = await buildClaudeCommand(skill, identifier, usePlugin);
   await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
-  openTerminalWithToast(terminal, sessionName);
+  if (terminalMode === "external") {
+    openTerminalWithToast(terminal, sessionName);
+  } else {
+    useTerminalStore
+      .getState()
+      .openTerminal({ sessionName, identifier, title });
+  }
 
   await updateLinearStatusToStarted(issueId).catch((err) => {
     toast.warning(
@@ -280,6 +291,7 @@ interface StartFreeTaskParams {
   branchName: string;
   repoPath: string;
   terminal: string;
+  terminalMode?: TerminalMode;
   copyPaths?: string[];
   onStart?: string[];
   baseBranch?: string;
@@ -290,6 +302,7 @@ export async function startFreeTask({
   branchName,
   repoPath,
   terminal,
+  terminalMode,
   copyPaths,
   onStart,
   baseBranch,
@@ -306,7 +319,13 @@ export async function startFreeTask({
   const sessionName = toSessionName(branchName);
   await ensureSession(sessionName, worktree.path, onStart);
 
-  openTerminalWithToast(terminal, sessionName);
+  if (terminalMode === "external") {
+    openTerminalWithToast(terminal, sessionName);
+  } else {
+    useTerminalStore
+      .getState()
+      .openTerminal({ sessionName, identifier: branchName, title: branchName });
+  }
 }
 
 async function updateLinearStatusToStarted(issueId: string): Promise<void> {

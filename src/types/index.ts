@@ -160,6 +160,13 @@ export interface PluginSkillInfo {
 
 // --- Config ---
 
+export const TERMINAL_MODES = {
+  INTERNAL: "internal",
+  EXTERNAL: "external",
+} as const;
+
+export type TerminalMode = (typeof TERMINAL_MODES)[keyof typeof TERMINAL_MODES];
+
 export type TerminalEmulator = "ghostty" | "iterm2";
 export type CodeEditor = "zed" | "cursor" | "vscode" | "code";
 export type Theme = "light" | "dark" | "system";
@@ -193,6 +200,7 @@ export interface LinearConfig {
 
 export interface DirectivConfig {
   terminal: TerminalEmulator;
+  terminalMode?: TerminalMode;
   editor: CodeEditor;
   workspaces: WorkspaceConfig[];
   linear: LinearConfig;

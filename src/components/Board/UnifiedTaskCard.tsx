@@ -40,6 +40,7 @@ import {
   openTerminalWithToast,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useTerminalStore } from "../../stores/terminalStore";
 import {
   openEditor,
   tmuxKillSession,
@@ -242,12 +243,15 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       repoPath,
       key ?? pendingSkillKey,
     );
+    const terminalMode = useSettingsStore.getState().config.terminalMode;
     startTask.mutate(
       {
         issueId: task.id,
         identifier: task.identifier,
+        title: task.title,
         repoPath,
         terminal,
+        terminalMode,
         copyPaths: repo?.copyPaths,
         onStart: repo?.onStart,
         baseBranch,
@@ -305,8 +309,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         {
           issueId: task.id,
           identifier: task.identifier,
+          title: task.title,
           repoPath,
           terminal,
+          terminalMode: useSettingsStore.getState().config.terminalMode,
           copyPaths: repo?.copyPaths,
           onStart: repo?.onStart,
           baseBranch,
@@ -346,7 +352,16 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   function handleOpenTerminal() {
     if (!session) return;
-    openTerminalWithToast(terminal, session.name);
+    const terminalMode = useSettingsStore.getState().config.terminalMode;
+    if (terminalMode === "external") {
+      openTerminalWithToast(terminal, session.name);
+    } else {
+      useTerminalStore.getState().openTerminal({
+        sessionName: session.name,
+        identifier: task.identifier,
+        title: task.title,
+      });
+    }
   }
 
   async function handleOpenEditor() {

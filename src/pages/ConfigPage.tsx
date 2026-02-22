@@ -9,7 +9,7 @@ export function ConfigPage() {
   const [activeSection, setActiveSection] = useState<ConfigSection>("skills");
 
   return (
-    <div className="flex h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div className="flex h-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {/* Sidebar */}
       <aside className="flex w-[200px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-secondary)]">
         <div className="shrink-0 border-b border-[var(--border-default)] px-4 py-3">
