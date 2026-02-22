@@ -14,7 +14,7 @@ import type { PtyOutputEvent } from "../../lib/pty";
 import { useTerminalStore } from "../../stores/terminalStore";
 import "@xterm/xterm/css/xterm.css";
 
-const TERMINAL_BG = "#1a1a1a";
+const TERMINAL_BG = "#282c34";
 
 interface TerminalPanelProps {
   sessionName: string;
@@ -49,11 +49,11 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       fontSize: 13,
       scrollback: 10_000,
       cursorBlink: true,
-      fontFamily: "Menlo, Monaco, 'Courier New', monospace",
+      fontFamily: "'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace",
       theme: {
         background: TERMINAL_BG,
-        foreground: "#d4d4d4",
-        cursor: "#d4d4d4",
+        foreground: "#ffffff",
+        cursor: "#ffffff",
         selectionBackground: "#444444",
       },
     });
