@@ -17,21 +17,17 @@ Use this template when creating or updating a Linear issue description. Write al
 - [ ] Critère 1
 - [ ] Critère 2
 
-## 🎨 Maquette
-
-[Si une maquette Figma existe, inclure le lien Figma et une capture d'écran via l'outil get_screenshot.]
-
 ## 🛠️ Tactique
 
-[Plan d'implémentation structuré, étape par étape. Chaque étape doit être actionnable.]
+### Stratégie
 
-### Étape 1 : [Titre]
-- Fichier(s) : `path/to/file.ts`
-- Action : Créer/Modifier/Ajouter...
-- Détails : ...
+[2-4 phrases décrivant l'approche globale : quel pattern suivre, quel flux de données, quelle architecture. C'est la vision d'ensemble, pas les détails.]
 
-### Étape 2 : [Titre]
-...
+### Entrypoints
+
+- **[Action verbe impératif]** — `path/to/file.ext` → one-liner décrivant le quoi
+- **[Action verbe impératif]** — `path/to/file.ext` → one-liner décrivant le quoi
+- ...
 
 ## ❓ Questions / Décisions
 
@@ -45,6 +41,5 @@ Use this template when creating or updating a Linear issue description. Write al
 - **Contexte**: 2-4 sentences max. Link to parent ticket if relevant.
 - **Objectif**: Single clear outcome. Not a list of tasks.
 - **Validation**: Testable criteria. Include edge cases.
-- **Maquette**: Include only when a Figma link exists. Use Figma's `get_screenshot` tool to capture the relevant node, then attach the image to the Linear issue using `create_attachment`. Add the Figma link for reference. Omit this section entirely if no design exists.
-- **Tactique**: The core deliverable. Each step must specify: file path, action, and implementation details. Use imperative French verbs. Do not code in this section, be concise and just mention entrypoint.
+- **Tactique**: Two parts. (1) **Stratégie** — 2-4 sentences describing the global approach, the pattern to follow, the data flow. No file paths here. (2) **Entrypoints** — flat bullet list, one bullet per touchpoint. Format: `**[Verb]** — \`path\` → what (max 15 words)`. No implementation details, no field types, no validation rules. The tactic is a map, not a manual.
 - **Questions**: Only include if real blockers or assumptions exist. Do not add placeholder questions.
