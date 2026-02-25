@@ -180,6 +180,7 @@ export interface WorkspaceConfig {
 export interface SkillOverrides {
   code?: string;
   plan?: string;
+  fixCi?: string;
 }
 
 export interface DiscoveredRepo {

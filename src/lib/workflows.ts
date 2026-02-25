@@ -110,6 +110,7 @@ function parseWorktreeError(
 export const SKILLS = {
   CODE: "directiv:linear-issue",
   PLAN: "directiv:linear-tactic",
+  FIX_CI: "directiv:fix-ci",
 } as const;
 
 export type SkillKey = keyof typeof SKILLS;
@@ -117,6 +118,7 @@ export type SkillKey = keyof typeof SKILLS;
 const SKILL_FIELD: Record<SkillKey, keyof SkillOverrides> = {
   CODE: "code",
   PLAN: "plan",
+  FIX_CI: "fixCi",
 };
 
 export function resolveSkill(
@@ -135,6 +137,15 @@ export function isOverriddenSkill(
 ): boolean {
   const field = SKILL_FIELD[key];
   return !!(repoOverrides?.[field] ?? globalOverrides?.[field]);
+}
+
+export async function sendSkillToSession(
+  sessionName: string,
+  skill: string,
+  identifier: string,
+): Promise<void> {
+  const safeCmd = `/${skill} ${identifier}`;
+  await tmuxSendKeys(sessionName, safeCmd);
 }
 
 export async function buildClaudeCommand(
