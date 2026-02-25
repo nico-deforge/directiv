@@ -16,12 +16,9 @@ import "@xyflow/react/dist/style.css";
 
 import { Maximize2 } from "lucide-react";
 import {
-  useLinearMyProjects,
   useLinearProjectIssues,
-  useLinearConnectionStatus,
   useLinearIssuesByBranches,
   useLinearMyActiveIdentifiers,
-  type LinearConnectionStatus,
 } from "../../hooks/useLinear";
 import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
 import { useGitHubMyOpenPRs } from "../../hooks/useGitHub";
@@ -32,11 +29,7 @@ import {
 } from "../../hooks/useBlockedByMutations";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorkspaceRepos } from "../../hooks/useWorkspace";
-import {
-  useProjectStore,
-  ORPHAN_PROJECT_ID,
-  type Project,
-} from "../../stores/projectStore";
+import { useProjectStore, ORPHAN_PROJECT_ID } from "../../stores/projectStore";
 import { UnifiedTaskCard, type UnifiedTaskNodeData } from "./UnifiedTaskCard";
 import { OrphanTaskCard, type OrphanTaskNodeData } from "./OrphanTaskCard";
 import { DragConnectionLine } from "./DragConnectionLine";
@@ -82,45 +75,22 @@ const EDGE_COLOR = { dark: "#737373", light: "#8a8a84" } as const;
 const EDGE_HIGHLIGHT_COLOR = "#ef4444";
 const NullConnectionLine = () => null;
 
-interface DependencyGraphProps {
-  onProjectsChange: (
-    projects: Project[],
-    hasOrphans: boolean,
-    connectionStatus: LinearConnectionStatus,
-  ) => void;
-}
-
-export function DependencyGraph(props: DependencyGraphProps) {
+export function DependencyGraph() {
   return (
     <ReactFlowProvider>
-      <DependencyGraphInner {...props} />
+      <DependencyGraphInner />
     </ReactFlowProvider>
   );
 }
 
-function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
-  const config = useSettingsStore((s) => s.config);
+function DependencyGraphInner() {
+  const teamIds = useSettingsStore((s) => s.config.linear.teamIds);
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
-  const teamIds = config.linear.teamIds;
   const repos = useWorkspaceRepos();
 
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
 
-  const {
-    data: linearProjects,
-    isLoading: projectsLoading,
-    error: projectsError,
-  } = useLinearMyProjects();
-  const {
-    data: tasks,
-    isLoading: tasksLoading,
-    error: tasksError,
-  } = useLinearProjectIssues(selectedProjectId, teamIds);
-  const connectionStatus = useLinearConnectionStatus(
-    teamIds,
-    projectsLoading || tasksLoading,
-    projectsError || tasksError,
-  );
+  const { data: tasks } = useLinearProjectIssues(selectedProjectId, teamIds);
   const { data: sessions } = useTmuxSessions();
   const activeSessionNames = useMemo(
     () => (sessions ?? []).map((s) => s.name),
@@ -186,18 +156,6 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
     return map;
   }, [allWorktrees]);
 
-  // Map API-fetched projects to Project[] format
-  const projectList = useMemo(() => {
-    if (!linearProjects) return [];
-    return linearProjects.map(
-      (p): Project => ({
-        id: p.id,
-        name: p.name,
-        statusType: p.statusType,
-      }),
-    );
-  }, [linearProjects]);
-
   // Find orphan worktrees (not linked to any active issue across all projects)
   const orphanWorktrees = useMemo(() => {
     const knownIdentifiers = myActiveIdentifiers ?? new Set<string>();
@@ -225,13 +183,6 @@ function DependencyGraphInner({ onProjectsChange }: DependencyGraphProps) {
   );
   const { data: linearIssuesByBranch } =
     useLinearIssuesByBranches(orphanBranchNames);
-
-  const hasOrphans = orphanWorktrees.length > 0;
-
-  // Notify parent of project changes
-  useEffect(() => {
-    onProjectsChange(projectList, hasOrphans, connectionStatus);
-  }, [projectList, hasOrphans, connectionStatus, onProjectsChange]);
 
   // Build nodes and edges
   const { nextNodes, nextEdges } = useMemo(() => {

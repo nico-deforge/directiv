@@ -143,6 +143,14 @@ User config lives in `directiv.config.json` at project root:
   export type MyStatus = (typeof MY_STATUSES)[keyof typeof MY_STATUSES];
   ```
 
+- **Avoid useEffect anti-patterns** — Do not use `useEffect` to sync props to state, notify parents of derived values, or set state from other state. Instead:
+  - **Derived values**: compute during render (or `useMemo` if expensive)
+  - **Notify parent**: call in the event handler that triggered the change
+  - **Reset state on prop change**: use the `key` prop to remount
+  - **Sync to external store**: acceptable (e.g., TanStack Query → Zustand, or ReactFlow state), but consolidate into a single Effect
+
+  Reference: [React docs — You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect)
+
 ## Language
 
 The architecture doc may be in French. Code identifiers, comments in code and commit messages should be in English.
