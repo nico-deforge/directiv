@@ -240,6 +240,7 @@ export function ProjectSelector() {
 function NewWorktreeSection() {
   const repos = useWorkspaceRepos();
   const terminal = useSettingsStore((s) => s.config.terminal);
+  const terminalMode = useSettingsStore((s) => s.config.terminalMode);
   const startFreeTask = useStartFreeTask();
 
   const [showForm, setShowForm] = useState(false);
@@ -264,7 +265,6 @@ function NewWorktreeSection() {
   async function handleCreate() {
     const repo = repos[selectedRepoIndex];
     setBranchExistsPrompt(null);
-    const terminalMode = useSettingsStore.getState().config.terminalMode;
     startFreeTask.mutate(
       {
         branchName: branchName.trim(),
@@ -317,7 +317,7 @@ function NewWorktreeSection() {
           branchName: branchName.trim(),
           repoPath,
           terminal,
-          terminalMode: useSettingsStore.getState().config.terminalMode,
+          terminalMode,
           copyPaths: repo?.copyPaths,
           onStart: repo?.onStart,
           baseBranch: promptBase,

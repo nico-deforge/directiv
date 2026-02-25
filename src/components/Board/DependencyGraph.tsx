@@ -84,9 +84,8 @@ export function DependencyGraph() {
 }
 
 function DependencyGraphInner() {
-  const config = useSettingsStore((s) => s.config);
+  const teamIds = useSettingsStore((s) => s.config.linear.teamIds);
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
-  const teamIds = config.linear.teamIds;
   const repos = useWorkspaceRepos();
 
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);

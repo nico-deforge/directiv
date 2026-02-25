@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import type { LinearConnectionStatus } from "../hooks/useLinear";
+import type {
+  LinearConnectionStatus,
+  LinearProjectStatusType,
+} from "../hooks/useLinear";
 
 // Special project ID for orphan worktrees (worktrees without Linear tasks)
 export const ORPHAN_PROJECT_ID = "__orphan__";
@@ -7,21 +10,15 @@ export const ORPHAN_PROJECT_ID = "__orphan__";
 export interface Project {
   id: string;
   name: string;
-  statusType: "started" | "backlog";
+  statusType: LinearProjectStatusType;
 }
 
 interface ProjectState {
-  // List of available projects derived from tasks
   projects: Project[];
-  // Whether orphan worktrees exist
   hasOrphans: boolean;
-  // Linear connection status
   connectionStatus: LinearConnectionStatus;
-  // Currently selected project ID (null = show all)
   selectedProjectId: string | null;
-  // Whether to show backlog projects in the sidebar
   showBacklogProjects: boolean;
-  // Actions
   setProjectsData: (
     projects: Project[],
     hasOrphans: boolean,

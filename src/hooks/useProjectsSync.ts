@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import {
   useLinearMyProjects,
+  useLinearProjectIssues,
   useLinearConnectionStatus,
   useLinearMyActiveIdentifiers,
 } from "./useLinear";
@@ -18,6 +19,7 @@ export function useProjectsSync() {
   const teamIds = useSettingsStore((s) => s.config.linear.teamIds);
   const repos = useWorkspaceRepos();
   const setProjectsData = useProjectStore((s) => s.setProjectsData);
+  const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
 
   const {
     data: linearProjects,
@@ -25,10 +27,15 @@ export function useProjectsSync() {
     error: projectsError,
   } = useLinearMyProjects();
 
+  const { isLoading: tasksLoading, error: tasksError } = useLinearProjectIssues(
+    selectedProjectId,
+    teamIds,
+  );
+
   const connectionStatus = useLinearConnectionStatus(
     teamIds,
-    projectsLoading,
-    projectsError,
+    projectsLoading || tasksLoading,
+    projectsError || tasksError,
   );
 
   const { data: allWorktrees } = useAllWorktrees(repos);
@@ -47,14 +54,11 @@ export function useProjectsSync() {
 
   const hasOrphans = useMemo(() => {
     const knownIdentifiers = myActiveIdentifiers ?? new Set<string>();
-    for (const rw of allWorktrees ?? []) {
-      for (const wt of rw.worktrees.slice(1)) {
-        if (!knownIdentifiers.has(wt.branch.toLowerCase())) {
-          return true;
-        }
-      }
-    }
-    return false;
+    return (allWorktrees ?? []).some((rw) =>
+      rw.worktrees
+        .slice(1)
+        .some((wt) => !knownIdentifiers.has(wt.branch.toLowerCase())),
+    );
   }, [myActiveIdentifiers, allWorktrees]);
 
   useEffect(() => {
