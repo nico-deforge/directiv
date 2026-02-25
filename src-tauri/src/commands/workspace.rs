@@ -3,9 +3,11 @@ use std::fs;
 use std::path::Path;
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SkillOverrides {
     pub code: Option<String>,
     pub plan: Option<String>,
+    pub fix_ci: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
