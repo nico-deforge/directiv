@@ -66,6 +66,26 @@ export class BranchHasUnpushedError extends Error {
   }
 }
 
+export class HookFailedError extends Error {
+  hookCmd: string;
+  stderr: string;
+  constructor(hookCmd: string, stderr: string) {
+    super(`Hook \`${hookCmd}\` failed: ${stderr}`);
+    this.name = "HookFailedError";
+    this.hookCmd = hookCmd;
+    this.stderr = stderr;
+  }
+}
+
+function parseHookError(err: unknown): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  const match = msg.match(/^Hook `(.+?)` failed:\s*([\s\S]*)$/);
+  if (match) {
+    return new HookFailedError(match[1], match[2]);
+  }
+  return err instanceof Error ? err : new Error(msg);
+}
+
 function parseWorktreeError(
   err: unknown,
   baseBranch: string | undefined,
@@ -210,6 +230,7 @@ export interface RemoveWorktreeFlowParams {
   sessionName?: string;
   beforeRemove?: string[];
   deleteBranch?: boolean;
+  skipHooks?: boolean;
 }
 
 export async function removeWorktreeFlow({
@@ -219,9 +240,14 @@ export async function removeWorktreeFlow({
   sessionName,
   beforeRemove,
   deleteBranch = true,
+  skipHooks = false,
 }: RemoveWorktreeFlowParams): Promise<void> {
-  if (beforeRemove && beforeRemove.length > 0) {
-    await runHooks(beforeRemove, worktreePath);
+  if (!skipHooks && beforeRemove && beforeRemove.length > 0) {
+    try {
+      await runHooks(beforeRemove, worktreePath);
+    } catch (err) {
+      throw parseHookError(err);
+    }
   }
   if (sessionName) {
     await tmuxKillSession(sessionName).catch(() => {});

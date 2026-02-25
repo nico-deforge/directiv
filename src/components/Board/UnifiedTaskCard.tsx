@@ -36,6 +36,7 @@ import {
   BranchExistsError,
   BaseNotFoundError,
   BranchHasUnpushedError,
+  HookFailedError,
   removeWorktreeFlow,
   openTerminalWithToast,
 } from "../../lib/workflows";
@@ -154,6 +155,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     baseBranch?: string;
     repoPath: string;
   } | null>(null);
+  const [hookError, setHookError] = useState<string | null>(null);
 
   const hasSession = session !== null;
   const isLoading = startTask.isPending || killingSession || deletingWorktree;
@@ -197,10 +199,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
-  async function handleDeleteWorktree() {
+  async function handleDeleteWorktree(skipHooks = false) {
     if (!worktree || !worktreeRepoPath) return;
     setDeletingWorktree(true);
     setConfirmingDelete(false);
+    setHookError(null);
     try {
       const repo = repos.find((r) => r.path === worktreeRepoPath);
       await removeWorktreeFlow({
@@ -210,11 +213,16 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         deleteBranch: true,
         sessionName: session?.name,
         beforeRemove: repo?.beforeRemove,
+        skipHooks,
       });
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
-      toastError(err);
+      if (err instanceof HookFailedError) {
+        setHookError(err.message);
+      } else {
+        toastError(err);
+      }
     } finally {
       setDeletingWorktree(false);
     }
@@ -594,7 +602,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             <span className="flex items-center gap-2 text-xs">
               <span className="text-[var(--text-muted)]">Delete worktree?</span>
               <button
-                onClick={handleDeleteWorktree}
+                onClick={() => handleDeleteWorktree()}
                 disabled={deletingWorktree}
                 className="text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
               >
@@ -649,6 +657,32 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Hook error panel */}
+          {hookError && (
+            <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] p-3 shadow-lg">
+              <p className="mb-2 text-xs text-[var(--accent-red)]">
+                {hookError}
+              </p>
+              <div className="flex flex-col gap-1.5">
+                <button
+                  onClick={() => {
+                    setHookError(null);
+                    handleDeleteWorktree(true);
+                  }}
+                  className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
+                >
+                  Delete anyway
+                </button>
+                <button
+                  onClick={() => setHookError(null)}
+                  className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
 

@@ -28,7 +28,11 @@ import {
   openEditor,
   worktreeCheckBranchSynced,
 } from "../../lib/tauri";
-import { buildClaudeCommand, openTerminalWithToast } from "../../lib/workflows";
+import {
+  buildClaudeCommand,
+  openTerminalWithToast,
+  HookFailedError,
+} from "../../lib/workflows";
 import { useTerminalStore } from "../../stores/terminalStore";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -57,6 +61,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const [killingSession, setKillingSession] = useState(false);
   const [launchingSession, setLaunchingSession] = useState(false);
   const [hasUnpushed, setHasUnpushed] = useState(false);
+  const [hookError, setHookError] = useState<string | null>(null);
 
   const hasSession = session !== null;
   const isDeleting = removeWorktree.isPending;
@@ -131,8 +136,8 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     }
   }
 
-  async function handleDelete() {
-    if (!confirmingDelete) {
+  async function handleDelete(skipHooks = false) {
+    if (!skipHooks && !confirmingDelete) {
       // First click: check for unpushed commits, then show confirmation
       setConfirmingDelete(true);
       try {
@@ -148,6 +153,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     }
     setConfirmingDelete(false);
     setHasUnpushed(false);
+    setHookError(null);
 
     const repo = repos.find((r) => r.path === repoPath);
     removeWorktree.mutate(
@@ -158,9 +164,16 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         deleteBranch: true,
         sessionName: session ? toSessionName(worktree.branch) : undefined,
         beforeRemove: repo?.beforeRemove,
+        skipHooks,
       },
       {
-        onError: (err) => toastError(err),
+        onError: (err) => {
+          if (err instanceof HookFailedError) {
+            setHookError(err.message);
+          } else {
+            toastError(err);
+          }
+        },
       },
     );
   }
@@ -305,7 +318,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
               </span>
             )}
             <button
-              onClick={handleDelete}
+              onClick={() => handleDelete()}
               disabled={isDeleting}
               className="text-[var(--accent-red)] hover:opacity-80"
             >
@@ -324,7 +337,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           </span>
         ) : (
           <button
-            onClick={handleDelete}
+            onClick={() => handleDelete()}
             disabled={isDeleting}
             className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
           >
@@ -337,6 +350,30 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           </button>
         )}
       </div>
+
+      {/* Hook error panel */}
+      {hookError && (
+        <div className="border-t border-[var(--border-default)] px-3 py-2">
+          <p className="mb-2 text-xs text-[var(--accent-red)]">{hookError}</p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setHookError(null);
+                handleDelete(true);
+              }}
+              className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
+            >
+              Delete anyway
+            </button>
+            <button
+              onClick={() => setHookError(null)}
+              className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
