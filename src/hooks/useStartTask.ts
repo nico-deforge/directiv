@@ -4,6 +4,7 @@ import {
   startFreeTask,
   type StartTaskParams,
 } from "../lib/workflows";
+import type { TerminalMode } from "../types";
 
 export function useStartTask() {
   const queryClient = useQueryClient();
@@ -22,6 +23,7 @@ interface StartFreeTaskParams {
   branchName: string;
   repoPath: string;
   terminal: string;
+  terminalMode?: TerminalMode;
   copyPaths?: string[];
   onStart?: string[];
   baseBranch?: string;

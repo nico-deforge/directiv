@@ -18,13 +18,14 @@ By modeling your development pipeline as a DAG, Directiv ensures tasks flow thro
 
 ### Technical summary
 
-Directiv is a Tauri 2.0 desktop app that integrates Linear, GitHub, tmux, and git worktrees into a unified pipeline board. It delegates terminal operations to your preferred emulator (Ghostty, iTerm2) and uses tmux for session persistence.
+Directiv is a Tauri 2.0 desktop app that integrates Linear, GitHub, tmux, and git worktrees into a unified pipeline board. It features a built-in terminal (xterm.js + Rust PTY) for seamless tmux session interaction, with an optional fallback to external emulators (Ghostty, iTerm2).
 
 ## Tech Stack
 
 - **App framework:** Tauri 2.0 (Rust backend in `src-tauri/`, React frontend in `src/`)
 - **Frontend:** React + TypeScript, Zustand (state), Tailwind CSS, TanStack Query (data fetching), lucide-react (icons)
-- **Backend:** Rust with `tauri-plugin-shell` for system commands, `serde` for serialization
+- **Backend:** Rust with `tauri-plugin-shell` for system commands, `portable-pty` for PTY management, `serde` for serialization
+- **Terminal:** xterm.js (frontend) + portable-pty (Rust) connected via Tauri Channels for ordered streaming
 - **Integrations:** `@linear/sdk`, `@octokit/rest`, tmux CLI, git worktree
 - **Dev tooling:** mise (tool version management + task runner)
 
@@ -65,14 +66,28 @@ mise run build             # Build production Tauri app
 ### Frontend patterns
 
 - **Hooks** (`src/hooks/`) wrap SDK clients with TanStack Query for caching/polling: `useLinear`, `useGitHub`, `useTmux`, `useWorktrees`
-- **Stores** (`src/stores/`) use Zustand: `workflowStore` (enriched tasks, filters), `settingsStore` (persisted user config)
+- **Stores** (`src/stores/`) use Zustand: `workflowStore` (enriched tasks, filters), `settingsStore` (persisted user config), `terminalStore` (terminal tab lifecycle)
 - **Lib** (`src/lib/`) contains initialized SDK clients and business logic (`workflows.ts` handles `startTask`, `removeWorktreeFlow`, etc.)
 
 ### Backend commands (`src-tauri/src/commands/`)
 
 - `worktree.rs` — git worktree add/remove/list
 - `tmux.rs` — session create/kill/list/capture-pane
-- `terminal.rs` — open external terminal attached to tmux session
+- `pty.rs` — PTY spawn/write/resize/close for the integrated terminal (xterm.js ↔ Tauri Channel ↔ Rust PTY ↔ tmux attach)
+- `terminal.rs` — open external terminal attached to tmux session (legacy/fallback)
+
+### Integrated terminal
+
+The app embeds a full terminal emulator using **xterm.js** connected to tmux sessions through a Rust PTY backend:
+
+- **Architecture:** xterm.js (frontend) ↔ Tauri Channel (ordered streaming) ↔ portable-pty (Rust) ↔ `tmux attach -t <session>`
+- **Tab system:** full-screen tabs in `RootLayout` — Board tab + terminal tabs. All tabs stay mounted (CSS `hidden`) so the Board keeps polling and terminals keep their PTY connection.
+- **Store:** `terminalStore` (Zustand) manages tab lifecycle (open/close/focus)
+- **Components:** `TerminalPanel` (xterm.js wrapper with FitAddon, WebLinksAddon, ResizeObserver), `TabBar` (tab navigation, hidden when no terminals are open)
+- **PTY commands:** `pty_spawn` (creates PTY + reader thread), `pty_write`, `pty_resize`, `pty_close` (detaches tmux cleanly before killing child)
+- **Font:** JetBrains Mono bundled in `src/assets/fonts/`, loaded via `@font-face` in `index.css`
+
+**Retrocompatibility:** set `"terminalMode": "external"` in `directiv.config.json` to use Ghostty/iTerm2 instead of the built-in terminal. Default is `"internal"`.
 
 ### Core workflow: "Start Task"
 
@@ -81,7 +96,7 @@ Triggered by clicking [Start] on a backlog card:
 2. Create tmux session → `tmux new-session -d -s ACQ-145 -c /path/to/worktree`
 3. Launch Claude with context → `tmux send-keys -t ACQ-145 'claude --plugin-dir "<resource>/directiv-plugin" "/directiv:linear-issue ACQ-145"' Enter`
 4. Update Linear → status to "In Progress"
-5. Refresh board → card moves to "In Dev"
+5. Open terminal tab → PTY attaches to tmux session, card moves to "In Dev"
 
 Claude Code starts in interactive mode with `/directiv:linear-issue <issue_id>` as the initial prompt, executing the skill immediately then remaining available for interaction.
 
@@ -109,10 +124,12 @@ Skills are bundled inside the app as a Claude Code plugin — no user installati
 ## Configuration
 
 User config lives in `directiv.config.json` at project root:
-- `terminal`: preferred emulator (ghostty, iterm2)
-- `repos`: list of repos with path and issue prefixes
-- `linear`: team IDs, active project
-- `github`: owner and repo names
+- `terminal`: preferred external emulator — `"ghostty"` or `"iterm2"` (used when `terminalMode` is `"external"`)
+- `terminalMode`: `"internal"` (default, built-in xterm.js) or `"external"` (delegates to Ghostty/iTerm2)
+- `editor`: code editor — `"zed"`, `"cursor"`, `"vscode"`, `"code"`
+- `workspaces`: list of workspace paths containing git repositories
+- `linear`: team IDs
+- `theme`: `"dark"`, `"light"`, or `"system"`
 
 ## Code Conventions
 

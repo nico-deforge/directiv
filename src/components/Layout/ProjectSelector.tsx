@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { toastError } from "../../lib/toast";
 import { Link } from "@tanstack/react-router";
 import {
@@ -33,7 +34,12 @@ import {
   tmuxListSessions,
   gitFetchPrune,
 } from "../../lib/tauri";
-import { removeWorktreeFlow } from "../../lib/workflows";
+import {
+  removeWorktreeFlow,
+  HookFailedError,
+  BranchExistsError,
+  BaseNotFoundError,
+} from "../../lib/workflows";
 import type {
   StaleWorktree,
   ReviewRequestedPR,
@@ -41,7 +47,6 @@ import type {
 } from "../../types";
 import { useGitHubReviewRequests } from "../../hooks/useGitHub";
 import { useStartFreeTask } from "../../hooks/useStartTask";
-import { BranchExistsError, BaseNotFoundError } from "../../lib/workflows";
 import { worktreeCreateExistingBranch } from "../../lib/tauri";
 import { toSessionName } from "../../lib/tmux-utils";
 import { WorkspaceSelector } from "./WorkspaceSelector";
@@ -280,11 +285,13 @@ function NewWorktreeSection() {
   async function handleCreate() {
     const repo = repos[selectedRepoIndex];
     setBranchExistsPrompt(null);
+    const terminalMode = useSettingsStore.getState().config.terminalMode;
     startFreeTask.mutate(
       {
         branchName: branchName.trim(),
         repoPath: repo.path,
         terminal,
+        terminalMode,
         copyPaths: repo.copyPaths,
         onStart: repo.onStart,
         baseBranch,
@@ -331,6 +338,7 @@ function NewWorktreeSection() {
           branchName: branchName.trim(),
           repoPath,
           terminal,
+          terminalMode: useSettingsStore.getState().config.terminalMode,
           copyPaths: repo?.copyPaths,
           onStart: repo?.onStart,
           baseBranch: promptBase,
@@ -740,14 +748,24 @@ function CleanupSection() {
         const key = `${sw.repoPath}:${sw.worktree.branch}`;
         if (!selected.has(key)) continue;
         const repo = repos.find((r) => r.path === sw.repoPath);
-        await removeWorktreeFlow({
+        const params = {
           repoPath: sw.repoPath,
           worktreePath: sw.worktree.path,
           branch: sw.worktree.branch,
           deleteBranch: true,
           sessionName: toSessionName(sw.worktree.branch),
           beforeRemove: repo?.beforeRemove,
-        });
+        };
+        try {
+          await removeWorktreeFlow(params);
+        } catch (err) {
+          if (err instanceof HookFailedError) {
+            toast.warning(`Hook skipped for ${sw.worktree.branch}`);
+            await removeWorktreeFlow({ ...params, skipHooks: true });
+          } else {
+            toastError(err);
+          }
+        }
       }
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
