@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { toastError } from "../../lib/toast";
 import { Link } from "@tanstack/react-router";
@@ -18,7 +18,6 @@ import {
   AlertCircle,
   ChevronRight,
 } from "lucide-react";
-import type { LinearConnectionStatus } from "../../hooks/useLinear";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useProjectStore,
@@ -52,20 +51,12 @@ import { toSessionName } from "../../lib/tmux-utils";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { BranchSelector } from "../shared/BranchSelector";
 
-interface ProjectSelectorProps {
-  projects: Project[];
-  hasOrphans: boolean;
-  connectionStatus: LinearConnectionStatus;
-}
-
-export function ProjectSelector({
-  projects,
-  hasOrphans,
-  connectionStatus,
-}: ProjectSelectorProps) {
+export function ProjectSelector() {
+  const projects = useProjectStore((s) => s.projects);
+  const hasOrphans = useProjectStore((s) => s.hasOrphans);
+  const connectionStatus = useProjectStore((s) => s.connectionStatus);
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
   const selectProject = useProjectStore((s) => s.selectProject);
-  const setProjects = useProjectStore((s) => s.setProjects);
   const showBacklogProjects = useProjectStore((s) => s.showBacklogProjects);
   const toggleBacklogProjects = useProjectStore((s) => s.toggleBacklogProjects);
   const queryClient = useQueryClient();
@@ -74,18 +65,6 @@ export function ProjectSelector({
 
   const startedProjects = projects.filter((p) => p.statusType === "started");
   const backlogProjects = projects.filter((p) => p.statusType === "backlog");
-
-  // Sync projects to store
-  useEffect(() => {
-    setProjects(projects);
-  }, [projects, setProjects]);
-
-  // Auto-select first project if none selected
-  useEffect(() => {
-    if (selectedProjectId === null && projects.length > 0) {
-      selectProject(projects[0].id);
-    }
-  }, [selectedProjectId, projects, selectProject]);
 
   async function handleRefresh() {
     setIsRefreshing(true);
@@ -261,6 +240,7 @@ export function ProjectSelector({
 function NewWorktreeSection() {
   const repos = useWorkspaceRepos();
   const terminal = useSettingsStore((s) => s.config.terminal);
+  const terminalMode = useSettingsStore((s) => s.config.terminalMode);
   const startFreeTask = useStartFreeTask();
 
   const [showForm, setShowForm] = useState(false);
@@ -285,7 +265,6 @@ function NewWorktreeSection() {
   async function handleCreate() {
     const repo = repos[selectedRepoIndex];
     setBranchExistsPrompt(null);
-    const terminalMode = useSettingsStore.getState().config.terminalMode;
     startFreeTask.mutate(
       {
         branchName: branchName.trim(),
@@ -338,7 +317,7 @@ function NewWorktreeSection() {
           branchName: branchName.trim(),
           repoPath,
           terminal,
-          terminalMode: useSettingsStore.getState().config.terminalMode,
+          terminalMode,
           copyPaths: repo?.copyPaths,
           onStart: repo?.onStart,
           baseBranch: promptBase,

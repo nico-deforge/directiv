@@ -1,4 +1,8 @@
 import { create } from "zustand";
+import type {
+  LinearConnectionStatus,
+  LinearProjectStatusType,
+} from "../hooks/useLinear";
 
 // Special project ID for orphan worktrees (worktrees without Linear tasks)
 export const ORPHAN_PROJECT_ID = "__orphan__";
@@ -6,28 +10,44 @@ export const ORPHAN_PROJECT_ID = "__orphan__";
 export interface Project {
   id: string;
   name: string;
-  statusType: "started" | "backlog";
+  statusType: LinearProjectStatusType;
 }
 
 interface ProjectState {
-  // List of available projects derived from tasks
   projects: Project[];
-  // Currently selected project ID (null = show all)
+  hasOrphans: boolean;
+  connectionStatus: LinearConnectionStatus;
   selectedProjectId: string | null;
-  // Whether to show backlog projects in the sidebar
   showBacklogProjects: boolean;
-  // Actions
-  setProjects: (projects: Project[]) => void;
+  setProjectsData: (
+    projects: Project[],
+    hasOrphans: boolean,
+    connectionStatus: LinearConnectionStatus,
+  ) => void;
   selectProject: (projectId: string | null) => void;
   toggleBacklogProjects: () => void;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
   projects: [],
+  hasOrphans: false,
+  connectionStatus: { status: "loading" },
   selectedProjectId: null,
   showBacklogProjects: false,
 
-  setProjects: (projects) => set({ projects }),
+  setProjectsData: (projects, hasOrphans, connectionStatus) => {
+    const { selectedProjectId } = get();
+    const autoSelect =
+      selectedProjectId === null && projects.length > 0
+        ? projects[0].id
+        : selectedProjectId;
+    set({
+      projects,
+      hasOrphans,
+      connectionStatus,
+      selectedProjectId: autoSelect,
+    });
+  },
 
   selectProject: (projectId) => set({ selectedProjectId: projectId }),
 
