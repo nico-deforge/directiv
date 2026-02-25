@@ -24,7 +24,7 @@ export function HomePage() {
   );
 
   return (
-    <div className="flex h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div className="flex h-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <ProjectSelector
         projects={projects}
         hasOrphans={hasOrphans}
