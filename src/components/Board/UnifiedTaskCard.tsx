@@ -27,12 +27,14 @@ import type {
   DiscoveredRepo,
   ClaudeSessionStatus,
 } from "../../types";
+import { CI_STATUSES } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
 import { useStartTask } from "../../hooks/useStartTask";
 import {
   type SkillKey,
   resolveSkill,
   isOverriddenSkill,
+  sendSkillToSession,
   BranchExistsError,
   BaseNotFoundError,
   BranchHasUnpushedError,
@@ -156,9 +158,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     repoPath: string;
   } | null>(null);
   const [hookError, setHookError] = useState<string | null>(null);
+  const [sendingSkill, setSendingSkill] = useState(false);
 
   const hasSession = session !== null;
-  const isLoading = startTask.isPending || killingSession || deletingWorktree;
+  const isLoading =
+    startTask.isPending || killingSession || deletingWorktree || sendingSkill;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
   const needsInput =
@@ -381,6 +385,26 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
+  async function handleFixCI() {
+    if (!worktree || !worktreeRepoPath) return;
+    const { skill } = getRepoSkillParams(worktreeRepoPath, "FIX_CI");
+
+    if (session) {
+      setSendingSkill(true);
+      try {
+        await sendSkillToSession(session.name, skill, task.identifier);
+      } catch (err) {
+        toastError(err);
+        return;
+      } finally {
+        setSendingSkill(false);
+      }
+      handleOpenTerminal();
+    } else {
+      openDropdown("FIX_CI");
+    }
+  }
+
   const handleDragHandleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
@@ -481,6 +505,22 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             <ExternalLink className="size-3 shrink-0" />
           </a>
           <CIStatusIcon status={pullRequest.ciStatus} url={pullRequest.ciUrl} />
+          {!isDisabled &&
+            worktree &&
+            (pullRequest.ciStatus === CI_STATUSES.FAILURE ||
+              pullRequest.ciStatus === CI_STATUSES.ERROR) && (
+              <button
+                onClick={handleFixCI}
+                disabled={isLoading}
+                className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
+              >
+                {sendingSkill ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  "Fix CI"
+                )}
+              </button>
+            )}
         </div>
       )}
 

@@ -59,6 +59,7 @@ Switch between tasks instantly. Never lose your place.
 - **Integrated terminal** — Built-in xterm.js terminal connected to tmux via Rust PTY, with full-screen tab system
 - **External terminal fallback** — Optional delegation to Ghostty or iTerm2 via `terminalMode: "external"` config
 - **Claude Code integration** — Launch AI agents with issue context pre-loaded
+- **Fix CI** — One-click button on failing PRs to launch Claude with the `fix-ci` skill
 - **Multi-repo support** — Manage multiple repositories from one board
 
 ## Tech Stack
@@ -106,7 +107,8 @@ Create `directiv.config.json` in your home directory or project root:
   "theme": "system" | "light" | "dark",
   "skills": {                            // Global skill overrides (optional)
     "code": "my-org:implementation-skill",
-    "plan": "my-org:planning-skill"
+    "plan": "my-org:planning-skill",
+    "fixCi": "my-org:fix-ci-skill"
   }
 }
 ```
@@ -145,7 +147,8 @@ Create `.directiv.json` at the root of each repository:
   "fetchBefore": true | false,
   "skills": {              // Override Claude Code skills (optional)
     "code": "my-org:implementation-skill",
-    "plan": "my-org:planning-skill"
+    "plan": "my-org:planning-skill",
+    "fixCi": "my-org:fix-ci-skill"
   }
 }
 ```
@@ -156,7 +159,7 @@ Create `.directiv.json` at the root of each repository:
 
 #### Skill overrides
 
-By default, the **Code** and **Plan** buttons launch Claude Code with the bundled Directiv plugin (`--plugin-dir`) and built-in skills (`directiv:linear-issue`, `directiv:linear-tactic`). You can override skills at two levels:
+By default, the **Code**, **Plan**, and **Fix CI** buttons launch Claude Code with the bundled Directiv plugin (`--plugin-dir`) and built-in skills (`directiv:linear-issue`, `directiv:linear-tactic`, `directiv:fix-ci`). You can override skills at two levels:
 
 **Global overrides** — in `directiv.config.json`, apply to all repos:
 
@@ -164,7 +167,8 @@ By default, the **Code** and **Plan** buttons launch Claude Code with the bundle
 {
   "skills": {
     "code": "my-org:implementation-skill",
-    "plan": "my-org:planning-skill"
+    "plan": "my-org:planning-skill",
+    "fixCi": "my-org:fix-ci-skill"
   }
 }
 ```
@@ -175,14 +179,15 @@ By default, the **Code** and **Plan** buttons launch Claude Code with the bundle
 {
   "skills": {
     "code": "my-org:repo-specific-skill",
-    "plan": "my-org:repo-specific-plan"
+    "plan": "my-org:repo-specific-plan",
+    "fixCi": "my-org:repo-specific-fix-ci"
   }
 }
 ```
 
 **Priority chain:** repo `.directiv.json` > global `directiv.config.json` > bundled plugin defaults.
 
-When `skills` is present with at least one override (at either level), the bundled `--plugin-dir` flag is omitted — Claude Code will rely on the repo's own plugin/skill setup instead. Both `code` and `plan` are optional; omit either to keep the default skill name (but still without `--plugin-dir`). An empty `"skills": {}` is a no-op and the bundled plugin is still used.
+When `skills` is present with at least one override (at either level), the bundled `--plugin-dir` flag is omitted — Claude Code will rely on the repo's own plugin/skill setup instead. All fields (`code`, `plan`, `fixCi`) are optional; omit any to keep the default skill name (but still without `--plugin-dir`). An empty `"skills": {}` is a no-op and the bundled plugin is still used.
 
 ## Deployment
 
@@ -277,7 +282,7 @@ For AI agent integration:
 npm install -g @anthropic-ai/claude-code
 ```
 
-Directiv ships with a bundled Claude Code plugin containing the `linear-issue` skill. When you click **[Start]** on a task, Claude Code is launched with `--plugin-dir` pointing to the bundled plugin, so the `/directiv:linear-issue` skill is available out of the box — no manual skill installation required. You can also override skills per-repo to use your own — see [Skill overrides](#skill-overrides).
+Directiv ships with a bundled Claude Code plugin containing the `linear-issue`, `linear-plan`, and `fix-ci` skills. When you click **[Start]** on a task, Claude Code is launched with `--plugin-dir` pointing to the bundled plugin, so skills like `/directiv:linear-issue` and `/directiv:fix-ci` are available out of the box — no manual skill installation required. You can also override skills per-repo to use your own — see [Skill overrides](#skill-overrides).
 
 #### GitHub CLI (strongly recommended)
 
