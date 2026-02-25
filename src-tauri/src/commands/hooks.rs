@@ -16,7 +16,7 @@ pub async fn run_hooks(
         let output = app
             .shell()
             .command(&shell)
-            .args(["-lic", cmd])
+            .args(["-lc", cmd])
             .current_dir(&working_dir)
             .output()
             .await
