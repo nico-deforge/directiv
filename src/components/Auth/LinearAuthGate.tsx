@@ -35,21 +35,43 @@ export function LinearAuthGate({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen flex-col items-center justify-center bg-[var(--bg-primary)]">
       <div className="flex max-w-sm flex-col items-center gap-6 text-center">
-        <div className="flex size-16 items-center justify-center rounded-2xl bg-[var(--bg-elevated)]">
-          <svg
-            viewBox="0 0 24 24"
+        <svg
+          viewBox="0 0 100 100"
+          fill="none"
+          className="size-20 text-[var(--text-primary)]"
+        >
+          {/* Hexagon */}
+          <path
+            d="M50 3 L93 27 L93 73 L50 97 L7 73 L7 27 Z"
+            stroke="currentColor"
+            strokeWidth="5"
             fill="none"
-            className="size-8 text-[var(--accent-blue)]"
-          >
-            <path
-              d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
+            strokeLinejoin="round"
+          />
+          {/* D letter */}
+          <path
+            d="M32 32 L32 68 L50 68 C63 68 70 59 70 50 C70 41 63 32 50 32 Z"
+            stroke="currentColor"
+            strokeWidth="5"
+            fill="none"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          {/* Arrow cutting through */}
+          <path
+            d="M42 62 L68 28"
+            stroke="currentColor"
+            strokeWidth="5"
+            strokeLinecap="round"
+          />
+          <path
+            d="M58 26 L70 26 L70 38"
+            stroke="currentColor"
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
 
         <div>
           <h1 className="text-xl font-semibold text-[var(--text-primary)]">
@@ -73,7 +95,7 @@ export function LinearAuthGate({ children }: { children: React.ReactNode }) {
         <button
           onClick={startLinearOAuth}
           disabled={isConnecting}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent-blue)] px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2.5 text-sm font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {getButtonLabel(linearStatus)}
         </button>
