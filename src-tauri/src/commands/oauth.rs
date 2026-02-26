@@ -22,7 +22,7 @@ struct TokenResponse {
     token_type: String,
     expires_in: u64,
     #[serde(default)]
-    scope: Vec<String>,
+    scope: Option<String>,
     #[serde(default)]
     refresh_token: Option<String>,
 }
