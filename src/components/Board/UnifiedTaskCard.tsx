@@ -17,6 +17,7 @@ import {
   Code2,
   AlertTriangle,
   ClipboardList,
+  Users,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -165,9 +166,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     startTask.isPending || killingSession || deletingWorktree || sendingSkill;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
-  const needsInput =
-    workflowStatus === "personal-review" ||
-    (claudeStatus === "waiting" && workflowStatus === "in-dev");
+  const claudeWaiting =
+    claudeStatus === "waiting" && workflowStatus === "in-dev";
+  const prNeedsReviewers = workflowStatus === "personal-review";
 
   useEffect(() => {
     if (!confirmingDelete) return;
@@ -195,6 +196,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setKillingSession(true);
     try {
       await tmuxKillSession(session.name);
+      useTerminalStore.getState().closeTerminal(session.name);
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
       toastError(err);
@@ -219,6 +221,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         beforeRemove: repo?.beforeRemove,
         skipHooks,
       });
+      if (session) {
+        useTerminalStore.getState().closeTerminal(session.name);
+      }
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
@@ -456,17 +461,29 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               {task.assigneeName}
             </span>
           )}
-          {needsInput && (
+          {claudeWaiting && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 handleOpenTerminal();
               }}
-              className="ml-auto flex cursor-pointer items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-red)]/20 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 transition-colors"
+              className="ml-auto flex cursor-pointer items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-orange)]/20 text-[var(--accent-orange)] hover:bg-[var(--accent-orange)]/30 transition-colors"
             >
               <AlertTriangle className="size-3" />
-              Needs Input
+              Needs Claude Input
             </button>
+          )}
+          {prNeedsReviewers && pullRequest && (
+            <a
+              href={pullRequest.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-purple)]/20 text-[var(--accent-purple)] hover:bg-[var(--accent-purple)]/30 transition-colors"
+            >
+              <Users className="size-3" />
+              Needs Personal Review
+            </a>
           )}
         </div>
         <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
