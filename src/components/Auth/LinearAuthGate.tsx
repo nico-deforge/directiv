@@ -18,7 +18,23 @@ function getButtonLabel(status: AuthProviderStatus): React.ReactNode {
   if (status === AUTH_PROVIDER_STATUS.ERROR) {
     return "Try again";
   }
-  return "Connect with Linear";
+  return (
+    <>
+      <LinearLogo className="size-4" />
+      Connect with Linear
+    </>
+  );
+}
+
+function LinearLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 100 100" fill="none" className={className}>
+      <path
+        d="M1.22 61.54a48.58 48.58 0 0 1-.23-2.23l40.33 40.33a50.4 50.4 0 0 1-2.24-.23L1.23 61.54Zm-1-9.51a49.73 49.73 0 0 1 .53-4.48l52.3 52.3a49.67 49.67 0 0 1-4.48.54L.22 52.03Zm1.63-10.53a50.14 50.14 0 0 1 1.66-5.34l63.37 63.37a50.1 50.1 0 0 1-5.34 1.65L1.85 41.5ZM6.23 30.7A50.25 50.25 0 0 1 9.32 25l65.7 65.7a50.3 50.3 0 0 1-5.71 3.08L6.22 30.7Zm8.2-9.72a50.25 50.25 0 0 1 49.1-13.23l.49.13a3.2 3.2 0 0 1 2.28 2.28c5.18 19.76-1.07 41.2-16.73 56.85-15.64 15.66-37.08 21.9-56.84 16.72a3.2 3.2 0 0 1-2.28-2.28l-.13-.5a50.25 50.25 0 0 1 13.23-49.09l.88-.87Zm61.07-6.9a50.27 50.27 0 0 1 5.73 3.08L18.15 80.22a50.24 50.24 0 0 1-3.08-5.72l60.43-60.42Zm9.35 8.77a50.08 50.08 0 0 1 1.66 5.34l-45.5 45.5a50.12 50.12 0 0 1-5.34-1.66l49.18-49.18Zm4.38 11.66a49.66 49.66 0 0 1 .53 4.48L41.4 87.35a49.68 49.68 0 0 1-4.48-.53l52.3-52.3Zm1 9.51c.1.74.17 1.49.23 2.24L52.6 84.12c-.75-.06-1.5-.13-2.24-.23l39.87-39.87Zm.48 6.3c.15 3.2.08 6.4-.2 9.56L80.95 69.4a96.35 96.35 0 0 0 9.56-.2l.2-.2Zm-1.6 13.77a49.9 49.9 0 0 1-26.72 26.72L91.1 63.1Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
 }
 
 export function LinearAuthGate({ children }: { children: React.ReactNode }) {
