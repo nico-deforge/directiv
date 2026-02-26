@@ -221,6 +221,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         beforeRemove: repo?.beforeRemove,
         skipHooks,
       });
+      if (session) {
+        useTerminalStore.getState().closeTerminal(session.name);
+      }
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
@@ -470,9 +473,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               Needs Input
             </button>
           )}
-          {prNeedsReviewers && (
+          {prNeedsReviewers && pullRequest && (
             <a
-              href={pullRequest?.url}
+              href={pullRequest.url}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
