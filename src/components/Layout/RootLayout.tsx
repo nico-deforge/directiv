@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Outlet } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,27 +17,29 @@ export function RootLayout() {
   const tabs = useTerminalStore((s) => s.tabs);
   const activeTab = useTerminalStore((s) => s.activeTab);
   const initializeLinearAuth = useAuthStore((s) => s.initializeLinearAuth);
-  const linearStatus = useAuthStore((s) => s.linearStatus);
   const queryClient = useQueryClient();
-  const prevStatusRef = useRef(linearStatus);
 
   useEffect(() => {
     loadFromDisk();
     initializeLinearAuth();
   }, [loadFromDisk, initializeLinearAuth]);
 
-  // Invalidate Linear queries when auth status changes
+  // Invalidate Linear queries when auth status transitions to connected or disconnected
   useEffect(() => {
-    const prev = prevStatusRef.current;
-    prevStatusRef.current = linearStatus;
-    if (prev === linearStatus) return;
-    if (
-      linearStatus === AUTH_PROVIDER_STATUS.CONNECTED ||
-      linearStatus === AUTH_PROVIDER_STATUS.DISCONNECTED
-    ) {
-      queryClient.invalidateQueries({ queryKey: ["linear"] });
-    }
-  }, [linearStatus, queryClient]);
+    let prev = useAuthStore.getState().linearStatus;
+    const unsub = useAuthStore.subscribe((state) => {
+      const status = state.linearStatus;
+      if (status === prev) return;
+      prev = status;
+      if (
+        status === AUTH_PROVIDER_STATUS.CONNECTED ||
+        status === AUTH_PROVIDER_STATUS.DISCONNECTED
+      ) {
+        queryClient.invalidateQueries({ queryKey: ["linear"] });
+      }
+    });
+    return unsub;
+  }, [queryClient]);
 
   // Initialize workspaces after config is loaded
   useWorkspaceInit();

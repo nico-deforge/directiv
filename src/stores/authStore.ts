@@ -4,7 +4,6 @@ import {
   linearGetValidToken,
   linearOAuthStart,
   linearOAuthDisconnect,
-  linearOAuthRefresh,
 } from "../lib/tauriOAuth";
 
 export const AUTH_PROVIDER_STATUS = {
@@ -28,13 +27,27 @@ interface AuthState {
   refreshLinearTokenIfNeeded: () => Promise<void>;
 }
 
-// Cached client — recreated when token changes
+const DISCONNECTED_STATE = {
+  linearAccessToken: null,
+  linearStatus: AUTH_PROVIDER_STATUS.DISCONNECTED,
+  linearError: null,
+} as const;
+
+function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+// Cached client -- self-manages based on current token
 let cachedClient: LinearClient | null = null;
 let cachedToken: string | null = null;
 
 export function getLinearClient(): LinearClient | null {
   const token = useAuthStore.getState().linearAccessToken;
-  if (!token) return null;
+  if (!token) {
+    cachedClient = null;
+    cachedToken = null;
+    return null;
+  }
   if (token !== cachedToken) {
     cachedClient = new LinearClient({ accessToken: token });
     cachedToken = token;
@@ -57,17 +70,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           linearError: null,
         });
       } else {
-        set({
-          linearAccessToken: null,
-          linearStatus: AUTH_PROVIDER_STATUS.DISCONNECTED,
-          linearError: null,
-        });
+        set(DISCONNECTED_STATE);
       }
     } catch (err) {
       set({
         linearAccessToken: null,
         linearStatus: AUTH_PROVIDER_STATUS.ERROR,
-        linearError: err instanceof Error ? err.message : String(err),
+        linearError: toErrorMessage(err),
       });
     }
   },
@@ -87,7 +96,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err) {
       set({
         linearStatus: AUTH_PROVIDER_STATUS.ERROR,
-        linearError: err instanceof Error ? err.message : String(err),
+        linearError: toErrorMessage(err),
       });
     }
   },
@@ -98,46 +107,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       // Best effort
     }
-    cachedClient = null;
-    cachedToken = null;
-    set({
-      linearAccessToken: null,
-      linearStatus: AUTH_PROVIDER_STATUS.DISCONNECTED,
-      linearError: null,
-    });
+    set(DISCONNECTED_STATE);
   },
 
   refreshLinearTokenIfNeeded: async () => {
     const { linearAccessToken } = get();
     if (!linearAccessToken) return;
+
     try {
       const token = await linearGetValidToken();
       if (token && token !== linearAccessToken) {
         set({ linearAccessToken: token });
       } else if (!token) {
-        // Token expired and refresh failed
-        cachedClient = null;
-        cachedToken = null;
-        set({
-          linearAccessToken: null,
-          linearStatus: AUTH_PROVIDER_STATUS.DISCONNECTED,
-          linearError: null,
-        });
+        set(DISCONNECTED_STATE);
       }
     } catch {
-      // If refresh check fails, try explicit refresh
-      try {
-        const newToken = await linearOAuthRefresh();
-        set({ linearAccessToken: newToken });
-      } catch {
-        cachedClient = null;
-        cachedToken = null;
-        set({
-          linearAccessToken: null,
-          linearStatus: AUTH_PROVIDER_STATUS.DISCONNECTED,
-          linearError: null,
-        });
-      }
+      set(DISCONNECTED_STATE);
     }
   },
 }));

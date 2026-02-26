@@ -2,6 +2,7 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri_plugin_opener::OpenerExt;
 use tokio::io::AsyncBufReadExt;
@@ -12,11 +13,11 @@ const LINEAR_CLIENT_ID: &str = "68b44898ebc27357cba06642d0c9efa6";
 const REDIRECT_PORT: u16 = 19823;
 const REDIRECT_URI: &str = "http://127.0.0.1:19823/callback";
 const KEYRING_SERVICE: &str = "com.directiv.app";
-
-// Keyring keys
 const KEY_ACCESS_TOKEN: &str = "linear_access_token";
 const KEY_REFRESH_TOKEN: &str = "linear_refresh_token";
 const KEY_EXPIRES_AT: &str = "linear_expires_at";
+
+static OAUTH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TokenResponse {
@@ -42,6 +43,14 @@ fn now_secs() -> u64 {
         .unwrap()
         .as_secs()
 }
+
+fn random_base64<const N: usize>() -> String {
+    let mut bytes = [0u8; N];
+    rand::rng().fill(&mut bytes[..]);
+    URL_SAFE_NO_PAD.encode(bytes)
+}
+
+// --- Keyring helpers ---
 
 fn keyring_get(key: &str) -> Option<String> {
     let entry = keyring::Entry::new(KEYRING_SERVICE, key).ok()?;
@@ -82,24 +91,12 @@ fn clear_tokens() {
     keyring_delete(KEY_EXPIRES_AT);
 }
 
-fn generate_code_verifier() -> String {
-    let random_bytes: Vec<u8> = (0..96).map(|_| rand::rng().random::<u8>()).collect();
-    URL_SAFE_NO_PAD.encode(&random_bytes)
-}
+// --- PKCE helpers ---
 
 fn generate_code_challenge(verifier: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(verifier.as_bytes());
-    let hash = hasher.finalize();
-    URL_SAFE_NO_PAD.encode(hash)
+    URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
 }
 
-fn generate_state() -> String {
-    let random_bytes: Vec<u8> = (0..32).map(|_| rand::rng().random::<u8>()).collect();
-    URL_SAFE_NO_PAD.encode(&random_bytes)
-}
-
-/// Build the Linear OAuth authorization URL
 fn build_auth_url(state: &str, code_challenge: &str) -> String {
     let mut url = Url::parse("https://linear.app/oauth/authorize").unwrap();
     url.query_pairs_mut()
@@ -114,9 +111,8 @@ fn build_auth_url(state: &str, code_challenge: &str) -> String {
     url.to_string()
 }
 
-/// Parse the callback request to extract code and state from the query string
+/// Parse the callback HTTP request line to extract code and state query params.
 fn parse_callback_request(request_line: &str) -> Result<(String, String), String> {
-    // Request line looks like: GET /callback?code=xxx&state=yyy HTTP/1.1
     let path = request_line
         .split_whitespace()
         .nth(1)
@@ -147,110 +143,150 @@ fn parse_callback_request(request_line: &str) -> Result<(String, String), String
     Ok((code, state))
 }
 
-/// Exchange authorization code for tokens
-async fn exchange_code(code: &str, code_verifier: &str) -> Result<TokenResponse, String> {
-    let client = reqwest::Client::new();
-    let resp = client
+// --- Token exchange ---
+
+async fn post_token_request(form: &[(&str, &str)], context: &str) -> Result<TokenResponse, String> {
+    let resp = reqwest::Client::new()
         .post("https://api.linear.app/oauth/token")
-        .form(&[
+        .form(form)
+        .send()
+        .await
+        .map_err(|e| format!("{context} request failed: {e}"))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("{context} failed ({status}): {body}"));
+    }
+
+    resp.json::<TokenResponse>()
+        .await
+        .map_err(|e| format!("{context}: failed to parse response: {e}"))
+}
+
+async fn exchange_code(code: &str, code_verifier: &str) -> Result<TokenResponse, String> {
+    post_token_request(
+        &[
             ("grant_type", "authorization_code"),
             ("client_id", LINEAR_CLIENT_ID),
             ("redirect_uri", REDIRECT_URI),
             ("code", code),
             ("code_verifier", code_verifier),
-        ])
-        .send()
-        .await
-        .map_err(|e| format!("Token exchange request failed: {e}"))?;
-
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        return Err(format!("Token exchange failed ({status}): {body}"));
-    }
-
-    resp.json::<TokenResponse>()
-        .await
-        .map_err(|e| format!("Failed to parse token response: {e}"))
+        ],
+        "Token exchange",
+    )
+    .await
 }
 
-/// Refresh tokens using a refresh token
 async fn refresh_tokens(refresh_token: &str) -> Result<TokenResponse, String> {
-    let client = reqwest::Client::new();
-    let resp = client
-        .post("https://api.linear.app/oauth/token")
-        .form(&[
+    post_token_request(
+        &[
             ("grant_type", "refresh_token"),
             ("client_id", LINEAR_CLIENT_ID),
             ("refresh_token", refresh_token),
-        ])
-        .send()
-        .await
-        .map_err(|e| format!("Token refresh request failed: {e}"))?;
+        ],
+        "Token refresh",
+    )
+    .await
+}
 
-    if !resp.status().is_success() {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        return Err(format!("Token refresh failed ({status}): {body}"));
-    }
-
-    resp.json::<TokenResponse>()
+/// Send an HTML response to close the browser tab.
+async fn send_callback_response(mut stream: tokio::net::TcpStream) {
+    let body = r#"<!DOCTYPE html><html><body><h2>Connected to Linear!</h2><p>You can close this tab and return to Directiv.</p><script>window.close()</script></body></html>"#;
+    let response = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    );
+    tokio::io::AsyncWriteExt::write_all(&mut stream, response.as_bytes())
         .await
-        .map_err(|e| format!("Failed to parse refresh response: {e}"))
+        .ok();
 }
 
 #[tauri::command]
 pub async fn linear_oauth_start(app: tauri::AppHandle) -> Result<String, String> {
-    let code_verifier = generate_code_verifier();
-    let code_challenge = generate_code_challenge(&code_verifier);
-    let state = generate_state();
+    if OAUTH_IN_PROGRESS
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err(
+            "An OAuth flow is already in progress. Please wait or restart the app.".to_string(),
+        );
+    }
+    // Guard ensures the flag is always reset, even on early returns
+    struct OAuthGuard;
+    impl Drop for OAuthGuard {
+        fn drop(&mut self) {
+            OAUTH_IN_PROGRESS.store(false, Ordering::SeqCst);
+        }
+    }
+    let _guard = OAuthGuard;
 
-    // Bind the listener before opening the browser
+    let code_verifier = random_base64::<96>();
+    let code_challenge = generate_code_challenge(&code_verifier);
+    let state = random_base64::<32>();
+
     let listener = TcpListener::bind(format!("127.0.0.1:{REDIRECT_PORT}"))
         .await
         .map_err(|e| format!("Failed to bind callback server on port {REDIRECT_PORT}: {e}"))?;
 
-    // Open browser
     let auth_url = build_auth_url(&state, &code_challenge);
     app.opener()
         .open_url(&auth_url, None::<&str>)
         .map_err(|e| format!("Failed to open browser: {e}"))?;
 
-    // Wait for callback with timeout
-    let (stream, _addr) =
-        tokio::time::timeout(std::time::Duration::from_secs(120), listener.accept())
+    // Wait for the real OAuth callback, retrying on stray connections
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(120);
+    let (code, returned_state, stream) = loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return Err("OAuth timed out — no callback received within 120 seconds".to_string());
+        }
+
+        let (stream, _addr) = tokio::time::timeout(remaining, listener.accept())
             .await
             .map_err(|_| "OAuth timed out — no callback received within 120 seconds".to_string())?
             .map_err(|e| format!("Failed to accept callback connection: {e}"))?;
 
-    // Read the HTTP request line
-    let mut reader = tokio::io::BufReader::new(stream);
-    let mut request_line = String::new();
-    reader
-        .read_line(&mut request_line)
-        .await
-        .map_err(|e| format!("Failed to read callback request: {e}"))?;
+        let mut reader = tokio::io::BufReader::new(stream);
+        let mut request_line = String::new();
 
-    // Send a response to close the browser tab
-    let response_body = r#"<!DOCTYPE html><html><body><h2>Connected to Linear!</h2><p>You can close this tab and return to Directiv.</p><script>window.close()</script></body></html>"#;
-    let response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-        response_body.len(),
-        response_body
-    );
-    // Get the inner stream back from the BufReader to write the response
-    let mut stream = reader.into_inner();
-    tokio::io::AsyncWriteExt::write_all(&mut stream, response.as_bytes())
-        .await
-        .ok();
+        // Per-read timeout to avoid hanging on slow/malicious connections
+        let read_result = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            reader.read_line(&mut request_line),
+        )
+        .await;
 
-    // Parse callback
-    let (code, returned_state) = parse_callback_request(&request_line)?;
+        if read_result.is_err() || read_result.unwrap().is_err() {
+            continue; // Ignore malformed connections
+        }
+
+        match parse_callback_request(&request_line) {
+            Ok((code, cb_state)) => {
+                // Drain remaining HTTP headers before writing response
+                let mut header = String::new();
+                loop {
+                    header.clear();
+                    match reader.read_line(&mut header).await {
+                        Ok(0) => break,
+                        Ok(_) if header.trim().is_empty() => break,
+                        Ok(_) => continue,
+                        Err(_) => break,
+                    }
+                }
+                break (code, cb_state, reader.into_inner());
+            }
+            Err(_) => continue, // Not the OAuth callback, wait for next connection
+        }
+    };
+
+    send_callback_response(stream).await;
+
     if returned_state != state {
         return Err("OAuth state mismatch — possible CSRF attack".to_string());
     }
 
-    // Exchange code for tokens
     let token_resp = exchange_code(&code, &code_verifier).await?;
     store_tokens(
         &token_resp.access_token,
@@ -302,17 +338,13 @@ pub async fn linear_get_valid_token() -> Result<Option<String>, String> {
                     return Ok(Some(token_resp.access_token));
                 }
                 Err(_) => {
-                    // Refresh failed — clear tokens so user re-authenticates
                     clear_tokens();
                     return Ok(None);
                 }
             }
-        } else {
-            // No refresh token and access token expired
-            if now >= expires_at {
-                clear_tokens();
-                return Ok(None);
-            }
+        } else if now >= expires_at {
+            clear_tokens();
+            return Ok(None);
         }
     }
 
@@ -334,12 +366,11 @@ pub async fn linear_oauth_status() -> Result<OAuthStatus, String> {
 
 #[tauri::command]
 pub async fn linear_oauth_disconnect() -> Result<(), String> {
-    // Best-effort revoke
+    // Best-effort revoke (RFC 7009: access_token in POST body)
     if let Some(access_token) = keyring_get(KEY_ACCESS_TOKEN) {
-        let client = reqwest::Client::new();
-        let _ = client
+        let _ = reqwest::Client::new()
             .post("https://api.linear.app/oauth/revoke")
-            .bearer_auth(&access_token)
+            .form(&[("access_token", &access_token)])
             .send()
             .await;
     }
