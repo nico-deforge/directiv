@@ -1,42 +1,25 @@
 import { PaginationOrderBy } from "@linear/sdk";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
-import { linearClient } from "../lib/linear";
+import { getLinearClient } from "../lib/linear";
+import { useAuthStore, AUTH_PROVIDER_STATUS } from "../stores/authStore";
 import { ORPHAN_PROJECT_ID } from "../stores/projectStore";
 import type { BlockingIssue, EnrichedTask, LinearStatusType } from "../types";
-
-export type LinearConnectionStatus =
-  | { status: "no-token" }
-  | { status: "no-teams" }
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "connected" };
-
-export function useLinearConnectionStatus(
-  teamIds: string[],
-  isLoading: boolean,
-  error: Error | null,
-): LinearConnectionStatus {
-  return useMemo(() => {
-    if (!linearClient) return { status: "no-token" as const };
-    if (teamIds.length === 0) return { status: "no-teams" as const };
-    if (isLoading) return { status: "loading" as const };
-    if (error) return { status: "error" as const, message: error.message };
-    return { status: "connected" as const };
-  }, [teamIds.length, isLoading, error]);
-}
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function resolveTeamIds(keys: string[]): Promise<string[]> {
-  if (!linearClient) return [];
+function useIsLinearConnected() {
+  return useAuthStore((s) => s.linearStatus === AUTH_PROVIDER_STATUS.CONNECTED);
+}
 
-  // If all values are already UUIDs, return as-is
+async function resolveTeamIds(keys: string[]): Promise<string[]> {
+  const client = getLinearClient();
+  if (!client) return [];
+
   if (keys.every((k) => UUID_RE.test(k))) return keys;
 
-  const teams = await linearClient.teams();
+  const teams = await client.teams();
   return keys.map((key) => {
     if (UUID_RE.test(key)) return key;
     const team = teams.nodes.find((t) => t.key === key);
@@ -60,12 +43,15 @@ export type LinearProjectStatusType =
   (typeof LINEAR_PROJECT_STATUS_TYPE)[keyof typeof LINEAR_PROJECT_STATUS_TYPE];
 
 export function useLinearMyProjects() {
+  const isConnected = useIsLinearConnected();
+
   return useQuery<LinearProject[]>({
     queryKey: ["linear", "my-projects"],
     queryFn: async () => {
-      if (!linearClient) return [];
+      const client = getLinearClient();
+      if (!client) return [];
 
-      const result = await linearClient.projects({
+      const result = await client.projects({
         filter: {
           members: { some: { isMe: { eq: true } } },
           status: { type: { in: ["started", "backlog"] } },
@@ -80,7 +66,7 @@ export function useLinearMyProjects() {
         statusType: p.state as LinearProjectStatusType,
       }));
     },
-    enabled: !!linearClient,
+    enabled: isConnected,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }
@@ -89,11 +75,14 @@ export function useLinearProjectIssues(
   projectId: string | null,
   teamIds: string[],
 ) {
+  const isConnected = useIsLinearConnected();
+
   return useQuery<EnrichedTask[]>({
     queryKey: ["linear", "project-issues", projectId, teamIds],
     queryFn: async () => {
+      const client = getLinearClient();
       if (
-        !linearClient ||
+        !client ||
         !projectId ||
         projectId === ORPHAN_PROJECT_ID ||
         teamIds.length === 0
@@ -101,10 +90,10 @@ export function useLinearProjectIssues(
         return [];
 
       const resolvedIds = await resolveTeamIds(teamIds);
-      const me = await linearClient.viewer;
+      const me = await client.viewer;
       const viewerId = me.id;
 
-      const issues = await linearClient.issues({
+      const issues = await client.issues({
         filter: {
           project: { id: { eq: projectId } },
           team: { id: { in: resolvedIds } },
@@ -173,7 +162,7 @@ export function useLinearProjectIssues(
       return tasks;
     },
     enabled:
-      !!linearClient &&
+      isConnected &&
       !!projectId &&
       projectId !== ORPHAN_PROJECT_ID &&
       teamIds.length > 0,
@@ -191,12 +180,15 @@ export interface LinearIssueStub {
 }
 
 export function useLinearMyActiveIdentifiers(teamIds: string[]) {
+  const isConnected = useIsLinearConnected();
+
   return useQuery<Set<string>>({
     queryKey: ["linear", "my-active-identifiers", teamIds],
     queryFn: async () => {
-      if (!linearClient || teamIds.length === 0) return new Set();
+      const client = getLinearClient();
+      if (!client || teamIds.length === 0) return new Set();
       const resolvedIds = await resolveTeamIds(teamIds);
-      const issues = await linearClient.issues({
+      const issues = await client.issues({
         filter: {
           assignee: { isMe: { eq: true } },
           team: { id: { in: resolvedIds } },
@@ -206,20 +198,23 @@ export function useLinearMyActiveIdentifiers(teamIds: string[]) {
       });
       return new Set(issues.nodes.map((i) => i.identifier.toLowerCase()));
     },
-    enabled: !!linearClient && teamIds.length > 0,
+    enabled: isConnected && teamIds.length > 0,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }
 
 export function useLinearIssuesByBranches(branchNames: string[]) {
+  const isConnected = useIsLinearConnected();
+
   return useQuery<Map<string, LinearIssueStub>>({
     queryKey: ["linear", "issues-by-branches", branchNames],
     queryFn: async () => {
-      if (!linearClient || branchNames.length === 0) return new Map();
+      const client = getLinearClient();
+      if (!client || branchNames.length === 0) return new Map();
       const map = new Map<string, LinearIssueStub>();
       await Promise.allSettled(
         branchNames.map(async (branch) => {
-          const issue = await linearClient!.issueVcsBranchSearch(branch);
+          const issue = await client.issueVcsBranchSearch(branch);
           if (!issue) return;
           const state = await issue.state;
           map.set(branch.toLowerCase(), {
@@ -234,7 +229,7 @@ export function useLinearIssuesByBranches(branchNames: string[]) {
       );
       return map;
     },
-    enabled: !!linearClient && branchNames.length > 0,
+    enabled: isConnected && branchNames.length > 0,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }

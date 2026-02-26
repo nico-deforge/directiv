@@ -117,17 +117,15 @@ Create `directiv.config.json` in your home directory or project root:
 
 ### Environment Variables
 
-Create a `.env` file at the project root with your API keys:
+Create a `.env` file at the project root:
 
 ```bash
-# Required for Linear integration
-VITE_LINEAR_API_KEY=lin_api_xxxxx    # Get from Linear Settings > API
-
 # Required for GitHub integration
 VITE_GITHUB_TOKEN=ghp_xxxxx          # Personal Access Token (repo scope)
 ```
 
-> **Note:** Vite requires the `VITE_` prefix to expose variables to the frontend.
+> **Note:** Linear authentication uses OAuth2 — connect via the app UI on first launch. No API key needed.
+> Vite requires the `VITE_` prefix to expose variables to the frontend.
 > Both `.env` and `.env.local` are supported (`.env.local` is gitignored).
 
 ### Per-repository configuration

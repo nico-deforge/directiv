@@ -1,6 +1,6 @@
 import { IssueRelationType } from "@linear/sdk";
 import { toast } from "sonner";
-import { linearClient } from "./linear";
+import { getValidLinearClient } from "./linearAuth";
 import {
   worktreeCreate,
   worktreeList,
@@ -366,11 +366,10 @@ export async function startFreeTask({
 }
 
 async function updateLinearStatusToStarted(issueId: string): Promise<void> {
-  if (!linearClient) {
-    throw new Error("Linear client not initialized");
-  }
+  const client = await getValidLinearClient();
+  if (!client) throw new Error("Linear not connected");
 
-  const issue = await linearClient.issue(issueId);
+  const issue = await client.issue(issueId);
   const team = await issue.team;
   if (!team) {
     throw new Error("Issue has no team");
@@ -384,15 +383,16 @@ async function updateLinearStatusToStarted(issueId: string): Promise<void> {
     throw new Error("No 'started' state found for this team");
   }
 
-  await linearClient.updateIssue(issueId, { stateId: startedState.id });
+  await client.updateIssue(issueId, { stateId: startedState.id });
 }
 
 export async function createBlockedByRelation(
   targetIssueId: string,
   blockerIssueId: string,
 ): Promise<void> {
-  if (!linearClient) throw new Error("Linear client not initialized");
-  await linearClient.createIssueRelation({
+  const client = await getValidLinearClient();
+  if (!client) throw new Error("Linear not connected");
+  await client.createIssueRelation({
     issueId: blockerIssueId,
     relatedIssueId: targetIssueId,
     type: IssueRelationType.Blocks,
@@ -402,6 +402,7 @@ export async function createBlockedByRelation(
 export async function deleteBlockedByRelation(
   relationId: string,
 ): Promise<void> {
-  if (!linearClient) throw new Error("Linear client not initialized");
-  await linearClient.deleteIssueRelation(relationId);
+  const client = await getValidLinearClient();
+  if (!client) throw new Error("Linear not connected");
+  await client.deleteIssueRelation(relationId);
 }
