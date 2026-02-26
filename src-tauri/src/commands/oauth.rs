@@ -2,7 +2,6 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri_plugin_opener::OpenerExt;
 use tokio::io::AsyncBufReadExt;
@@ -16,8 +15,6 @@ const KEYRING_SERVICE: &str = "com.directiv.app";
 const KEY_ACCESS_TOKEN: &str = "linear_access_token";
 const KEY_REFRESH_TOKEN: &str = "linear_refresh_token";
 const KEY_EXPIRES_AT: &str = "linear_expires_at";
-
-static OAUTH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Serialize, Deserialize)]
 struct TokenResponse {
@@ -205,23 +202,6 @@ async fn send_callback_response(mut stream: tokio::net::TcpStream) {
 
 #[tauri::command]
 pub async fn linear_oauth_start(app: tauri::AppHandle) -> Result<String, String> {
-    if OAUTH_IN_PROGRESS
-        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-        .is_err()
-    {
-        return Err(
-            "An OAuth flow is already in progress. Please wait or restart the app.".to_string(),
-        );
-    }
-    // Guard ensures the flag is always reset, even on early returns
-    struct OAuthGuard;
-    impl Drop for OAuthGuard {
-        fn drop(&mut self) {
-            OAUTH_IN_PROGRESS.store(false, Ordering::SeqCst);
-        }
-    }
-    let _guard = OAuthGuard;
-
     let code_verifier = random_base64::<96>();
     let code_challenge = generate_code_challenge(&code_verifier);
     let state = random_base64::<32>();
