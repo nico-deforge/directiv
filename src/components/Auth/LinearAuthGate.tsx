@@ -4,6 +4,7 @@ import {
   AUTH_PROVIDER_STATUS,
   type AuthProviderStatus,
 } from "../../stores/authStore";
+import directivLogo from "../../assets/directiv-logo.png";
 
 function getButtonLabel(status: AuthProviderStatus): React.ReactNode {
   if (status === AUTH_PROVIDER_STATUS.CONNECTING) {
@@ -35,43 +36,7 @@ export function LinearAuthGate({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen flex-col items-center justify-center bg-[var(--bg-primary)]">
       <div className="flex max-w-sm flex-col items-center gap-6 text-center">
-        <svg
-          viewBox="0 0 100 100"
-          fill="none"
-          className="size-20 text-[var(--text-primary)]"
-        >
-          {/* Hexagon */}
-          <path
-            d="M50 3 L93 27 L93 73 L50 97 L7 73 L7 27 Z"
-            stroke="currentColor"
-            strokeWidth="5"
-            fill="none"
-            strokeLinejoin="round"
-          />
-          {/* D letter */}
-          <path
-            d="M32 32 L32 68 L50 68 C63 68 70 59 70 50 C70 41 63 32 50 32 Z"
-            stroke="currentColor"
-            strokeWidth="5"
-            fill="none"
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-          {/* Arrow cutting through */}
-          <path
-            d="M42 62 L68 28"
-            stroke="currentColor"
-            strokeWidth="5"
-            strokeLinecap="round"
-          />
-          <path
-            d="M58 26 L70 26 L70 38"
-            stroke="currentColor"
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <img src={directivLogo} alt="Directiv" className="size-20" />
 
         <div>
           <h1 className="text-xl font-semibold text-[var(--text-primary)]">
