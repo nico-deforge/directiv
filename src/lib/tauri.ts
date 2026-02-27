@@ -18,6 +18,7 @@ interface RawDiscoveredRepo {
   fetchBefore: boolean;
   configWarning?: string;
   skills?: SkillOverrides;
+  githubNwo?: string;
 }
 
 export async function scanWorkspace(

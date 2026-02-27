@@ -1,7 +1,34 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { octokit } from "../lib/github";
-import type { CIStatus, PullRequestInfo, ReviewRequestedPR } from "../types";
+import { getOctokitClient } from "../lib/github";
+import { useAuthStore, AUTH_PROVIDER_STATUS } from "../stores/authStore";
+import type {
+  CIStatus,
+  DiscoveredRepo,
+  PullRequestInfo,
+  ReviewRequestedPR,
+} from "../types";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
+
+const GITHUB_AUTH_ERROR_MSG =
+  "GitHub access was revoked or blocked by your organization. Please reconnect.";
+
+function isGitHubAuthError(err: unknown): boolean {
+  if (err && typeof err === "object" && "status" in err) {
+    if ((err as { status: number }).status === 401) return true;
+  }
+  return err instanceof Error && /Bad credentials/.test(err.message);
+}
+
+/**
+ * Rethrows the error after disconnecting GitHub if it is an auth error (401 / Bad credentials).
+ */
+async function rethrowWithAuthCheck(err: unknown): Promise<never> {
+  if (isGitHubAuthError(err)) {
+    await useAuthStore.getState().disconnectGitHub(GITHUB_AUTH_ERROR_MSG);
+  }
+  throw err;
+}
 
 interface ReviewNode {
   author: { login: string } | null;
@@ -75,12 +102,21 @@ const QUERY = `
   }
 `;
 
+function useIsGitHubConnected() {
+  return useAuthStore((s) => s.githubStatus === AUTH_PROVIDER_STATUS.CONNECTED);
+}
+
 export function useGitHubMyOpenPRs() {
+  const isConnected = useIsGitHubConnected();
+
   return useQuery<PullRequestInfo[]>({
     queryKey: ["github", "my-open-prs"],
     queryFn: async () => {
+      const octokit = getOctokitClient();
       if (!octokit) return [];
-      const data = await octokit.graphql<ViewerPRsResponse>(QUERY);
+      const data = await octokit
+        .graphql<ViewerPRsResponse>(QUERY)
+        .catch(rethrowWithAuthCheck);
       return data.viewer.pullRequests.nodes.map((pr): PullRequestInfo => {
         const rollup = pr.commits.nodes[0]?.commit.statusCheckRollup ?? null;
         const ciStatus: CIStatus = rollup?.state ?? null;
@@ -107,7 +143,7 @@ export function useGitHubMyOpenPRs() {
         };
       });
     },
-    enabled: !!octokit,
+    enabled: isConnected,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }
@@ -151,13 +187,16 @@ const REVIEW_REQUESTS_QUERY = `
 `;
 
 export function useGitHubReviewRequests() {
+  const isConnected = useIsGitHubConnected();
+
   return useQuery<ReviewRequestedPR[]>({
     queryKey: ["github", "review-requests"],
     queryFn: async () => {
+      const octokit = getOctokitClient();
       if (!octokit) return [];
-      const data = await octokit.graphql<ReviewRequestsResponse>(
-        REVIEW_REQUESTS_QUERY,
-      );
+      const data = await octokit
+        .graphql<ReviewRequestsResponse>(REVIEW_REQUESTS_QUERY)
+        .catch(rethrowWithAuthCheck);
       return data.search.nodes
         .filter((node) => node.number !== undefined)
         .map(
@@ -173,7 +212,44 @@ export function useGitHubReviewRequests() {
           }),
         );
     },
-    enabled: !!octokit,
+    enabled: isConnected,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
+  });
+}
+
+// --- Repo Access Check ---
+
+export function useGitHubRepoAccess(repos: DiscoveredRepo[]) {
+  const isConnected = useIsGitHubConnected();
+  const nwos = useMemo(
+    () =>
+      [...new Set(repos.map((r) => r.githubNwo).filter(Boolean))] as string[],
+    [repos],
+  );
+
+  return useQuery<Set<string>>({
+    queryKey: ["github", "repo-access", ...nwos],
+    queryFn: async () => {
+      const blocked = new Set<string>();
+      const octokit = getOctokitClient();
+      if (!octokit) return blocked;
+      for (const nwo of nwos) {
+        try {
+          const [owner, repo] = nwo.split("/");
+          await octokit.rest.repos.get({ owner, repo });
+        } catch (err) {
+          if (err && typeof err === "object" && "status" in err) {
+            const status = (err as { status: number }).status;
+            if (status === 401) {
+              await rethrowWithAuthCheck(err);
+            }
+            if (status === 403 || status === 404) blocked.add(nwo);
+          }
+        }
+      }
+      return blocked;
+    },
+    enabled: isConnected && nwos.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 }

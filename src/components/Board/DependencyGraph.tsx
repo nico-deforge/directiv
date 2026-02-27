@@ -21,7 +21,7 @@ import {
   useLinearMyActiveIdentifiers,
 } from "../../hooks/useLinear";
 import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
-import { useGitHubMyOpenPRs } from "../../hooks/useGitHub";
+import { useGitHubMyOpenPRs, useGitHubRepoAccess } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
 import {
   useCreateBlockedBy,
@@ -98,8 +98,17 @@ function DependencyGraphInner() {
   );
   const { data: claudeStates } = useClaudeSessionStates(activeSessionNames);
   const { data: prs } = useGitHubMyOpenPRs();
+  const { data: blockedRepos } = useGitHubRepoAccess(repos);
   const { data: allWorktrees } = useAllWorktrees(repos);
   const { data: myActiveIdentifiers } = useLinearMyActiveIdentifiers(teamIds);
+
+  const repoNwoById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of repos) {
+      if (r.githubNwo) map.set(r.id, r.githubNwo);
+    }
+    return map;
+  }, [repos]);
 
   const createBlockedBy = useCreateBlockedBy();
   const deleteBlockedBy = useDeleteBlockedBy();
@@ -227,6 +236,8 @@ function DependencyGraphInner() {
         (wtInfo ? prByBranch.get(wtInfo.worktree.branch.toLowerCase()) : null);
 
       const sessionName = toSessionName(task.identifier);
+      const repoNwo = wtInfo ? repoNwoById.get(wtInfo.repoId) : undefined;
+      const githubRepoBlocked = !!(repoNwo && blockedRepos?.has(repoNwo));
       return {
         id: task.id,
         type: "unifiedTask",
@@ -239,6 +250,7 @@ function DependencyGraphInner() {
           pullRequest: pr ?? null,
           repos,
           claudeStatus: claudeStates?.get(sessionName) ?? null,
+          githubRepoBlocked,
         },
         draggable: false,
       };
@@ -284,6 +296,8 @@ function DependencyGraphInner() {
     claudeStates,
     repos,
     resolvedTheme,
+    repoNwoById,
+    blockedRepos,
     linearIssuesByBranch,
   ]);
 

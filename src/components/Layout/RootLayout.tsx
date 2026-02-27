@@ -8,7 +8,7 @@ import { useWorkspaceInit } from "../../hooks/useWorkspace";
 import { useTerminalStore } from "../../stores/terminalStore";
 import { TabBar } from "../Terminal/TabBar";
 import { TerminalPanel } from "../Terminal/TerminalPanel";
-import { LinearAuthGate } from "../Auth/LinearAuthGate";
+import { AuthGate } from "../Auth/AuthGate";
 
 export function RootLayout() {
   const loadFromDisk = useSettingsStore((s) => s.loadFromDisk);
@@ -17,25 +17,43 @@ export function RootLayout() {
   const tabs = useTerminalStore((s) => s.tabs);
   const activeTab = useTerminalStore((s) => s.activeTab);
   const initializeLinearAuth = useAuthStore((s) => s.initializeLinearAuth);
+  const initializeGitHubAuth = useAuthStore((s) => s.initializeGitHubAuth);
   const queryClient = useQueryClient();
 
   useEffect(() => {
     loadFromDisk();
     initializeLinearAuth();
-  }, [loadFromDisk, initializeLinearAuth]);
+    initializeGitHubAuth();
+  }, [loadFromDisk, initializeLinearAuth, initializeGitHubAuth]);
 
-  // Invalidate Linear queries when auth status transitions to connected or disconnected
+  // Invalidate queries when auth status transitions to connected or disconnected
   useEffect(() => {
-    let prev = useAuthStore.getState().linearStatus;
+    const providers: Array<{
+      getStatus: (s: ReturnType<typeof useAuthStore.getState>) => string;
+      queryKey: string;
+    }> = [
+      { getStatus: (s) => s.linearStatus, queryKey: "linear" },
+      { getStatus: (s) => s.githubStatus, queryKey: "github" },
+    ];
+
+    const prevStatuses = providers.map((p) =>
+      p.getStatus(useAuthStore.getState()),
+    );
+
     const unsub = useAuthStore.subscribe((state) => {
-      const status = state.linearStatus;
-      if (status === prev) return;
-      prev = status;
-      if (
-        status === AUTH_PROVIDER_STATUS.CONNECTED ||
-        status === AUTH_PROVIDER_STATUS.DISCONNECTED
-      ) {
-        queryClient.invalidateQueries({ queryKey: ["linear"] });
+      for (let i = 0; i < providers.length; i++) {
+        const status = providers[i].getStatus(state);
+        if (status !== prevStatuses[i]) {
+          prevStatuses[i] = status;
+          if (
+            status === AUTH_PROVIDER_STATUS.CONNECTED ||
+            status === AUTH_PROVIDER_STATUS.DISCONNECTED
+          ) {
+            queryClient.invalidateQueries({
+              queryKey: [providers[i].queryKey],
+            });
+          }
+        }
       }
     });
     return unsub;
@@ -55,7 +73,7 @@ export function RootLayout() {
   return (
     <>
       <Toaster theme={resolvedTheme} richColors position="bottom-right" />
-      <LinearAuthGate>
+      <AuthGate>
         <div className="flex h-screen flex-col">
           <TabBar />
           <div
@@ -83,7 +101,7 @@ export function RootLayout() {
             </div>
           ))}
         </div>
-      </LinearAuthGate>
+      </AuthGate>
     </>
   );
 }

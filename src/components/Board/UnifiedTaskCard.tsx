@@ -119,6 +119,7 @@ export type UnifiedTaskNodeData = {
   pullRequest: PullRequestInfo | null;
   repos: DiscoveredRepo[];
   claudeStatus: ClaudeSessionStatus | null;
+  githubRepoBlocked: boolean;
   onDragStart?: (nodeId: string, e: React.MouseEvent) => void;
   isBeingTargeted?: boolean;
 };
@@ -134,6 +135,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     pullRequest,
     repos,
     claudeStatus,
+    githubRepoBlocked,
     onDragStart,
     isBeingTargeted,
   } = data;
@@ -524,6 +526,16 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                 )}
               </button>
             )}
+        </div>
+      )}
+
+      {/* GitHub repo blocked warning */}
+      {worktree && !pullRequest && githubRepoBlocked && (
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+          <Github className="size-4 shrink-0 text-[var(--accent-red)]" />
+          <span className="truncate text-xs text-[var(--accent-red)]">
+            Access blocked by organization
+          </span>
         </div>
       )}
 

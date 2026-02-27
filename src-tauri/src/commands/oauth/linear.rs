@@ -1,71 +1,38 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri_plugin_opener::OpenerExt;
 use tokio::io::AsyncBufReadExt;
 use tokio::net::TcpListener;
 use url::Url;
 
+use super::shared::*;
+
 const LINEAR_CLIENT_ID: &str = "68b44898ebc27357cba06642d0c9efa6";
 const REDIRECT_PORT: u16 = 19823;
 const REDIRECT_URI: &str = "http://127.0.0.1:19823/callback";
-const KEYRING_SERVICE: &str = "com.directiv.app";
 const KEY_ACCESS_TOKEN: &str = "linear_access_token";
 const KEY_REFRESH_TOKEN: &str = "linear_refresh_token";
 const KEY_EXPIRES_AT: &str = "linear_expires_at";
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct TokenResponse {
     access_token: String,
+    #[allow(dead_code)]
     token_type: String,
     expires_in: u64,
     #[serde(default)]
+    #[allow(dead_code)]
     scope: Option<String>,
     #[serde(default)]
     refresh_token: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct OAuthStatus {
-    pub has_token: bool,
-    pub expires_at: Option<u64>,
-    pub is_expired: bool,
-}
-
-fn now_secs() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
 }
 
 fn random_base64<const N: usize>() -> String {
     let mut bytes = [0u8; N];
     rand::rng().fill(&mut bytes[..]);
     URL_SAFE_NO_PAD.encode(bytes)
-}
-
-// --- Keyring helpers ---
-
-fn keyring_get(key: &str) -> Option<String> {
-    let entry = keyring::Entry::new(KEYRING_SERVICE, key).ok()?;
-    entry.get_password().ok()
-}
-
-fn keyring_set(key: &str, value: &str) -> Result<(), String> {
-    let entry =
-        keyring::Entry::new(KEYRING_SERVICE, key).map_err(|e| format!("Keyring error: {e}"))?;
-    entry
-        .set_password(value)
-        .map_err(|e| format!("Keyring set error: {e}"))
-}
-
-fn keyring_delete(key: &str) {
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, key) {
-        let _ = entry.delete_credential();
-    }
 }
 
 fn store_tokens(
@@ -216,16 +183,16 @@ pub async fn linear_oauth_start(app: tauri::AppHandle) -> Result<String, String>
         .map_err(|e| format!("Failed to open browser: {e}"))?;
 
     // Wait for the real OAuth callback, retrying on stray connections
-    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(120);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
     let (code, returned_state, stream) = loop {
         let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
         if remaining.is_zero() {
-            return Err("OAuth timed out — no callback received within 120 seconds".to_string());
+            return Err("OAuth timed out — no callback received within 30 seconds".to_string());
         }
 
         let (stream, _addr) = tokio::time::timeout(remaining, listener.accept())
             .await
-            .map_err(|_| "OAuth timed out — no callback received within 120 seconds".to_string())?
+            .map_err(|_| "OAuth timed out — no callback received within 30 seconds".to_string())?
             .map_err(|e| format!("Failed to accept callback connection: {e}"))?;
 
         let mut reader = tokio::io::BufReader::new(stream);
