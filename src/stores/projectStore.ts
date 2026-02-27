@@ -1,8 +1,11 @@
 import { create } from "zustand";
-import type {
-  LinearConnectionStatus,
-  LinearProjectStatusType,
-} from "../hooks/useLinear";
+import type { LinearProjectStatusType } from "../hooks/useLinear";
+
+export type LinearConnectionStatus =
+  | { status: "no-teams" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "connected" };
 
 // Special project ID for orphan worktrees (worktrees without Linear tasks)
 export const ORPHAN_PROJECT_ID = "__orphan__";

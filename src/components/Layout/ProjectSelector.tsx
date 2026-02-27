@@ -98,22 +98,6 @@ export function ProjectSelector() {
         </div>
       </div>
       <div className="flex-1 overflow-y-auto py-2">
-        {connectionStatus.status === "no-token" && (
-          <div className="px-4 py-3">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="mt-0.5 size-4 shrink-0 text-[var(--accent-amber)]" />
-              <div>
-                <p className="text-sm font-medium text-[var(--accent-amber)]">
-                  Linear API key missing
-                </p>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">
-                  Add VITE_LINEAR_API_KEY to .env.local
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {connectionStatus.status === "no-teams" && (
           <div className="px-4 py-3">
             <div className="flex items-start gap-2">
