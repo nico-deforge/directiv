@@ -21,6 +21,7 @@ pub struct DiscoveredRepo {
     pub fetch_before: bool,
     pub config_warning: Option<String>,
     pub skills: Option<SkillOverrides>,
+    pub github_nwo: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -40,6 +41,25 @@ struct RepoConfig {
 
 fn default_fetch_before() -> bool {
     true
+}
+
+fn parse_github_nwo(url: &str) -> Option<String> {
+    let url = url.trim_end_matches(".git");
+    url.strip_prefix("git@github.com:")
+        .or_else(|| url.strip_prefix("https://github.com/"))
+        .map(|s| s.to_string())
+}
+
+fn get_github_nwo(repo_path: &str) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(["-C", repo_path, "remote", "get-url", "origin"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    parse_github_nwo(&url)
 }
 
 #[tauri::command]
@@ -107,6 +127,8 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
             (RepoConfig::default(), None)
         };
 
+        let github_nwo = get_github_nwo(&repo_path);
+
         repos.push(DiscoveredRepo {
             id,
             path: repo_path,
@@ -116,6 +138,7 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
             fetch_before: config.fetch_before,
             config_warning,
             skills: config.skills,
+            github_nwo,
         });
     }
 

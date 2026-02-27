@@ -66,7 +66,7 @@ mise run build             # Build production Tauri app
 ### Frontend patterns
 
 - **Hooks** (`src/hooks/`) wrap SDK clients with TanStack Query for caching/polling: `useLinear`, `useGitHub`, `useTmux`, `useWorktrees`
-- **Stores** (`src/stores/`) use Zustand: `workflowStore` (enriched tasks, filters), `settingsStore` (persisted user config), `terminalStore` (terminal tab lifecycle)
+- **Stores** (`src/stores/`) use Zustand: `workflowStore` (enriched tasks, filters), `settingsStore` (persisted user config), `terminalStore` (terminal tab lifecycle), `authStore` (OAuth state for Linear + GitHub, cached SDK client factories)
 - **Lib** (`src/lib/`) contains initialized SDK clients and business logic (`workflows.ts` handles `startTask`, `removeWorktreeFlow`, etc.)
 
 ### Backend commands (`src-tauri/src/commands/`)
@@ -75,6 +75,10 @@ mise run build             # Build production Tauri app
 - `tmux.rs` — session create/kill/list/capture-pane
 - `pty.rs` — PTY spawn/write/resize/close for the integrated terminal (xterm.js ↔ Tauri Channel ↔ Rust PTY ↔ tmux attach)
 - `terminal.rs` — open external terminal attached to tmux session (legacy/fallback)
+- `oauth/` — OAuth module directory:
+  - `shared.rs` — keyring helpers (`keyring_get/set/delete`), `OAuthStatus`, `now_secs()`
+  - `linear.rs` — Linear OAuth2 Web Flow (PKCE + localhost callback)
+  - `github.rs` — GitHub OAuth Device Flow (no `client_secret`, tokens don't expire)
 
 ### Integrated terminal
 
@@ -120,6 +124,19 @@ Skills are bundled inside the app as a Claude Code plugin — no user installati
 | In Review | GitHub | PR opened linked to task |
 | Approved | GitHub | PR with ≥1 approval, 0 changes requested |
 | Done | Linear | Completed in last 24h |
+
+## Authentication
+
+Both Linear and GitHub use OAuth — no API keys or `.env` variables needed. Tokens are stored in the OS keyring (`com.directiv.app`).
+
+- **Linear** — OAuth2 Web Flow (PKCE + localhost callback on port 19823). Tokens expire and are auto-refreshed.
+- **GitHub** — OAuth Device Flow (same pattern as `gh` CLI). Uses an OAuth App (`client_id` only, no `client_secret`). Tokens don't expire — no refresh logic needed.
+
+**Auth flow:**
+- `authStore.ts` manages state for both providers (`initializeLinearAuth`, `initializeGitHubAuth` on app mount)
+- `AuthGate.tsx` blocks the app until both providers are connected
+- `tauriOAuth.ts` wraps Tauri `invoke()` calls to Rust OAuth commands
+- Cached SDK client factories: `getLinearClient()` and `getOctokitClient()` (in `authStore.ts`, re-exported via `lib/linear.ts` and `lib/github.ts`)
 
 ## Configuration
 
