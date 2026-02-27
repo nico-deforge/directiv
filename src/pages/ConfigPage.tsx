@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Sparkles, Settings2, FolderGit2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Plug, FolderGit2 } from "lucide-react";
 import { SkillsSection } from "../components/Config/SkillsSection";
+import { IntegrationsSection } from "../components/Config/IntegrationsSection";
 
-type ConfigSection = "skills" | "general" | "repositories";
+type ConfigSection = "skills" | "integrations" | "repositories";
 
 export function ConfigPage() {
   const [activeSection, setActiveSection] = useState<ConfigSection>("skills");
@@ -29,10 +30,10 @@ export function ConfigPage() {
             onClick={() => setActiveSection("skills")}
           />
           <MenuItem
-            icon={<Settings2 className="size-4" />}
-            label="General"
-            active={activeSection === "general"}
-            onClick={() => setActiveSection("general")}
+            icon={<Plug className="size-4" />}
+            label="Integrations"
+            active={activeSection === "integrations"}
+            onClick={() => setActiveSection("integrations")}
           />
           <MenuItem
             icon={<FolderGit2 className="size-4" />}
@@ -46,9 +47,7 @@ export function ConfigPage() {
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-6">
         {activeSection === "skills" && <SkillsSection />}
-        {activeSection === "general" && (
-          <PlaceholderSection title="General Settings" />
-        )}
+        {activeSection === "integrations" && <IntegrationsSection />}
         {activeSection === "repositories" && (
           <PlaceholderSection title="Repositories" />
         )}

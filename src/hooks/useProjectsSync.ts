@@ -2,13 +2,14 @@ import { useEffect, useMemo } from "react";
 import {
   useLinearMyProjects,
   useLinearProjectIssues,
-  useLinearConnectionStatus,
   useLinearMyActiveIdentifiers,
 } from "./useLinear";
 import { useAllWorktrees } from "./useWorktrees";
 import { useSettingsStore } from "../stores/settingsStore";
+import { useAuthStore, AUTH_PROVIDER_STATUS } from "../stores/authStore";
 import { useWorkspaceRepos } from "./useWorkspace";
 import { useProjectStore, type Project } from "../stores/projectStore";
+import type { LinearConnectionStatus } from "../stores/projectStore";
 
 /**
  * Syncs project-related query results into the project Zustand store.
@@ -20,6 +21,7 @@ export function useProjectsSync() {
   const repos = useWorkspaceRepos();
   const setProjectsData = useProjectStore((s) => s.setProjectsData);
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
+  const linearStatus = useAuthStore((s) => s.linearStatus);
 
   const {
     data: linearProjects,
@@ -32,11 +34,25 @@ export function useProjectsSync() {
     teamIds,
   );
 
-  const connectionStatus = useLinearConnectionStatus(
-    teamIds,
-    projectsLoading || tasksLoading,
-    projectsError || tasksError,
-  );
+  const connectionStatus: LinearConnectionStatus = useMemo(() => {
+    if (linearStatus !== AUTH_PROVIDER_STATUS.CONNECTED)
+      return { status: "loading" as const };
+    if (teamIds.length === 0) return { status: "no-teams" as const };
+    if (projectsLoading || tasksLoading) return { status: "loading" as const };
+    if (projectsError || tasksError)
+      return {
+        status: "error" as const,
+        message: (projectsError || tasksError)!.message,
+      };
+    return { status: "connected" as const };
+  }, [
+    linearStatus,
+    teamIds.length,
+    projectsLoading,
+    tasksLoading,
+    projectsError,
+    tasksError,
+  ]);
 
   const { data: allWorktrees } = useAllWorktrees(repos);
   const { data: myActiveIdentifiers } = useLinearMyActiveIdentifiers(teamIds);

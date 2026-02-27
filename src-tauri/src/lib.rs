@@ -2,7 +2,9 @@ mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default().plugin(tauri_plugin_shell::init());
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init());
 
     if cfg!(debug_assertions) {
         builder = builder.plugin(
@@ -40,6 +42,11 @@ pub fn run() {
             commands::pty::pty_write,
             commands::pty::pty_resize,
             commands::pty::pty_close,
+            commands::oauth::linear_oauth_start,
+            commands::oauth::linear_oauth_refresh,
+            commands::oauth::linear_get_valid_token,
+            commands::oauth::linear_oauth_status,
+            commands::oauth::linear_oauth_disconnect,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
