@@ -58,41 +58,37 @@ function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// Cached Linear client
-let cachedLinearClient: LinearClient | null = null;
-let cachedLinearToken: string | null = null;
+function createCachedClientFactory<T>(
+  getToken: () => string | null,
+  create: (token: string) => T,
+): () => T | null {
+  let cached: T | null = null;
+  let cachedToken: string | null = null;
 
-export function getLinearClient(): LinearClient | null {
-  const token = useAuthStore.getState().linearAccessToken;
-  if (!token) {
-    cachedLinearClient = null;
-    cachedLinearToken = null;
-    return null;
-  }
-  if (token !== cachedLinearToken) {
-    cachedLinearClient = new LinearClient({ accessToken: token });
-    cachedLinearToken = token;
-  }
-  return cachedLinearClient;
+  return function getCachedClient(): T | null {
+    const token = getToken();
+    if (!token) {
+      cached = null;
+      cachedToken = null;
+      return null;
+    }
+    if (token !== cachedToken) {
+      cached = create(token);
+      cachedToken = token;
+    }
+    return cached;
+  };
 }
 
-// Cached Octokit client
-let cachedOctokit: Octokit | null = null;
-let cachedGithubToken: string | null = null;
+export const getLinearClient = createCachedClientFactory(
+  () => useAuthStore.getState().linearAccessToken,
+  (token) => new LinearClient({ accessToken: token }),
+);
 
-export function getOctokitClient(): Octokit | null {
-  const token = useAuthStore.getState().githubAccessToken;
-  if (!token) {
-    cachedOctokit = null;
-    cachedGithubToken = null;
-    return null;
-  }
-  if (token !== cachedGithubToken) {
-    cachedOctokit = new Octokit({ auth: token });
-    cachedGithubToken = token;
-  }
-  return cachedOctokit;
-}
+export const getOctokitClient = createCachedClientFactory(
+  () => useAuthStore.getState().githubAccessToken,
+  (token) => new Octokit({ auth: token }),
+);
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   // --- Linear ---

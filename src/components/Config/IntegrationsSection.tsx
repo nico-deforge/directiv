@@ -33,6 +33,57 @@ export function IntegrationsSection() {
   const isGitHubConnected = githubStatus === AUTH_PROVIDER_STATUS.CONNECTED;
   const isGitHubConnecting = githubStatus === AUTH_PROVIDER_STATUS.CONNECTING;
 
+  function renderGitHubStatus(): React.ReactNode {
+    if (isGitHubConnected) {
+      return (
+        <span className="flex items-center gap-1.5">
+          <CheckCircle2 className="size-3 text-[var(--accent-green)]" />
+          <span className="text-[var(--accent-green)]">
+            Connected via OAuth
+          </span>
+        </span>
+      );
+    }
+    if (isGitHubConnecting && githubUserCode) {
+      return (
+        <span className="flex items-center gap-1.5">
+          <Loader2 className="size-3 animate-spin" />
+          Enter code{" "}
+          <code className="rounded bg-[var(--bg-elevated)] px-1 font-mono text-xs font-semibold text-[var(--text-primary)]">
+            {githubUserCode}
+          </code>{" "}
+          on github.com
+        </span>
+      );
+    }
+    return "Not connected";
+  }
+
+  function renderGitHubAction(): React.ReactNode {
+    if (isGitHubConnected) {
+      return (
+        <button
+          onClick={handleDisconnectGitHub}
+          className="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/10"
+        >
+          <LogOut className="size-3" />
+          Disconnect
+        </button>
+      );
+    }
+    if (!isGitHubConnecting) {
+      return (
+        <button
+          onClick={startGitHubOAuth}
+          className="flex shrink-0 items-center gap-1.5 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90"
+        >
+          Connect
+        </button>
+      );
+    }
+    return null;
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -107,43 +158,10 @@ export function IntegrationsSection() {
                   GitHub
                 </span>
                 <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-                  {isGitHubConnected ? (
-                    <span className="flex items-center gap-1.5">
-                      <CheckCircle2 className="size-3 text-[var(--accent-green)]" />
-                      <span className="text-[var(--accent-green)]">
-                        Connected via OAuth
-                      </span>
-                    </span>
-                  ) : isGitHubConnecting && githubUserCode ? (
-                    <span className="flex items-center gap-1.5">
-                      <Loader2 className="size-3 animate-spin" />
-                      Enter code{" "}
-                      <code className="rounded bg-[var(--bg-elevated)] px-1 font-mono text-xs font-semibold text-[var(--text-primary)]">
-                        {githubUserCode}
-                      </code>{" "}
-                      on github.com
-                    </span>
-                  ) : (
-                    "Not connected"
-                  )}
+                  {renderGitHubStatus()}
                 </p>
               </div>
-              {isGitHubConnected ? (
-                <button
-                  onClick={handleDisconnectGitHub}
-                  className="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/10"
-                >
-                  <LogOut className="size-3" />
-                  Disconnect
-                </button>
-              ) : !isGitHubConnecting ? (
-                <button
-                  onClick={startGitHubOAuth}
-                  className="flex shrink-0 items-center gap-1.5 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90"
-                >
-                  Connect
-                </button>
-              ) : null}
+              {renderGitHubAction()}
             </div>
           </div>
         </div>

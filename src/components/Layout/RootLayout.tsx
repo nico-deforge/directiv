@@ -28,27 +28,31 @@ export function RootLayout() {
 
   // Invalidate queries when auth status transitions to connected or disconnected
   useEffect(() => {
-    let prevLinear = useAuthStore.getState().linearStatus;
-    let prevGitHub = useAuthStore.getState().githubStatus;
+    const providers: Array<{
+      getStatus: (s: ReturnType<typeof useAuthStore.getState>) => string;
+      queryKey: string;
+    }> = [
+      { getStatus: (s) => s.linearStatus, queryKey: "linear" },
+      { getStatus: (s) => s.githubStatus, queryKey: "github" },
+    ];
+
+    const prevStatuses = providers.map((p) =>
+      p.getStatus(useAuthStore.getState()),
+    );
+
     const unsub = useAuthStore.subscribe((state) => {
-      const linearStatus = state.linearStatus;
-      if (linearStatus !== prevLinear) {
-        prevLinear = linearStatus;
-        if (
-          linearStatus === AUTH_PROVIDER_STATUS.CONNECTED ||
-          linearStatus === AUTH_PROVIDER_STATUS.DISCONNECTED
-        ) {
-          queryClient.invalidateQueries({ queryKey: ["linear"] });
-        }
-      }
-      const githubStatus = state.githubStatus;
-      if (githubStatus !== prevGitHub) {
-        prevGitHub = githubStatus;
-        if (
-          githubStatus === AUTH_PROVIDER_STATUS.CONNECTED ||
-          githubStatus === AUTH_PROVIDER_STATUS.DISCONNECTED
-        ) {
-          queryClient.invalidateQueries({ queryKey: ["github"] });
+      for (let i = 0; i < providers.length; i++) {
+        const status = providers[i].getStatus(state);
+        if (status !== prevStatuses[i]) {
+          prevStatuses[i] = status;
+          if (
+            status === AUTH_PROVIDER_STATUS.CONNECTED ||
+            status === AUTH_PROVIDER_STATUS.DISCONNECTED
+          ) {
+            queryClient.invalidateQueries({
+              queryKey: [providers[i].queryKey],
+            });
+          }
         }
       }
     });

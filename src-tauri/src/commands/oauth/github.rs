@@ -22,8 +22,6 @@ struct PollResponse {
     access_token: Option<String>,
     #[serde(default)]
     error: Option<String>,
-    #[serde(default)]
-    interval: Option<u64>,
 }
 
 #[tauri::command]
@@ -102,11 +100,7 @@ pub async fn github_oauth_poll(
         match poll_resp.error.as_deref() {
             Some("authorization_pending") => continue,
             Some("slow_down") => {
-                // GitHub asks us to add 5 seconds to the interval
                 poll_interval += std::time::Duration::from_secs(5);
-                if let Some(new_interval) = poll_resp.interval {
-                    poll_interval = std::time::Duration::from_secs(new_interval);
-                }
             }
             Some("expired_token") => {
                 return Err(

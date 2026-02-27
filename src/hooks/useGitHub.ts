@@ -20,6 +20,16 @@ function isGitHubAuthError(err: unknown): boolean {
   return err instanceof Error && /Bad credentials/.test(err.message);
 }
 
+/**
+ * Rethrows the error after disconnecting GitHub if it is an auth error (401 / Bad credentials).
+ */
+async function rethrowWithAuthCheck(err: unknown): Promise<never> {
+  if (isGitHubAuthError(err)) {
+    await useAuthStore.getState().disconnectGitHub(GITHUB_AUTH_ERROR_MSG);
+  }
+  throw err;
+}
+
 interface ReviewNode {
   author: { login: string } | null;
   state: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "PENDING";
@@ -104,39 +114,34 @@ export function useGitHubMyOpenPRs() {
     queryFn: async () => {
       const octokit = getOctokitClient();
       if (!octokit) return [];
-      try {
-        const data = await octokit.graphql<ViewerPRsResponse>(QUERY);
-        return data.viewer.pullRequests.nodes.map((pr): PullRequestInfo => {
-          const rollup = pr.commits.nodes[0]?.commit.statusCheckRollup ?? null;
-          const ciStatus: CIStatus = rollup?.state ?? null;
-          const ciUrl: string | null = rollup ? `${pr.url}/checks` : null;
+      const data = await octokit
+        .graphql<ViewerPRsResponse>(QUERY)
+        .catch(rethrowWithAuthCheck);
+      return data.viewer.pullRequests.nodes.map((pr): PullRequestInfo => {
+        const rollup = pr.commits.nodes[0]?.commit.statusCheckRollup ?? null;
+        const ciStatus: CIStatus = rollup?.state ?? null;
+        const ciUrl: string | null = rollup ? `${pr.url}/checks` : null;
 
-          return {
-            number: pr.number,
-            title: pr.title,
-            state: "open",
-            url: pr.url,
-            branch: pr.headRefName,
-            draft: pr.isDraft,
-            reviewDecision: pr.reviewDecision,
-            requestedReviewerCount: pr.reviewRequests.totalCount,
-            reviews: pr.latestReviews.nodes.map((r) => ({
-              author: r.author?.login ?? "unknown",
-              state: r.state,
-              submittedAt: r.submittedAt,
-            })),
-            ciStatus,
-            ciUrl,
-            createdAt: pr.createdAt,
-            updatedAt: pr.updatedAt,
-          };
-        });
-      } catch (err) {
-        if (isGitHubAuthError(err)) {
-          await useAuthStore.getState().disconnectGitHub(GITHUB_AUTH_ERROR_MSG);
-        }
-        throw err;
-      }
+        return {
+          number: pr.number,
+          title: pr.title,
+          state: "open",
+          url: pr.url,
+          branch: pr.headRefName,
+          draft: pr.isDraft,
+          reviewDecision: pr.reviewDecision,
+          requestedReviewerCount: pr.reviewRequests.totalCount,
+          reviews: pr.latestReviews.nodes.map((r) => ({
+            author: r.author?.login ?? "unknown",
+            state: r.state,
+            submittedAt: r.submittedAt,
+          })),
+          ciStatus,
+          ciUrl,
+          createdAt: pr.createdAt,
+          updatedAt: pr.updatedAt,
+        };
+      });
     },
     enabled: isConnected,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
@@ -189,30 +194,23 @@ export function useGitHubReviewRequests() {
     queryFn: async () => {
       const octokit = getOctokitClient();
       if (!octokit) return [];
-      try {
-        const data = await octokit.graphql<ReviewRequestsResponse>(
-          REVIEW_REQUESTS_QUERY,
+      const data = await octokit
+        .graphql<ReviewRequestsResponse>(REVIEW_REQUESTS_QUERY)
+        .catch(rethrowWithAuthCheck);
+      return data.search.nodes
+        .filter((node) => node.number !== undefined)
+        .map(
+          (pr): ReviewRequestedPR => ({
+            number: pr.number,
+            title: pr.title,
+            url: pr.url,
+            repoName: pr.repository.nameWithOwner,
+            authorLogin: pr.author?.login ?? "unknown",
+            createdAt: pr.createdAt,
+            updatedAt: pr.updatedAt,
+            isDraft: pr.isDraft,
+          }),
         );
-        return data.search.nodes
-          .filter((node) => node.number !== undefined)
-          .map(
-            (pr): ReviewRequestedPR => ({
-              number: pr.number,
-              title: pr.title,
-              url: pr.url,
-              repoName: pr.repository.nameWithOwner,
-              authorLogin: pr.author?.login ?? "unknown",
-              createdAt: pr.createdAt,
-              updatedAt: pr.updatedAt,
-              isDraft: pr.isDraft,
-            }),
-          );
-      } catch (err) {
-        if (isGitHubAuthError(err)) {
-          await useAuthStore.getState().disconnectGitHub(GITHUB_AUTH_ERROR_MSG);
-        }
-        throw err;
-      }
     },
     enabled: isConnected,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
@@ -242,6 +240,9 @@ export function useGitHubRepoAccess(repos: DiscoveredRepo[]) {
         } catch (err) {
           if (err && typeof err === "object" && "status" in err) {
             const status = (err as { status: number }).status;
+            if (status === 401) {
+              await rethrowWithAuthCheck(err);
+            }
             if (status === 403 || status === 404) blocked.add(nwo);
           }
         }
