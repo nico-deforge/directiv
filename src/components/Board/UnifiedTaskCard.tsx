@@ -17,7 +17,6 @@ import {
   Code2,
   AlertTriangle,
   ClipboardList,
-  Users,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -168,7 +167,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
-  const prNeedsReviewers = workflowStatus === "personal-review";
 
   useEffect(() => {
     if (!confirmingDelete) return;
@@ -472,18 +470,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <AlertTriangle className="size-3" />
               Needs Claude Input
             </button>
-          )}
-          {prNeedsReviewers && pullRequest && (
-            <a
-              href={pullRequest.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-purple)]/20 text-[var(--accent-purple)] hover:bg-[var(--accent-purple)]/30 transition-colors"
-            >
-              <Users className="size-3" />
-              Needs Personal Review
-            </a>
           )}
         </div>
         <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
