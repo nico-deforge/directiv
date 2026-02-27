@@ -1,4 +1,4 @@
-import { CheckCircle2, LogOut, Plug } from "lucide-react";
+import { CheckCircle2, KanbanSquare, LogOut, Plug } from "lucide-react";
 import { useAuthStore, AUTH_PROVIDER_STATUS } from "../../stores/authStore";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -41,27 +41,7 @@ export function IntegrationsSection() {
           <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)]">
             <div className="flex items-center gap-3 px-4 py-3">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)]">
-                <svg
-                  viewBox="0 0 100 100"
-                  className="size-4"
-                  fill="currentColor"
-                >
-                  <path
-                    d="M1.22541 61.5228c-.97022 2.1399-.4832 4.6484 1.17538 6.3069L28.6818 95.5765c1.6586 1.6586 4.167 2.1456 6.307 1.1754l7.0528-3.1981c-5.6498-4.3648-10.5174-9.637-14.3606-15.5601l-4.9557 2.2489c-1.2851.5831-2.7885.2297-3.6373-.8191L6.47997 66.815c-1.0486-1.0486-1.40213-2.3522-.8191-3.6373l2.2489-4.9557C2.00084 54.3799-1.8704 49.4629-4.3648 43.7343l-3.1981 7.0528z"
-                    transform="translate(4, 0)"
-                    className="text-[var(--text-primary)]"
-                  />
-                  <path
-                    d="M19.3553 73.8554c4.1419 5.4237 9.2563 10.0948 15.0662 13.8567l60.1756-60.1756c-3.7619-5.8099-8.433-10.9243-13.8567-15.0662L19.3553 73.8554z"
-                    transform="translate(4, 0)"
-                    className="text-[var(--text-primary)]"
-                  />
-                  <path
-                    d="M94.5765 31.6818 68.8233 5.92856c-1.6586-1.6586-4.167-2.14565-6.307-1.17539l-7.0528 3.19812c5.6498 4.36478 10.5174 9.63698 14.3606 15.56011l4.9557-2.2489c1.2851-.5832 2.7885-.2297 3.6373.8191l12.6083 12.6083c1.0486 1.0486 1.4022 2.3522.8191 3.6373l-2.2489 4.9557c5.9231 3.8432 11.1953 8.7108 15.5601 14.3606l3.1981-7.0528c.9703-2.1399.4833-4.6484-1.1754-6.307z"
-                    transform="translate(4, 0)"
-                    className="text-[var(--text-primary)]"
-                  />
-                </svg>
+                <KanbanSquare className="size-4 text-[var(--text-primary)]" />
               </div>
               <div className="min-w-0 flex-1">
                 <span className="font-medium text-[var(--text-primary)]">
