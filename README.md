@@ -52,8 +52,8 @@ Switch between tasks instantly. Never lose your place.
 
 ## Features
 
-- **Linear integration** — Sync tasks, update statuses, link PRs automatically
-- **GitHub integration** — Track PRs, reviews, and merge status
+- **Linear integration** — OAuth2, sync tasks, update statuses, link PRs automatically
+- **GitHub integration** — OAuth Device Flow, track PRs, reviews, and merge status
 - **Git worktree management** — Create, switch, and cleanup worktrees via GUI
 - **tmux orchestration** — Persistent sessions that survive terminal crashes
 - **Integrated terminal** — Built-in xterm.js terminal connected to tmux via Rust PTY, with full-screen tab system
@@ -115,18 +115,14 @@ Create `directiv.config.json` in your home directory or project root:
 
 > **Terminal mode:** By default, Directiv uses a built-in terminal (xterm.js + Rust PTY) that renders tmux sessions directly in the app as full-screen tabs. To revert to the previous behavior of opening Ghostty or iTerm2, set `"terminalMode": "external"` in your config.
 
-### Environment Variables
+### Authentication
 
-Create a `.env` file at the project root:
+Both Linear and GitHub use OAuth — connect via the app UI on first launch. No API keys or environment variables needed.
 
-```bash
-# Required for GitHub integration
-VITE_GITHUB_TOKEN=ghp_xxxxx          # Personal Access Token (repo scope)
-```
+- **Linear** — OAuth2 Web Flow. Clicking "Connect" opens the Linear authorization page in your browser.
+- **GitHub** — Device Flow (same pattern as `gh auth login`). Clicking "Connect" opens github.com/login/device and displays a one-time code to enter.
 
-> **Note:** Linear authentication uses OAuth2 — connect via the app UI on first launch. No API key needed.
-> Vite requires the `VITE_` prefix to expose variables to the frontend.
-> Both `.env` and `.env.local` are supported (`.env.local` is gitignored).
+Tokens are stored securely in your OS keyring.
 
 ### Per-repository configuration
 
@@ -352,7 +348,8 @@ directiv/
 │   └── types/            # TypeScript types
 ├── src-tauri/            # Rust backend
 │   └── src/
-│       ├── commands/     # Tauri commands (worktree, tmux, pty, terminal)
+│       ├── commands/     # Tauri commands (worktree, tmux, pty, terminal, oauth)
+│       │   └── oauth/    # OAuth module (shared keyring, Linear Web Flow, GitHub Device Flow)
 │       └── lib.rs        # Main entry point
 └── directiv.config.json  # User configuration
 ```
