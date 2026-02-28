@@ -75,7 +75,7 @@ mise run build             # Build production Tauri app
 - `tmux.rs` — session create/kill/list/capture-pane
 - `pty.rs` — PTY spawn/write/resize/close for the integrated terminal (xterm.js ↔ Tauri Channel ↔ Rust PTY ↔ tmux attach)
 - `terminal.rs` — open external terminal attached to tmux session (legacy/fallback)
-- `config.rs` — `load_config` / `save_config` commands. Config lives at `~/Library/Application Support/directiv/config.json`. On first load, auto-migrates from legacy project-root `directiv.config.json` if found.
+- `config.rs` — `load_config` / `save_config` commands. Config lives at `~/Library/Application Support/directiv/config.json` (release) or `config.dev.json` (dev), using the same `#[cfg(debug_assertions)]` pattern as `shared.rs`. On first load, auto-migrates from legacy project-root `directiv.config.json` if found.
 - `oauth/` — OAuth module directory:
   - `shared.rs` — `keyring_get/set/delete` helpers with `#[cfg]` dual implementation: file-backed store (`dev-tokens.json`) in dev builds (no keychain prompts), OS keyring in release. Also exports `OAuthStatus` and `now_secs()`.
   - `linear.rs` — Linear OAuth2 Web Flow (PKCE + localhost callback)
@@ -141,7 +141,7 @@ Both Linear and GitHub use OAuth — no API keys or `.env` variables needed. In 
 
 ## Configuration
 
-User config lives at `~/Library/Application Support/directiv/config.json` (colocated with `dev-tokens.json`). On first launch, the app auto-migrates from the legacy `directiv.config.json` at project root if found. Settings changed in the UI are auto-persisted via the `save_config` Tauri command.
+User config lives at `~/Library/Application Support/directiv/config.json` (release) or `config.dev.json` (dev), using the same `#[cfg(debug_assertions)]` pattern as token storage. This prevents dev and prod builds from overwriting each other's settings. On first launch, the app auto-migrates from the legacy `directiv.config.json` at project root if found. Settings changed in the UI are auto-persisted via the `save_config` Tauri command.
 
 - `terminal`: preferred external emulator — `"ghostty"` or `"iterm2"` (used when `terminalMode` is `"external"`)
 - `terminalMode`: `"internal"` (default, built-in xterm.js) or `"external"` (delegates to Ghostty/iTerm2)

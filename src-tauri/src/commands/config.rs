@@ -1,11 +1,17 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Canonical config location: `<config_dir>/directiv/config.json`
-/// macOS: ~/Library/Application Support/directiv/config.json
+/// Canonical config location: `<config_dir>/directiv/config[.dev].json`
+/// macOS: ~/Library/Application Support/directiv/config.json (release)
+///        ~/Library/Application Support/directiv/config.dev.json (dev)
 fn config_path() -> Result<PathBuf, String> {
     let base = dirs::config_dir().ok_or("Cannot determine config directory")?;
-    Ok(base.join("directiv").join("config.json"))
+    let filename = if cfg!(debug_assertions) {
+        "config.dev.json"
+    } else {
+        "config.json"
+    };
+    Ok(base.join("directiv").join(filename))
 }
 
 /// Walk up from cwd looking for `directiv.config.json` (legacy location).
