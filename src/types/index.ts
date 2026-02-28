@@ -218,4 +218,5 @@ export interface DirectivConfig {
   linear: LinearConfig;
   theme: Theme;
   skills?: SkillOverrides;
+  onboardingCompleted?: boolean;
 }

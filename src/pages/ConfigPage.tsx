@@ -1,13 +1,29 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Sparkles, Plug, FolderGit2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Settings2,
+  FolderGit2,
+  KanbanSquare,
+  Sparkles,
+  Plug,
+} from "lucide-react";
+import { GeneralSection } from "../components/Config/GeneralSection";
+import { WorkspacesSection } from "../components/Config/WorkspacesSection";
+import { LinearSection } from "../components/Config/LinearSection";
 import { SkillsSection } from "../components/Config/SkillsSection";
 import { IntegrationsSection } from "../components/Config/IntegrationsSection";
 
-type ConfigSection = "skills" | "integrations" | "repositories";
+type ConfigSection =
+  | "general"
+  | "workspaces"
+  | "linear"
+  | "skills"
+  | "integrations";
 
 export function ConfigPage() {
-  const [activeSection, setActiveSection] = useState<ConfigSection>("skills");
+  const [activeSection, setActiveSection] =
+    useState<ConfigSection>("general");
 
   return (
     <div className="flex h-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
@@ -24,6 +40,24 @@ export function ConfigPage() {
         </div>
         <nav className="flex-1 py-2">
           <MenuItem
+            icon={<Settings2 className="size-4" />}
+            label="General"
+            active={activeSection === "general"}
+            onClick={() => setActiveSection("general")}
+          />
+          <MenuItem
+            icon={<FolderGit2 className="size-4" />}
+            label="Workspaces"
+            active={activeSection === "workspaces"}
+            onClick={() => setActiveSection("workspaces")}
+          />
+          <MenuItem
+            icon={<KanbanSquare className="size-4" />}
+            label="Linear"
+            active={activeSection === "linear"}
+            onClick={() => setActiveSection("linear")}
+          />
+          <MenuItem
             icon={<Sparkles className="size-4" />}
             label="Skills"
             active={activeSection === "skills"}
@@ -35,22 +69,16 @@ export function ConfigPage() {
             active={activeSection === "integrations"}
             onClick={() => setActiveSection("integrations")}
           />
-          <MenuItem
-            icon={<FolderGit2 className="size-4" />}
-            label="Repositories"
-            active={activeSection === "repositories"}
-            onClick={() => setActiveSection("repositories")}
-          />
         </nav>
       </aside>
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-6">
+        {activeSection === "general" && <GeneralSection />}
+        {activeSection === "workspaces" && <WorkspacesSection />}
+        {activeSection === "linear" && <LinearSection />}
         {activeSection === "skills" && <SkillsSection />}
         {activeSection === "integrations" && <IntegrationsSection />}
-        {activeSection === "repositories" && (
-          <PlaceholderSection title="Repositories" />
-        )}
       </main>
     </div>
   );
@@ -79,13 +107,5 @@ function MenuItem({
       {icon}
       <span>{label}</span>
     </button>
-  );
-}
-
-function PlaceholderSection({ title }: { title: string }) {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <p className="text-[var(--text-muted)]">{title} - Coming soon</p>
-    </div>
   );
 }

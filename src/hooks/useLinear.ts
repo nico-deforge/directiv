@@ -42,6 +42,27 @@ export const LINEAR_PROJECT_STATUS_TYPE = {
 export type LinearProjectStatusType =
   (typeof LINEAR_PROJECT_STATUS_TYPE)[keyof typeof LINEAR_PROJECT_STATUS_TYPE];
 
+export interface LinearTeam {
+  id: string;
+  name: string;
+  key: string;
+}
+
+export function useLinearTeams() {
+  const isConnected = useIsLinearConnected();
+  return useQuery<LinearTeam[]>({
+    queryKey: ["linear", "teams"],
+    queryFn: async () => {
+      const client = getLinearClient();
+      if (!client) return [];
+      const result = await client.teams();
+      return result.nodes.map((t) => ({ id: t.id, name: t.name, key: t.key }));
+    },
+    enabled: isConnected,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useLinearMyProjects() {
   const isConnected = useIsLinearConnected();
 
