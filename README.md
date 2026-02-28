@@ -86,7 +86,7 @@ bun run tauri:build
 
 ### Global configuration
 
-Create `directiv.config.json` in your home directory or project root:
+Config is stored at `~/Library/Application Support/directiv/config.json`. Settings changed in the UI are auto-persisted. The file is created automatically on first launch — you can also create it manually:
 
 ```jsonc
 {
@@ -122,7 +122,7 @@ Both Linear and GitHub use OAuth — connect via the app UI on first launch. No 
 - **Linear** — OAuth2 Web Flow. Clicking "Connect" opens the Linear authorization page in your browser.
 - **GitHub** — Device Flow (same pattern as `gh auth login`). Clicking "Connect" opens github.com/login/device and displays a one-time code to enter.
 
-Tokens are stored securely in your OS keyring.
+Tokens are stored securely in your OS keyring (release builds) or in `~/Library/Application Support/directiv/dev-tokens.json` (dev builds).
 
 ### Per-repository configuration
 
@@ -155,7 +155,7 @@ Create `.directiv.json` at the root of each repository:
 
 By default, the **Code**, **Plan**, and **Fix CI** buttons launch Claude Code with the bundled Directiv plugin (`--plugin-dir`) and built-in skills (`directiv:linear-issue`, `directiv:linear-tactic`, `directiv:fix-ci`). You can override skills at two levels:
 
-**Global overrides** — in `directiv.config.json`, apply to all repos:
+**Global overrides** — in global config, apply to all repos:
 
 ```jsonc
 {
@@ -179,7 +179,7 @@ By default, the **Code**, **Plan**, and **Fix CI** buttons launch Claude Code wi
 }
 ```
 
-**Priority chain:** repo `.directiv.json` > global `directiv.config.json` > bundled plugin defaults.
+**Priority chain:** repo `.directiv.json` > global config > bundled plugin defaults.
 
 When `skills` is present with at least one override (at either level), the bundled `--plugin-dir` flag is omitted — Claude Code will rely on the repo's own plugin/skill setup instead. All fields (`code`, `plan`, `fixCi`) are optional; omit any to keep the default skill name (but still without `--plugin-dir`). An empty `"skills": {}` is a no-op and the bundled plugin is still used.
 
@@ -351,7 +351,7 @@ directiv/
 │       ├── commands/     # Tauri commands (worktree, tmux, pty, terminal, oauth)
 │       │   └── oauth/    # OAuth module (shared keyring, Linear Web Flow, GitHub Device Flow)
 │       └── lib.rs        # Main entry point
-└── directiv.config.json  # User configuration
+└── .directiv.json        # Per-repo configuration
 ```
 
 ## License

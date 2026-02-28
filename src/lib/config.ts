@@ -14,8 +14,20 @@ export const defaultConfig: DirectivConfig = {
 
 export async function loadConfigFromDisk(): Promise<DirectivConfig> {
   const raw = await invoke<string>("load_config");
-  const parsed = JSON.parse(raw) as Partial<DirectivConfig>;
+  let parsed: Partial<DirectivConfig>;
+  try {
+    parsed = JSON.parse(raw) as Partial<DirectivConfig>;
+  } catch (e) {
+    const detail = e instanceof SyntaxError ? `: ${e.message}` : "";
+    throw new Error(
+      `Config file contains invalid JSON and could not be loaded${detail}`,
+    );
+  }
   return validateConfig(parsed);
+}
+
+export async function saveConfigToDisk(config: DirectivConfig): Promise<void> {
+  await invoke("save_config", { json: JSON.stringify(config, null, 2) });
 }
 
 export function validateConfig(
