@@ -11,6 +11,11 @@ import {
   githubOAuthDisconnect,
 } from "../lib/tauriOAuth";
 
+// Module-level guard: prevents StrictMode double-fire from triggering
+// concurrent duplicate init calls (two component instances = two refs,
+// so useRef won't help — must be module-scoped).
+const _initInFlight = new Set<string>();
+
 export const AUTH_PROVIDER_STATUS = {
   DISCONNECTED: "disconnected",
   CONNECTING: "connecting",
@@ -97,6 +102,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   linearError: null,
 
   initializeLinearAuth: async () => {
+    if (_initInFlight.has("linear")) return;
+    _initInFlight.add("linear");
     try {
       const token = await linearGetValidToken();
       if (token) {
@@ -114,6 +121,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         linearStatus: AUTH_PROVIDER_STATUS.ERROR,
         linearError: toErrorMessage(err),
       });
+    } finally {
+      _initInFlight.delete("linear");
     }
   },
 
@@ -169,6 +178,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   githubUserCode: null,
 
   initializeGitHubAuth: async () => {
+    if (_initInFlight.has("github")) return;
+    _initInFlight.add("github");
     try {
       const token = await githubGetToken();
       if (!token) {
@@ -196,6 +207,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         githubError:
           "GitHub access was revoked or blocked by your organization. Please reconnect.",
       });
+    } finally {
+      _initInFlight.delete("github");
     }
   },
 
