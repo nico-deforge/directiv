@@ -75,8 +75,9 @@ mise run build             # Build production Tauri app
 - `tmux.rs` — session create/kill/list/capture-pane
 - `pty.rs` — PTY spawn/write/resize/close for the integrated terminal (xterm.js ↔ Tauri Channel ↔ Rust PTY ↔ tmux attach)
 - `terminal.rs` — open external terminal attached to tmux session (legacy/fallback)
+- `config.rs` — `load_config` / `save_config` commands. Config lives at `~/Library/Application Support/directiv/config.json`. On first load, auto-migrates from legacy project-root `directiv.config.json` if found.
 - `oauth/` — OAuth module directory:
-  - `shared.rs` — keyring helpers (`keyring_get/set/delete`), `OAuthStatus`, `now_secs()`
+  - `shared.rs` — `keyring_get/set/delete` helpers with `#[cfg]` dual implementation: file-backed store (`dev-tokens.json`) in dev builds (no keychain prompts), OS keyring in release. Also exports `OAuthStatus` and `now_secs()`.
   - `linear.rs` — Linear OAuth2 Web Flow (PKCE + localhost callback)
   - `github.rs` — GitHub OAuth Device Flow (no `client_secret`, tokens don't expire)
 
@@ -127,7 +128,7 @@ Skills are bundled inside the app as a Claude Code plugin — no user installati
 
 ## Authentication
 
-Both Linear and GitHub use OAuth — no API keys or `.env` variables needed. Tokens are stored in the OS keyring (`com.directiv.app`).
+Both Linear and GitHub use OAuth — no API keys or `.env` variables needed. In release builds, tokens are stored in the OS keyring (`com.directiv.app`). In dev builds, tokens are file-backed at `~/Library/Application Support/directiv/dev-tokens.json` to avoid keychain prompt loops.
 
 - **Linear** — OAuth2 Web Flow (PKCE + localhost callback on port 19823). Tokens expire and are auto-refreshed.
 - **GitHub** — OAuth Device Flow (same pattern as `gh` CLI). Uses an OAuth App (`client_id` only, no `client_secret`). Tokens don't expire — no refresh logic needed.
@@ -140,7 +141,8 @@ Both Linear and GitHub use OAuth — no API keys or `.env` variables needed. Tok
 
 ## Configuration
 
-User config lives in `directiv.config.json` at project root:
+User config lives at `~/Library/Application Support/directiv/config.json` (colocated with `dev-tokens.json`). On first launch, the app auto-migrates from the legacy `directiv.config.json` at project root if found. Settings changed in the UI are auto-persisted via the `save_config` Tauri command.
+
 - `terminal`: preferred external emulator — `"ghostty"` or `"iterm2"` (used when `terminalMode` is `"external"`)
 - `terminalMode`: `"internal"` (default, built-in xterm.js) or `"external"` (delegates to Ghostty/iTerm2)
 - `editor`: code editor — `"zed"`, `"cursor"`, `"vscode"`, `"code"`

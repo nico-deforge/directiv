@@ -34,6 +34,7 @@ pub fn run() {
             commands::terminal::open_editor,
             commands::hooks::run_hooks,
             commands::config::load_config,
+            commands::config::save_config,
             commands::skills::get_plugin_dir,
             commands::skills::list_plugin_skills,
             commands::skills::read_plugin_skill_file,

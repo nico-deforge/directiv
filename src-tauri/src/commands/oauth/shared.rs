@@ -52,10 +52,17 @@ mod dev_store {
         if !guard.loaded {
             guard.loaded = true;
             let path = config_path();
-            if let Ok(data) = std::fs::read_to_string(&path) {
-                if let Ok(parsed) = serde_json::from_str::<HashMap<String, String>>(&data) {
-                    guard.tokens = parsed;
+            match std::fs::read_to_string(&path) {
+                Ok(data) => match serde_json::from_str::<HashMap<String, String>>(&data) {
+                    Ok(parsed) => guard.tokens = parsed,
+                    Err(e) => {
+                        log::warn!("dev-tokens.json contains invalid JSON, tokens reset: {e}")
+                    }
+                },
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                    log::warn!("Failed to read {}: {e}", path.display());
                 }
+                _ => {}
             }
         }
         guard
@@ -65,23 +72,28 @@ mod dev_store {
         let path = config_path();
         if let Some(parent) = path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
-                eprintln!("[dev-store] failed to create {}: {e}", parent.display());
+                log::warn!("Failed to create {}: {e}", parent.display());
                 return;
             }
         }
-        match serde_json::to_string_pretty(tokens) {
-            Ok(json) => {
-                if let Err(e) = std::fs::write(&path, &json) {
-                    eprintln!("[dev-store] failed to write {}: {e}", path.display());
-                    return;
-                }
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-                }
+        let json = match serde_json::to_string_pretty(tokens) {
+            Ok(j) => j,
+            Err(e) => {
+                log::warn!("Failed to serialize dev tokens: {e}");
+                return;
             }
-            Err(e) => eprintln!("[dev-store] failed to serialize tokens: {e}"),
+        };
+        if let Err(e) = std::fs::write(&path, &json) {
+            log::warn!("Failed to write {}: {e}", path.display());
+            return;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Err(e) = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            {
+                log::warn!("Failed to set permissions on {}: {e}", path.display());
+            }
         }
     }
 

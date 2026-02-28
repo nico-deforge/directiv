@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import type { DirectivConfig, TerminalEmulator } from "../types";
-import { defaultConfig, loadConfigFromDisk } from "../lib/config";
+import {
+  defaultConfig,
+  loadConfigFromDisk,
+  saveConfigToDisk,
+} from "../lib/config";
+import { toastError } from "../lib/toast";
 
 function getSystemTheme(): "light" | "dark" {
   if (typeof window === "undefined") return "dark";
@@ -10,18 +15,26 @@ function getSystemTheme(): "light" | "dark" {
 }
 
 function resolveTheme(theme: DirectivConfig["theme"]): "light" | "dark" {
-  if (theme === "system") {
-    return getSystemTheme();
-  }
-  return theme;
+  return theme === "system" ? getSystemTheme() : theme;
 }
 
-function applyThemeToDOM(resolvedTheme: "light" | "dark") {
+function applyThemeToDOM(resolvedTheme: "light" | "dark"): void {
   if (resolvedTheme === "dark") {
     document.documentElement.classList.add("dark");
   } else {
     document.documentElement.classList.remove("dark");
   }
+}
+
+/** Resolve theme, apply to DOM, and return the partial state update. */
+function applyConfig(config: DirectivConfig): {
+  config: DirectivConfig;
+  isLoaded: true;
+  resolvedTheme: "light" | "dark";
+} {
+  const resolvedTheme = resolveTheme(config.theme);
+  applyThemeToDOM(resolvedTheme);
+  return { config, isLoaded: true, resolvedTheme };
 }
 
 interface SettingsState {
@@ -39,22 +52,19 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   resolvedTheme: resolveTheme(defaultConfig.theme),
 
   setConfig: (config) => {
-    const resolved = resolveTheme(config.theme);
-    applyThemeToDOM(resolved);
-    set({ config, isLoaded: true, resolvedTheme: resolved });
+    set(applyConfig(config));
+    saveConfigToDisk(config).catch(toastError);
   },
 
-  updateTerminal: (terminal) =>
-    set((state) => ({
-      config: { ...state.config, terminal },
-    })),
+  updateTerminal: (terminal) => {
+    const updated = { ...get().config, terminal };
+    get().setConfig(updated);
+  },
 
   loadFromDisk: async () => {
     try {
       const config = await loadConfigFromDisk();
-      const resolved = resolveTheme(config.theme);
-      applyThemeToDOM(resolved);
-      set({ config, isLoaded: true, resolvedTheme: resolved });
+      set(applyConfig(config));
 
       // Listen for system theme changes when theme is "system"
       if (config.theme === "system") {
@@ -70,10 +80,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         mediaQuery.addEventListener("change", handleChange);
       }
     } catch (err) {
-      console.warn("Failed to load directiv.config.json:", err);
-      const resolved = resolveTheme(defaultConfig.theme);
-      applyThemeToDOM(resolved);
-      set({ isLoaded: true, resolvedTheme: resolved });
+      toastError(err);
+      set(applyConfig(defaultConfig));
     }
   },
 }));
