@@ -7,6 +7,8 @@ import {
   useEdgesState,
   useReactFlow,
   ConnectionMode,
+  Background,
+  BackgroundVariant,
   type Node,
   type Edge,
   type EdgeMouseHandler,
@@ -71,7 +73,7 @@ const nodeTypes = {
   orphanTask: OrphanTaskCard,
 };
 
-const EDGE_COLOR = { dark: "#737373", light: "#8a8a84" } as const;
+const EDGE_COLOR = { dark: "#545b72", light: "#8a8a94" } as const;
 const EDGE_HIGHLIGHT_COLOR = "#ef4444";
 const NullConnectionLine = () => null;
 
@@ -573,6 +575,13 @@ function DependencyGraphInner() {
         minZoom={0.3}
         maxZoom={1.5}
       >
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={20}
+          size={1}
+          color={resolvedTheme === "dark" ? "#1e2230" : "#d8d8d2"}
+        />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_60%,var(--bg-primary)_100%)] opacity-40" />
         <div className="absolute bottom-3 right-3 z-10">
           <button
             onClick={() => fitView({ padding: 0.1, duration: 300 })}
@@ -607,7 +616,7 @@ function DependencyGraphInner() {
           />
           {/* Dropdown menu */}
           <div
-            className="fixed z-50 overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-xl"
+            className="fixed z-50 overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-xl animate-[slide-down_0.15s_ease-out]"
             style={{ left: deleteMenu.x, top: deleteMenu.y }}
           >
             <div className="border-b border-[var(--border-default)] bg-[var(--bg-secondary)] px-3 py-2 text-xs font-medium text-[var(--text-muted)]">

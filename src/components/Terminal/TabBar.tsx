@@ -14,30 +14,34 @@ export function TabBar() {
   if (tabs.length === 0) return null;
 
   return (
-    <div className="flex h-9 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-[var(--border-default)] bg-[var(--bg-secondary)] px-1">
+    <div className="flex h-10 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-[var(--border-default)] bg-[var(--bg-secondary)] px-1">
       {/* Board tab — always present, not closable */}
       <button
         onClick={() => focusTab("board")}
-        className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+        className={`relative flex items-center gap-1.5 rounded px-2.5 py-1.5 font-mono text-xs font-medium tracking-wide transition-colors ${
           activeTab === "board"
-            ? "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm"
+            ? "text-[var(--accent-cyan)]"
             : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
         }`}
       >
         <LayoutGrid className="size-3.5" />
         Board
+        {activeTab === "board" && (
+          <div className="absolute bottom-0 left-1 right-1 h-[2px] rounded-t bg-[var(--accent-cyan)]" />
+        )}
       </button>
 
       {/* Terminal tabs */}
       {tabs.map((tab) => {
         const isWaiting = claudeStates?.get(tab.sessionName) === "waiting";
+        const isActive = activeTab === tab.sessionName;
 
         return (
           <div
             key={tab.sessionName}
-            className={`group flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-              activeTab === tab.sessionName
-                ? "bg-[var(--bg-primary)] text-[var(--text-primary)] shadow-sm"
+            className={`group relative flex items-center gap-1 rounded px-2.5 py-1.5 font-mono text-xs font-medium tracking-wide transition-colors ${
+              isActive
+                ? "text-[var(--text-primary)]"
                 : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
             }`}
           >
@@ -50,7 +54,7 @@ export function TabBar() {
                 {tab.identifier}: {tab.title}
               </span>
               {isWaiting && (
-                <AlertTriangle className="size-3 animate-pulse text-[var(--accent-red)]" />
+                <AlertTriangle className="size-3 animate-[pulse-glow_2s_ease-in-out_infinite] text-[var(--accent-red)]" />
               )}
             </button>
             <button
@@ -58,10 +62,13 @@ export function TabBar() {
                 e.stopPropagation();
                 closeTerminal(tab.sessionName);
               }}
-              className="ml-1 rounded p-0.5 opacity-0 transition-opacity hover:bg-[var(--bg-elevated)] group-hover:opacity-100"
+              className="ml-1 rounded p-0.5 opacity-0 transition-all duration-150 hover:bg-[var(--accent-red)]/20 hover:text-[var(--accent-red)] group-hover:opacity-100"
             >
               <X className="size-3" />
             </button>
+            {isActive && (
+              <div className="absolute bottom-0 left-1 right-1 h-[2px] rounded-t bg-[var(--accent-cyan)]" />
+            )}
           </div>
         );
       })}

@@ -70,12 +70,15 @@ function MenuItem({
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition-colors ${
+      className={`relative flex w-full items-center gap-2 px-4 py-2 text-left text-sm transition-colors ${
         active
-          ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+          ? "bg-[var(--accent-cyan)]/5 text-[var(--text-primary)]"
           : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
       }`}
     >
+      {active && (
+        <div className="absolute left-0 top-1 bottom-1 w-[2px] rounded-r bg-[var(--accent-cyan)]" />
+      )}
       {icon}
       <span>{label}</span>
     </button>

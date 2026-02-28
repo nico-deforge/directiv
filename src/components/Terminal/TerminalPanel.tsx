@@ -15,7 +15,7 @@ import type { PtyOutputEvent } from "../../lib/pty";
 import { useTerminalStore } from "../../stores/terminalStore";
 import "@xterm/xterm/css/xterm.css";
 
-const TERMINAL_BG = "#282c34";
+const TERMINAL_BG = "#111318";
 
 interface TerminalPanelProps {
   sessionName: string;

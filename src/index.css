@@ -1,5 +1,39 @@
 @import "tailwindcss";
 
+/* --- Fonts --- */
+
+@font-face {
+  font-family: "Inter";
+  src: url("./assets/fonts/Inter-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("./assets/fonts/Inter-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("./assets/fonts/Inter-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("./assets/fonts/Inter-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "JetBrains Mono";
   src: url("./assets/fonts/JetBrainsMono-Regular.woff2") format("woff2");
@@ -16,12 +50,17 @@
   font-display: swap;
 }
 
-/* Light theme (default) - soft/muted for eye comfort */
+@theme {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", Menlo, Monaco, "Courier New", monospace;
+}
+
+/* --- Light theme (default) --- */
 :root {
-  --bg-primary: #f8f8f6;
-  --bg-secondary: #f0f0ed;
-  --bg-tertiary: #e8e8e4;
-  --bg-elevated: #ddddd8;
+  --bg-primary: #fafaf8;
+  --bg-secondary: #f2f2ee;
+  --bg-tertiary: #eaeae5;
+  --bg-elevated: #e0e0da;
 
   --text-primary: #1a1a18;
   --text-secondary: #52524e;
@@ -30,40 +69,136 @@
   --border-default: #d8d8d2;
   --border-subtle: #e4e4de;
 
-  /* Accents - slightly muted for light mode harmony */
-  --accent-green: #15803d;
-  --accent-red: #b91c1c;
-  --accent-blue: #1d4ed8;
+  --accent-cyan: #0891b2;
+  --accent-cyan-muted: rgba(8, 145, 178, 0.25);
+  --accent-green: #059669;
+  --accent-red: #dc2626;
+  --accent-blue: #2563eb;
   --accent-purple: #7c3aed;
-  --accent-amber: #b45309;
+  --accent-amber: #d97706;
   --accent-yellow: #a16207;
-  --accent-orange: #c2410c;
+  --accent-orange: #ea580c;
+
+  --glow-cyan: 0 0 12px rgba(8, 145, 178, 0.3);
+  --glow-green: 0 0 12px rgba(5, 150, 105, 0.3);
+  --glow-red: 0 0 12px rgba(220, 38, 38, 0.3);
+  --glow-amber: 0 0 12px rgba(217, 119, 6, 0.3);
 }
 
-/* Dark theme */
+/* --- Dark theme --- */
 .dark {
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #141414;
-  --bg-tertiary: #1c1c1c;
-  --bg-elevated: #262626;
+  --bg-primary: #0c0e14;
+  --bg-secondary: #111318;
+  --bg-tertiary: #171a22;
+  --bg-elevated: #1e222c;
 
-  --text-primary: #fafafa;
-  --text-secondary: #a3a3a3;
-  --text-muted: #737373;
+  --text-primary: #e8eaf0;
+  --text-secondary: #8b92a8;
+  --text-muted: #545b72;
 
-  --border-default: #262626;
-  --border-subtle: #1c1c1c;
+  --border-default: #1e2230;
+  --border-subtle: #161923;
 
-  --accent-green: #22c55e;
-  --accent-red: #ef4444;
+  --accent-cyan: #00d4ff;
+  --accent-cyan-muted: rgba(0, 212, 255, 0.25);
+  --accent-green: #10b981;
+  --accent-red: #f43f5e;
   --accent-blue: #3b82f6;
-  --accent-purple: #a855f7;
+  --accent-purple: #a78bfa;
   --accent-amber: #f59e0b;
   --accent-yellow: #eab308;
   --accent-orange: #f97316;
+
+  --glow-cyan: 0 0 16px rgba(0, 212, 255, 0.4);
+  --glow-green: 0 0 16px rgba(16, 185, 129, 0.4);
+  --glow-red: 0 0 16px rgba(244, 63, 94, 0.4);
+  --glow-amber: 0 0 16px rgba(245, 158, 11, 0.4);
 }
 
+/* --- Base --- */
 html {
   background-color: var(--bg-primary);
   color: var(--text-primary);
+}
+
+/* --- Selection --- */
+::selection {
+  background: var(--accent-cyan-muted);
+}
+
+/* --- Focus rings --- */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-cyan-muted);
+}
+
+/* --- Scrollbars --- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* --- Noise overlay --- */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
+/* --- Keyframes --- */
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(249, 115, 22, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(249, 115, 22, 0.6);
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
 }

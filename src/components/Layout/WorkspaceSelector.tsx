@@ -43,7 +43,7 @@ export function WorkspaceSelector() {
         <ChevronDown className="size-3 text-[var(--text-muted)]" />
       </button>
       {isOpen && (
-        <div className="absolute left-0 top-full z-30 mt-1 min-w-40 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+        <div className="absolute left-0 top-full z-30 mt-1 min-w-40 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg animate-[slide-down_0.15s_ease-out]">
           {workspaces.map((ws) => (
             <button
               key={ws.id}

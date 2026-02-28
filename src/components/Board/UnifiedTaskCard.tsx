@@ -68,7 +68,7 @@ const WORKFLOW_LABELS: Record<
   },
   "in-dev": {
     label: "In Dev",
-    className: "bg-[var(--accent-blue)]/20 text-[var(--accent-blue)]",
+    className: "bg-[var(--accent-cyan)]/20 text-[var(--accent-cyan)]",
   },
   "personal-review": {
     label: "Personal Review",
@@ -82,6 +82,22 @@ const WORKFLOW_LABELS: Record<
     label: "To Deploy",
     className: "bg-[var(--accent-green)]/20 text-[var(--accent-green)]",
   },
+};
+
+const STATUS_BAR_COLORS: Record<WorkflowStatus, string> = {
+  todo: "bg-[var(--text-muted)]",
+  "in-dev": "bg-[var(--accent-cyan)]",
+  "personal-review": "bg-[var(--accent-purple)]",
+  "in-review": "bg-[var(--accent-amber)]",
+  "to-deploy": "bg-[var(--accent-green)]",
+};
+
+const STATUS_HOVER_GLOW: Record<WorkflowStatus, string> = {
+  todo: "",
+  "in-dev": "hover:shadow-[var(--glow-cyan)]",
+  "personal-review": "hover:shadow-[var(--glow-cyan)]",
+  "in-review": "hover:shadow-[var(--glow-amber)]",
+  "to-deploy": "hover:shadow-[var(--glow-green)]",
 };
 
 function getWorkflowStatus(
@@ -421,12 +437,20 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   return (
     <div
-      className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative ${
+      className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)]/80 backdrop-blur-md shadow-lg shadow-black/20 relative transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl animate-[card-enter_0.3s_ease-out] ${STATUS_HOVER_GLOW[workflowStatus]} ${
         isBeingTargeted
           ? "border-[var(--text-muted)] ring-1 ring-[var(--text-muted)]/50"
           : "border-[var(--border-default)]"
       } ${isDisabled ? "opacity-50" : ""}`}
     >
+      {/* Left status bar */}
+      <div
+        className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg ${STATUS_BAR_COLORS[workflowStatus]} ${
+          workflowStatus === "in-dev" && hasSession
+            ? "animate-[status-pulse_2s_ease-in-out_infinite]"
+            : ""
+        }`}
+      />
       {/* Hidden target handle for edge connections */}
       <Handle
         type="target"
@@ -446,14 +470,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       />
 
       {/* Header: Task info with workflow status */}
-      <div className="border-b border-[var(--border-default)] px-3 py-2">
+      <div className="border-b border-[var(--border-default)] pl-4 pr-3 py-2">
         <div className="flex items-center gap-2">
           <span
-            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusLabel.className}`}
+            className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${statusLabel.className}`}
           >
             {statusLabel.label}
           </span>
-          <span className="text-xs font-medium text-[var(--text-secondary)]">
+          <span className="font-mono text-[11px] tracking-wide uppercase opacity-60">
             {task.identifier}
           </span>
           {isDisabled && task.assigneeName && (
@@ -467,20 +491,20 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                 e.stopPropagation();
                 handleOpenTerminal();
               }}
-              className="ml-auto flex cursor-pointer items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-orange)]/20 text-[var(--accent-orange)] hover:bg-[var(--accent-orange)]/30 transition-colors"
+              className="ml-auto flex cursor-pointer items-center gap-1 animate-[pulse-glow_2s_ease-in-out_infinite] rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-orange)]/20 text-[var(--accent-orange)] hover:bg-[var(--accent-orange)]/30 transition-all duration-150"
             >
               <AlertTriangle className="size-3" />
               Needs Claude Input
             </button>
           )}
         </div>
-        <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
+        <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-tight text-[var(--text-primary)]">
           {task.title}
         </p>
       </div>
 
       {/* Linear Section */}
-      <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+      <div className="flex items-center gap-2 border-b border-[var(--border-default)] pl-4 pr-3 py-2">
         <SquareKanban className="size-4 shrink-0 text-[var(--accent-blue)]" />
         <a
           href={task.url}
@@ -498,7 +522,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
       {/* PR Section */}
       {pullRequest && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] pl-4 pr-3 py-2">
           <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
           <a
             href={pullRequest.url}
@@ -531,7 +555,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
       {/* GitHub repo blocked warning */}
       {worktree && !pullRequest && githubRepoBlocked && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] pl-4 pr-3 py-2">
           <Github className="size-4 shrink-0 text-[var(--accent-red)]" />
           <span className="truncate text-xs text-[var(--accent-red)]">
             Access blocked by organization
@@ -541,7 +565,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
       {/* Worktree Section */}
       {worktree && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] pl-4 pr-3 py-2">
           <GitBranch className="size-4 shrink-0 text-[var(--accent-green)]" />
           <span className="truncate text-sm text-[var(--text-secondary)]">
             {worktree.branch}
@@ -563,7 +587,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       {/* Actions */}
       {!isDisabled && (
         <div
-          className="relative flex items-center gap-2 px-3 py-2"
+          className="relative flex items-center gap-2 pl-4 pr-3 py-2"
           ref={dropdownRef}
         >
           {/* Code / Plan buttons with shared dropdown */}
@@ -572,7 +596,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <button
                 onClick={() => openDropdown("CODE")}
                 disabled={isLoading || repos.length === 0}
-                className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="flex items-center gap-1 rounded-md bg-[var(--accent-cyan)] px-2 py-1 text-xs font-medium text-white hover:brightness-110 transition-all duration-150 disabled:opacity-50"
               >
                 {startTask.isPending && pendingSkillKey === "CODE" ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -587,7 +611,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <button
                 onClick={() => openDropdown("PLAN")}
                 disabled={isLoading || repos.length === 0}
-                className="flex items-center gap-1 rounded bg-[var(--accent-blue)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="flex items-center gap-1 rounded-md bg-[var(--accent-blue)] px-2 py-1 text-xs font-medium text-white hover:brightness-110 transition-all duration-150 disabled:opacity-50"
               >
                 {startTask.isPending && pendingSkillKey === "PLAN" ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -606,7 +630,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           {hasSession && (
             <button
               onClick={handleOpenTerminal}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+              className="flex items-center gap-1 rounded-md bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]/80 transition-all duration-150"
             >
               <Terminal className="size-3.5" />
               Terminal
@@ -617,7 +641,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           {worktree && (
             <button
               onClick={handleOpenEditor}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+              className="flex items-center gap-1 rounded-md bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]/80 transition-all duration-150"
             >
               <Code2 className="size-3.5" />
               Editor
@@ -675,7 +699,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
           {/* Dropdown for repo/branch selection */}
           {dropdownOpen && (
-            <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+            <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg animate-[slide-down_0.15s_ease-out]">
               {repos.length === 1 ? (
                 <BranchSelector
                   repoPath={repos[0].path}

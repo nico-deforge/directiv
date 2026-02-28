@@ -79,10 +79,19 @@ export function ProjectSelector() {
 
   return (
     <aside className="flex w-[200px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-secondary)]">
+      {/* Brand header */}
+      <div className="shrink-0 border-b border-[var(--border-default)] px-4 py-3 flex items-center gap-2.5">
+        <div className="flex size-7 items-center justify-center rounded-md bg-[var(--accent-cyan)]/10">
+          <span className="text-[var(--accent-cyan)] text-sm font-bold">D</span>
+        </div>
+        <span className="font-mono text-[11px] font-semibold tracking-[0.15em] text-[var(--text-secondary)] uppercase">
+          Directiv
+        </span>
+      </div>
       <WorkspaceSelector />
       <div className="shrink-0 border-b border-[var(--border-default)] px-4 py-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+          <h2 className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
             Projects
           </h2>
           <button
@@ -192,12 +201,15 @@ export function ProjectSelector() {
             )}
             <button
               onClick={() => selectProject(ORPHAN_PROJECT_ID)}
-              className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
+              className={`relative flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
                 selectedProjectId === ORPHAN_PROJECT_ID
-                  ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                  ? "bg-[var(--accent-cyan)]/5 text-[var(--text-primary)]"
                   : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
               }`}
             >
+              {selectedProjectId === ORPHAN_PROJECT_ID && (
+                <div className="absolute left-0 top-1 bottom-1 w-[2px] rounded-r bg-[var(--accent-cyan)]" />
+              )}
               <GitBranch className="size-4 shrink-0" />
               <span className="truncate text-sm">Other worktrees</span>
             </button>
@@ -205,6 +217,11 @@ export function ProjectSelector() {
         )}
       </div>
       <ReviewRequestsSection />
+      <div className="shrink-0 border-t border-[var(--border-default)] px-4 pt-3 pb-1">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
+          Operations
+        </span>
+      </div>
       <NewWorktreeSection />
       <CleanupSection />
       <OrphanSessionsSection />
@@ -377,7 +394,7 @@ function NewWorktreeSection() {
               </span>
             </button>
             {showBranchSelector && (
-              <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+              <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg animate-[slide-down_0.15s_ease-out]">
                 <BranchSelector
                   repoPath={repos[selectedRepoIndex].path}
                   onSelect={(branch) => {
@@ -837,12 +854,15 @@ function ProjectItem({
   return (
     <button
       onClick={onSelect}
-      className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
+      className={`relative flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
         isSelected
-          ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+          ? "bg-[var(--accent-cyan)]/5 text-[var(--text-primary)]"
           : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
       }`}
     >
+      {isSelected && (
+        <div className="absolute left-0 top-1 bottom-1 w-[2px] rounded-r bg-[var(--accent-cyan)]" />
+      )}
       <Icon className={`size-4 shrink-0 ${isBacklog ? "opacity-50" : ""}`} />
       <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
     </button>

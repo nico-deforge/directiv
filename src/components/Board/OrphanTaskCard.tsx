@@ -179,29 +179,33 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   }
 
   return (
-    <div className="nodrag nopan w-[380px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-lg">
+    <div className="nodrag nopan w-[380px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)]/80 backdrop-blur-md shadow-lg shadow-black/20 relative transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl animate-[card-enter_0.3s_ease-out]">
+      {/* Left status bar */}
+      <div
+        className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l-lg ${hasSession ? "bg-[var(--accent-cyan)] animate-[status-pulse_2s_ease-in-out_infinite]" : "bg-[var(--text-muted)]"}`}
+      />
       {/* Header */}
-      <div className="border-b border-[var(--border-default)] px-3 py-2">
+      <div className="border-b border-[var(--border-default)] pl-4 pr-3 py-2">
         <div className="flex items-center gap-2">
           {linearIssue ? (
-            <span className="text-xs font-medium text-[var(--text-secondary)]">
+            <span className="font-mono text-[11px] tracking-wide uppercase opacity-60">
               {linearIssue.identifier}
             </span>
           ) : (
             <GitBranch className="size-4 shrink-0 text-[var(--accent-green)]" />
           )}
-          <span className="ml-auto shrink-0 rounded bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
+          <span className="ml-auto shrink-0 rounded-md bg-[var(--bg-elevated)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
             {repoId}
           </span>
         </div>
-        <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
+        <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-tight text-[var(--text-primary)]">
           {linearIssue ? linearIssue.title : worktree.branch}
         </p>
       </div>
 
       {/* Linear Section */}
       {linearIssue && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] pl-4 pr-3 py-2">
           <SquareKanban className="size-4 shrink-0 text-[var(--accent-blue)]" />
           <a
             href={linearIssue.url}
@@ -219,7 +223,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       )}
 
       {/* Worktree Section */}
-      <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+      <div className="flex items-center gap-2 border-b border-[var(--border-default)] pl-4 pr-3 py-2">
         <GitBranch className="size-4 shrink-0 text-[var(--accent-green)]" />
         <span className="truncate text-sm text-[var(--text-secondary)]">
           {worktree.branch}
@@ -239,7 +243,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
       {/* PR Section */}
       {pullRequest && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] pl-4 pr-3 py-2">
           <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
           <a
             href={pullRequest.url}
@@ -255,12 +259,12 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       )}
 
       {/* Actions */}
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex items-center gap-2 pl-4 pr-3 py-2">
         {/* Terminal / Launch button */}
         {hasSession ? (
           <button
             onClick={handleOpenTerminal}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+            className="flex items-center gap-1 rounded-md bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]/80 transition-all duration-150"
           >
             <Terminal className="size-3.5" />
             Terminal
@@ -269,7 +273,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           <button
             onClick={handleLaunchSession}
             disabled={launchingSession}
-            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-md bg-[var(--accent-cyan)] px-2 py-1 text-xs font-medium text-white hover:brightness-110 transition-all duration-150 disabled:opacity-50"
           >
             {launchingSession ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -283,7 +287,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         {/* Editor button */}
         <button
           onClick={handleOpenEditor}
-          className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+          className="flex items-center gap-1 rounded-md bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]/80 transition-all duration-150"
         >
           <Code2 className="size-3.5" />
           Editor
@@ -294,7 +298,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           <button
             onClick={handleKillSession}
             disabled={killingSession}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-md bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]/80 transition-all duration-150 disabled:opacity-50"
             title="Kill tmux session"
           >
             {killingSession ? (
@@ -339,7 +343,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           <button
             onClick={() => handleDelete()}
             disabled={isDeleting}
-            className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-md bg-[var(--accent-red)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 transition-all duration-150 disabled:opacity-50"
           >
             {isDeleting ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -353,7 +357,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
       {/* Hook error panel */}
       {hookError && (
-        <div className="border-t border-[var(--border-default)] px-3 py-2">
+        <div className="border-t border-[var(--border-default)] pl-4 pr-3 py-2">
           <p className="mb-2 text-xs text-[var(--accent-red)]">{hookError}</p>
           <div className="flex items-center gap-2">
             <button

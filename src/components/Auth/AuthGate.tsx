@@ -26,15 +26,15 @@ function CopyableCode({ value }: { value: string }) {
   return (
     <button
       onClick={handleCopy}
-      className="flex shrink-0 items-center gap-1.5 rounded bg-[var(--bg-elevated)] px-2 py-1 transition-colors hover:bg-[var(--bg-elevated)]/80"
+      className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--bg-elevated)] px-3 py-1.5 transition-all duration-150 hover:bg-[var(--bg-elevated)]/80"
     >
-      <code className="font-mono text-sm font-semibold text-[var(--text-primary)]">
+      <code className="font-mono text-2xl font-bold tracking-[0.3em] text-[var(--accent-cyan)]">
         {value}
       </code>
       {copied ? (
-        <Check className="size-3 text-[var(--accent-green)]" />
+        <Check className="size-4 text-[var(--accent-green)]" />
       ) : (
-        <Copy className="size-3 text-[var(--text-muted)]" />
+        <Copy className="size-4 text-[var(--text-muted)]" />
       )}
     </button>
   );
@@ -57,7 +57,7 @@ function ProviderRow({
   const hasError = !!error;
 
   return (
-    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] p-4">
+    <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-secondary)]/60 backdrop-blur-sm p-4 transition-all duration-200 hover:border-[var(--accent-cyan)]/20">
       <div className="flex items-center gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)]">
           {icon}
@@ -110,16 +110,36 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const isGitHubConnecting = githubStatus === AUTH_PROVIDER_STATUS.CONNECTING;
 
   return (
-    <div className="flex h-screen flex-col items-center justify-center bg-[var(--bg-primary)]">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">
-            Connect your accounts
-          </h1>
-          <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Directiv needs access to Linear and GitHub to manage your
-            development workflow.
-          </p>
+    <div className="relative flex h-screen flex-col items-center justify-center bg-[var(--bg-primary)]">
+      {/* Dot grid background */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, var(--text-muted) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
+      {/* Radial vignette */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,var(--bg-primary)_100%)]" />
+
+      <div className="relative flex w-full max-w-sm flex-col gap-6">
+        <div className="flex flex-col items-center gap-4 text-center">
+          {/* Brand mark */}
+          <div className="flex size-12 items-center justify-center rounded-xl bg-[var(--accent-cyan)]/10 shadow-[var(--glow-cyan)]">
+            <span className="text-xl font-bold text-[var(--accent-cyan)]">
+              D
+            </span>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
+              Connect your accounts
+            </h1>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
+              Directiv needs access to Linear and GitHub to manage your
+              development workflow.
+            </p>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -135,7 +155,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             <button
               onClick={startLinearOAuth}
               disabled={isLinearConnecting}
-              className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--accent-cyan)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all duration-150 hover:brightness-110 hover:shadow-[var(--glow-cyan)] disabled:opacity-50"
             >
               {isLinearConnecting && (
                 <Loader2 className="size-3 animate-spin" />
@@ -157,7 +177,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             <button
               onClick={startGitHubOAuth}
               disabled={isGitHubConnecting}
-              className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--accent-cyan)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-all duration-150 hover:brightness-110 hover:shadow-[var(--glow-cyan)] disabled:opacity-50"
             >
               {isGitHubConnecting && (
                 <Loader2 className="size-3 animate-spin" />
