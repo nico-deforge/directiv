@@ -1,6 +1,7 @@
 import { KanbanSquare, Loader2, AlertCircle } from "lucide-react";
 import { useLinearTeams } from "../../hooks/useLinear";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { TeamChecklist } from "../shared/TeamChecklist";
 
 export function LinearSection() {
   const config = useSettingsStore((s) => s.config);
@@ -56,56 +57,11 @@ export function LinearSection() {
         )}
 
         {teams && (
-          <div className="space-y-2">
-            {teams.map((team) => {
-              const isSelected = selectedKeys.includes(team.key);
-              return (
-                <button
-                  key={team.id}
-                  onClick={() => toggleTeam(team.key)}
-                  className={`flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
-                    isSelected
-                      ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]/10"
-                      : "border-[var(--border-default)] bg-[var(--bg-secondary)] hover:border-[var(--text-muted)]"
-                  }`}
-                >
-                  <div
-                    className={`flex size-5 shrink-0 items-center justify-center rounded border ${
-                      isSelected
-                        ? "border-[var(--accent-blue)] bg-[var(--accent-blue)]"
-                        : "border-[var(--border-default)]"
-                    }`}
-                  >
-                    {isSelected && (
-                      <svg
-                        viewBox="0 0 12 12"
-                        className="size-3 text-white"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                      >
-                        <path d="M2 6l3 3 5-5" />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-sm font-medium text-[var(--text-primary)]">
-                      {team.name}
-                    </span>
-                    <span className="ml-2 text-xs text-[var(--text-muted)]">
-                      {team.key}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-
-            {teams.length === 0 && (
-              <p className="py-4 text-center text-sm text-[var(--text-muted)]">
-                No teams found in your Linear workspace.
-              </p>
-            )}
-          </div>
+          <TeamChecklist
+            teams={teams}
+            selectedKeys={selectedKeys}
+            onToggle={toggleTeam}
+          />
         )}
       </section>
     </div>
