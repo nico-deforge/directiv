@@ -153,15 +153,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
     try {
       const token = await linearOAuthStart();
-      const org = await fetchLinearOrg(token);
+      // Store token immediately so it's not lost if org fetch fails
       set({
         linearAccessToken: token,
         linearStatus: AUTH_PROVIDER_STATUS.CONNECTED,
         linearError: null,
-        linearOrgId: org.id,
-        linearOrgName: org.name,
       });
+      const org = await fetchLinearOrg(token);
+      set({ linearOrgId: org.id, linearOrgName: org.name });
     } catch (err) {
+      // If token was already stored, keep CONNECTED status
+      if (get().linearAccessToken) return;
       set({
         linearStatus: AUTH_PROVIDER_STATUS.ERROR,
         linearError: toErrorMessage(err),

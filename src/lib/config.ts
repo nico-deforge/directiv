@@ -36,14 +36,22 @@ function isValidLinearRecord(
   value: unknown,
 ): value is Record<string, LinearOrgConfig> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  // Reject old format: { teamIds: [...] }
-  if ("teamIds" in value) return false;
-  return Object.values(value).every(
-    (v) =>
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) return true;
+  // Reject old format: { teamIds: [...] } (pre-org-scoped config)
+  if (
+    entries.length === 1 &&
+    entries[0][0] === "teamIds" &&
+    Array.isArray(entries[0][1])
+  )
+    return false;
+  return entries.every(
+    ([, v]) =>
       typeof v === "object" &&
       v !== null &&
       "teamIds" in v &&
-      Array.isArray((v as LinearOrgConfig).teamIds),
+      Array.isArray((v as LinearOrgConfig).teamIds) &&
+      typeof (v as LinearOrgConfig).name === "string",
   );
 }
 
