@@ -55,6 +55,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
 
     const term = new Terminal({
       fontSize: 13,
+      lineHeight: 1.2,
       scrollback: 10_000,
       cursorBlink: true,
       macOptionIsMeta: true,
