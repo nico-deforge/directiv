@@ -102,7 +102,10 @@ Config is stored at `~/Library/Application Support/directiv/config.json`. Settin
     }
   ],
   "linear": {
-    "teamIds": ["TEAM_ID"]             // Team IDs or keys (e.g., "ENG" or UUID)
+    "<orgId>": {                       // Org-scoped team config (auto-populated via UI)
+      "name": "My Organization",
+      "teamIds": ["TEAM_ID"]
+    }
   },
   "theme": "system" | "light" | "dark",
   "skills": {                            // Global skill overrides (optional)

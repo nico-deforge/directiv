@@ -92,7 +92,7 @@ The app embeds a full terminal emulator using **xterm.js** connected to tmux ses
 - **PTY commands:** `pty_spawn` (creates PTY + reader thread), `pty_write`, `pty_resize`, `pty_close` (detaches tmux cleanly before killing child)
 - **Font:** JetBrains Mono bundled in `src/assets/fonts/`, loaded via `@font-face` in `index.css`
 
-**Retrocompatibility:** set `"terminalMode": "external"` in `directiv.config.json` to use Ghostty/iTerm2 instead of the built-in terminal. Default is `"internal"`.
+**Retrocompatibility:** set `"terminalMode": "external"` in config to use Ghostty/iTerm2 instead of the built-in terminal. Default is `"internal"`.
 
 ### Core workflow: "Start Task"
 
@@ -147,7 +147,7 @@ User config lives at `~/Library/Application Support/directiv/config.json` (relea
 - `terminalMode`: `"internal"` (default, built-in xterm.js) or `"external"` (delegates to Ghostty/iTerm2)
 - `editor`: code editor — `"zed"`, `"cursor"`, `"vscode"`, `"code"`
 - `workspaces`: list of workspace paths containing git repositories
-- `linear`: team IDs
+- `linear`: org-scoped team config — `Record<orgId, { name, teamIds }>`
 - `theme`: `"dark"`, `"light"`, or `"system"`
 
 ## Code Conventions

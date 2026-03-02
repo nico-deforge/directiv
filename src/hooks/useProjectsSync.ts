@@ -4,8 +4,8 @@ import {
   useLinearProjectIssues,
   useLinearMyActiveIdentifiers,
 } from "./useLinear";
+import { useCurrentLinearTeamIds } from "./useLinearConfig";
 import { useAllWorktrees } from "./useWorktrees";
-import { useSettingsStore } from "../stores/settingsStore";
 import { useAuthStore, AUTH_PROVIDER_STATUS } from "../stores/authStore";
 import { useWorkspaceRepos } from "./useWorkspace";
 import { useProjectStore, type Project } from "../stores/projectStore";
@@ -17,7 +17,7 @@ import type { LinearConnectionStatus } from "../stores/projectStore";
  * made by DependencyGraph.
  */
 export function useProjectsSync() {
-  const teamIds = useSettingsStore((s) => s.config.linear.teamIds);
+  const teamIds = useCurrentLinearTeamIds();
   const repos = useWorkspaceRepos();
   const setProjectsData = useProjectStore((s) => s.setProjectsData);
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
