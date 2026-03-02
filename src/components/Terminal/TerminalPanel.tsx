@@ -30,7 +30,14 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
   const channelRef = useRef<Channel<PtyOutputEvent> | null>(null);
 
   const fitAndResize = useCallback(() => {
-    if (!fitAddonRef.current || !termRef.current) return;
+    if (!fitAddonRef.current || !termRef.current || !containerRef.current)
+      return;
+    // Skip resize when the container is hidden (display: none → zero dimensions)
+    if (
+      containerRef.current.offsetHeight === 0 ||
+      containerRef.current.offsetWidth === 0
+    )
+      return;
     fitAddonRef.current.fit();
     if (handleRef.current !== null) {
       ptyResize(
@@ -50,6 +57,9 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       fontSize: 13,
       scrollback: 10_000,
       cursorBlink: true,
+      macOptionIsMeta: true,
+      scrollSensitivity: 0.5,
+      fastScrollSensitivity: 3,
       fontFamily: "'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace",
       theme: {
         background: TERMINAL_BG,
@@ -69,69 +79,93 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       }),
     );
 
-    term.open(containerRef.current);
-    fitAddon.fit();
+    // Wait for fonts to load before opening the terminal so xterm.js measures
+    // character cells with the correct font metrics (avoids text cutoff and
+    // red/green subpixel fringe artifacts when falling back to Menlo).
+    const container = containerRef.current;
+    document.fonts.ready.then(() => {
+      if (cancelled || !container.isConnected) return;
 
-    const cols = term.cols;
-    const rows = term.rows;
+      term.open(container);
+      fitAddon.fit();
 
-    // Forward keyboard input to PTY (registered eagerly — guarded by handleRef check)
-    term.onData((data) => {
-      if (handleRef.current !== null) {
-        ptyWrite(handleRef.current, data).catch(() => {});
-      }
-    });
+      const cols = term.cols;
+      const rows = term.rows;
 
-    // Create Tauri Channel for PTY output
-    const channel = new Channel<PtyOutputEvent>();
-    channelRef.current = channel;
-
-    channel.onmessage = (event: PtyOutputEvent) => {
-      switch (event.event) {
-        case PTY_EVENTS.DATA:
-          term.write(event.data.output);
-          break;
-        case PTY_EVENTS.EXIT:
-          term.write("\r\n[Session ended]\r\n");
-          if (handleRef.current !== null) {
-            ptyClose(handleRef.current).catch(() => {});
-            handleRef.current = null;
-          }
-          useTerminalStore.getState().closeTerminal(sessionName);
-          break;
-        case PTY_EVENTS.ERROR:
-          term.write(`\r\n[Error: ${event.data.message}]\r\n`);
-          break;
-      }
-    };
-
-    // Spawn PTY
-    ptySpawn(sessionName, cols, rows, channel)
-      .then((h) => {
-        if (cancelled) {
-          ptyClose(h).catch(() => {});
-          return;
-        }
-        handleRef.current = h;
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          term.write(`\r\n[Failed to connect: ${String(err)}]\r\n`);
+      // Forward keyboard input to PTY (registered eagerly — guarded by handleRef check)
+      term.onData((data) => {
+        if (handleRef.current !== null) {
+          ptyWrite(handleRef.current, data).catch(() => {});
         }
       });
+
+      // Create Tauri Channel for PTY output
+      const channel = new Channel<PtyOutputEvent>();
+      channelRef.current = channel;
+
+      channel.onmessage = (event: PtyOutputEvent) => {
+        switch (event.event) {
+          case PTY_EVENTS.DATA:
+            term.write(event.data.output);
+            break;
+          case PTY_EVENTS.EXIT:
+            term.write("\r\n[Session ended]\r\n");
+            if (handleRef.current !== null) {
+              ptyClose(handleRef.current).catch(() => {});
+              handleRef.current = null;
+            }
+            useTerminalStore.getState().closeTerminal(sessionName);
+            break;
+          case PTY_EVENTS.ERROR:
+            term.write(`\r\n[Error: ${event.data.message}]\r\n`);
+            break;
+        }
+      };
+
+      // Spawn PTY
+      ptySpawn(sessionName, cols, rows, channel)
+        .then((h) => {
+          if (cancelled) {
+            ptyClose(h).catch(() => {});
+            return;
+          }
+          handleRef.current = h;
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            term.write(`\r\n[Failed to connect: ${String(err)}]\r\n`);
+          }
+        });
+    });
 
     // Resize observer
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const observer = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(fitAndResize, 100);
+      resizeTimer = setTimeout(fitAndResize, 200);
     });
-    observer.observe(containerRef.current);
+    observer.observe(container);
+
+    // DPI change listener — handles Retina ↔ external monitor transitions
+    // where container CSS size stays the same but devicePixelRatio changes
+    let dprMedia = window.matchMedia(
+      `(resolution: ${window.devicePixelRatio}dppx)`,
+    );
+    const onDprChange = () => {
+      fitAndResize();
+      dprMedia.removeEventListener("change", onDprChange);
+      dprMedia = window.matchMedia(
+        `(resolution: ${window.devicePixelRatio}dppx)`,
+      );
+      dprMedia.addEventListener("change", onDprChange);
+    };
+    dprMedia.addEventListener("change", onDprChange);
 
     return () => {
       cancelled = true;
       observer.disconnect();
       if (resizeTimer) clearTimeout(resizeTimer);
+      dprMedia.removeEventListener("change", onDprChange);
 
       // Prevent ghost listeners
       if (channelRef.current) {
@@ -157,15 +191,15 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
     const timer = setTimeout(() => {
       fitAndResize();
       termRef.current?.focus();
-    }, 10);
+    }, 50);
     return () => clearTimeout(timer);
   }, [isActive, fitAndResize]);
 
   return (
     <div
       ref={containerRef}
-      className="h-full w-full"
-      style={{ backgroundColor: TERMINAL_BG }}
+      className="relative h-full w-full"
+      style={{ backgroundColor: TERMINAL_BG, overscrollBehavior: "contain" }}
     />
   );
 }
