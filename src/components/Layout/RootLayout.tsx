@@ -9,6 +9,7 @@ import { useTerminalStore } from "../../stores/terminalStore";
 import { TabBar } from "../Terminal/TabBar";
 import { TerminalPanel } from "../Terminal/TerminalPanel";
 import { AuthGate } from "../Auth/AuthGate";
+import { OnboardingGate } from "../Onboarding/OnboardingGate";
 
 export function RootLayout() {
   const loadFromDisk = useSettingsStore((s) => s.loadFromDisk);
@@ -74,33 +75,35 @@ export function RootLayout() {
     <>
       <Toaster theme={resolvedTheme} richColors position="bottom-right" />
       <AuthGate>
-        <div className="flex h-screen flex-col">
-          <TabBar />
-          <div
-            className={
-              activeTab === "board"
-                ? "min-h-0 flex-1 overflow-hidden"
-                : "hidden"
-            }
-          >
-            <Outlet />
-          </div>
-          {tabs.map((tab) => (
+        <OnboardingGate>
+          <div className="flex h-screen flex-col">
+            <TabBar />
             <div
-              key={tab.sessionName}
               className={
-                activeTab === tab.sessionName
+                activeTab === "board"
                   ? "min-h-0 flex-1 overflow-hidden"
                   : "hidden"
               }
             >
-              <TerminalPanel
-                sessionName={tab.sessionName}
-                isActive={activeTab === tab.sessionName}
-              />
+              <Outlet />
             </div>
-          ))}
-        </div>
+            {tabs.map((tab) => (
+              <div
+                key={tab.sessionName}
+                className={
+                  activeTab === tab.sessionName
+                    ? "min-h-0 flex-1 overflow-hidden"
+                    : "hidden"
+                }
+              >
+                <TerminalPanel
+                  sessionName={tab.sessionName}
+                  isActive={activeTab === tab.sessionName}
+                />
+              </div>
+            ))}
+          </div>
+        </OnboardingGate>
       </AuthGate>
     </>
   );

@@ -12,6 +12,7 @@
     "shell:allow-kill",
     "shell:allow-stdin-write",
     "shell:allow-open",
-    "opener:default"
+    "opener:default",
+    "dialog:default"
   ]
 }

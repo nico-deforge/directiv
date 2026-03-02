@@ -1,13 +1,33 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Sparkles, Plug, FolderGit2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Settings2,
+  FolderGit2,
+  KanbanSquare,
+  Sparkles,
+  Plug,
+} from "lucide-react";
+import { GeneralSection } from "../components/Config/GeneralSection";
+import { WorkspacesSection } from "../components/Config/WorkspacesSection";
+import { LinearSection } from "../components/Config/LinearSection";
 import { SkillsSection } from "../components/Config/SkillsSection";
 import { IntegrationsSection } from "../components/Config/IntegrationsSection";
 
-type ConfigSection = "skills" | "integrations" | "repositories";
+const CONFIG_SECTIONS = {
+  GENERAL: "general",
+  WORKSPACES: "workspaces",
+  LINEAR: "linear",
+  SKILLS: "skills",
+  INTEGRATIONS: "integrations",
+} as const;
+
+type ConfigSection = (typeof CONFIG_SECTIONS)[keyof typeof CONFIG_SECTIONS];
 
 export function ConfigPage() {
-  const [activeSection, setActiveSection] = useState<ConfigSection>("skills");
+  const [activeSection, setActiveSection] = useState<ConfigSection>(
+    CONFIG_SECTIONS.GENERAL,
+  );
 
   return (
     <div className="flex h-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
@@ -24,32 +44,46 @@ export function ConfigPage() {
         </div>
         <nav className="flex-1 py-2">
           <MenuItem
+            icon={<Settings2 className="size-4" />}
+            label="General"
+            active={activeSection === CONFIG_SECTIONS.GENERAL}
+            onClick={() => setActiveSection(CONFIG_SECTIONS.GENERAL)}
+          />
+          <MenuItem
+            icon={<FolderGit2 className="size-4" />}
+            label="Workspaces"
+            active={activeSection === CONFIG_SECTIONS.WORKSPACES}
+            onClick={() => setActiveSection(CONFIG_SECTIONS.WORKSPACES)}
+          />
+          <MenuItem
+            icon={<KanbanSquare className="size-4" />}
+            label="Linear"
+            active={activeSection === CONFIG_SECTIONS.LINEAR}
+            onClick={() => setActiveSection(CONFIG_SECTIONS.LINEAR)}
+          />
+          <MenuItem
             icon={<Sparkles className="size-4" />}
             label="Skills"
-            active={activeSection === "skills"}
-            onClick={() => setActiveSection("skills")}
+            active={activeSection === CONFIG_SECTIONS.SKILLS}
+            onClick={() => setActiveSection(CONFIG_SECTIONS.SKILLS)}
           />
           <MenuItem
             icon={<Plug className="size-4" />}
             label="Integrations"
-            active={activeSection === "integrations"}
-            onClick={() => setActiveSection("integrations")}
-          />
-          <MenuItem
-            icon={<FolderGit2 className="size-4" />}
-            label="Repositories"
-            active={activeSection === "repositories"}
-            onClick={() => setActiveSection("repositories")}
+            active={activeSection === CONFIG_SECTIONS.INTEGRATIONS}
+            onClick={() => setActiveSection(CONFIG_SECTIONS.INTEGRATIONS)}
           />
         </nav>
       </aside>
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-6">
-        {activeSection === "skills" && <SkillsSection />}
-        {activeSection === "integrations" && <IntegrationsSection />}
-        {activeSection === "repositories" && (
-          <PlaceholderSection title="Repositories" />
+        {activeSection === CONFIG_SECTIONS.GENERAL && <GeneralSection />}
+        {activeSection === CONFIG_SECTIONS.WORKSPACES && <WorkspacesSection />}
+        {activeSection === CONFIG_SECTIONS.LINEAR && <LinearSection />}
+        {activeSection === CONFIG_SECTIONS.SKILLS && <SkillsSection />}
+        {activeSection === CONFIG_SECTIONS.INTEGRATIONS && (
+          <IntegrationsSection />
         )}
       </main>
     </div>
@@ -79,13 +113,5 @@ function MenuItem({
       {icon}
       <span>{label}</span>
     </button>
-  );
-}
-
-function PlaceholderSection({ title }: { title: string }) {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <p className="text-[var(--text-muted)]">{title} - Coming soon</p>
-    </div>
   );
 }

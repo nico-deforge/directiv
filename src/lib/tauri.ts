@@ -3,6 +3,7 @@ import type {
   TmuxSession,
   WorktreeInfo,
   PluginSkillInfo,
+  ClaudeSkillEntry,
   DiscoveredRepo,
   SkillOverrides,
 } from "../types";
@@ -185,4 +186,8 @@ export function readPluginSkillFile(
   filename: string,
 ): Promise<string> {
   return invoke<string>("read_plugin_skill_file", { skillName, filename });
+}
+
+export function listAllClaudeSkills(): Promise<ClaudeSkillEntry[]> {
+  return invoke<ClaudeSkillEntry[]>("list_all_claude_skills");
 }
