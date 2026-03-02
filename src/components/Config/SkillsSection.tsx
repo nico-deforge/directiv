@@ -1,16 +1,83 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Loader2,
   FileText,
   Package,
   ChevronRight,
   ChevronDown,
+  Wand2,
 } from "lucide-react";
-import { usePluginSkills, usePluginSkillFile } from "../../hooks/useSkills";
-import type { PluginSkillInfo } from "../../types";
+import {
+  usePluginSkills,
+  useAllClaudeSkills,
+  usePluginSkillFile,
+} from "../../hooks/useSkills";
+import { useSettingsStore } from "../../stores/settingsStore";
+import type { PluginSkillInfo, ClaudeSkillEntry } from "../../types";
+
+const SKILL_ACTIONS = [
+  {
+    key: "code" as const,
+    label: "Code",
+    description: "Start button — launches a Claude session on a task",
+    defaultSkill: "directiv:linear-issue",
+  },
+  {
+    key: "plan" as const,
+    label: "Plan",
+    description: "Planning action — generates a tactical plan",
+    defaultSkill: "directiv:linear-plan",
+  },
+  {
+    key: "fixCi" as const,
+    label: "Fix CI",
+    description: "CI fix action — diagnoses and fixes CI failures",
+    defaultSkill: "directiv:fix-ci",
+  },
+] as const;
+
+type SkillActionKey = (typeof SKILL_ACTIONS)[number]["key"];
+
+const SOURCE_ORDER = ["directiv", "user", "plugin"] as const;
+const SOURCE_LABELS: Record<string, string> = {
+  directiv: "Directiv",
+  user: "User Skills",
+  plugin: "Plugins",
+};
+
+function groupSkillsBySource(skills: ClaudeSkillEntry[]) {
+  const groups: Record<string, ClaudeSkillEntry[]> = {};
+  for (const skill of skills) {
+    // For plugin skills, group by plugin name
+    const groupKey =
+      skill.source === "plugin" && skill.pluginName
+        ? `plugin:${skill.pluginName}`
+        : skill.source;
+    if (!groups[groupKey]) groups[groupKey] = [];
+    groups[groupKey].push(skill);
+  }
+
+  // Sort groups: directiv first, then user, then plugins alphabetically
+  const sortedKeys = Object.keys(groups).sort((a, b) => {
+    const aOrder = SOURCE_ORDER.indexOf(a as (typeof SOURCE_ORDER)[number]);
+    const bOrder = SOURCE_ORDER.indexOf(b as (typeof SOURCE_ORDER)[number]);
+    const aIdx = aOrder >= 0 ? aOrder : 3;
+    const bIdx = bOrder >= 0 ? bOrder : 3;
+    if (aIdx !== bIdx) return aIdx - bIdx;
+    return a.localeCompare(b);
+  });
+
+  return sortedKeys.map((key) => ({
+    key,
+    label: key.startsWith("plugin:")
+      ? key.replace("plugin:", "")
+      : (SOURCE_LABELS[key] ?? key),
+    skills: groups[key],
+  }));
+}
 
 export function SkillsSection() {
-  const { data: skills, isLoading, error } = usePluginSkills();
+  const { data: pluginSkills, isLoading, error } = usePluginSkills();
 
   if (isLoading) {
     return (
@@ -30,12 +97,16 @@ export function SkillsSection() {
     );
   }
 
-  const pluginSkills = (skills ?? []).toSorted((a, b) =>
+  const sortedPluginSkills = (pluginSkills ?? []).toSorted((a, b) =>
     a.name.localeCompare(b.name),
   );
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl space-y-8">
+      {/* Skill Mapping */}
+      <SkillMappingSection />
+
+      {/* Bundled Plugin Skills (read-only viewer) */}
       <div>
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">
           Directiv Skills
@@ -52,21 +123,155 @@ export function SkillsSection() {
             Plugin Skills
           </h2>
           <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-xs text-[var(--text-muted)]">
-            {pluginSkills.length}
+            {sortedPluginSkills.length}
           </span>
         </div>
-        {pluginSkills.length === 0 ? (
+        {sortedPluginSkills.length === 0 ? (
           <p className="text-sm text-[var(--text-muted)]">
             No plugin skills found.
           </p>
         ) : (
           <div className="space-y-2">
-            {pluginSkills.map((skill) => (
+            {sortedPluginSkills.map((skill) => (
               <SkillCard key={skill.name} skill={skill} />
             ))}
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function SkillMappingSection() {
+  const config = useSettingsStore((s) => s.config);
+  const setConfig = useSettingsStore((s) => s.setConfig);
+  const { data: allSkills, isLoading } = useAllClaudeSkills();
+
+  const grouped = useMemo(
+    () => groupSkillsBySource(allSkills ?? []),
+    [allSkills],
+  );
+
+  function handleSkillChange(actionKey: SkillActionKey, value: string) {
+    setConfig({
+      ...config,
+      skills: {
+        ...config.skills,
+        [actionKey]: value || undefined,
+      },
+    });
+  }
+
+  return (
+    <>
+      <div>
+        <h1 className="text-xl font-semibold text-[var(--text-primary)]">
+          Skill Mapping
+        </h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">
+          Choose which skill to run for each action. Leave empty to use the
+          default Directiv skill.
+        </p>
+      </div>
+
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <Wand2 className="size-4 text-[var(--accent-blue)]" />
+          <h2 className="text-sm font-medium text-[var(--text-secondary)]">
+            Actions
+          </h2>
+        </div>
+        <div className="space-y-3">
+          {SKILL_ACTIONS.map((action) => (
+            <SkillMappingRow
+              key={action.key}
+              action={action}
+              currentValue={config.skills?.[action.key] ?? ""}
+              grouped={grouped}
+              allSkills={allSkills ?? []}
+              isLoading={isLoading}
+              onChange={(value) => handleSkillChange(action.key, value)}
+            />
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function SkillMappingRow({
+  action,
+  currentValue,
+  grouped,
+  allSkills,
+  isLoading,
+  onChange,
+}: {
+  action: (typeof SKILL_ACTIONS)[number];
+  currentValue: string;
+  grouped: ReturnType<typeof groupSkillsBySource>;
+  allSkills: ClaudeSkillEntry[];
+  isLoading: boolean;
+  onChange: (value: string) => void;
+}) {
+  const isKnownSkill =
+    !currentValue || allSkills.some((s) => s.id === currentValue);
+  const [isCustom, setIsCustom] = useState(!isKnownSkill && !!currentValue);
+
+  // If current value doesn't match any known skill, treat as custom
+  const showCustomInput = isCustom || (!isKnownSkill && !!currentValue);
+  const selectValue = showCustomInput ? "__custom__" : currentValue;
+
+  function handleSelectChange(value: string) {
+    if (value === "__custom__") {
+      setIsCustom(true);
+      // Don't clear the value yet — let user type
+    } else {
+      setIsCustom(false);
+      onChange(value);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] px-4 py-3">
+      <div className="mb-2 flex items-baseline justify-between">
+        <label className="text-sm font-medium text-[var(--text-primary)]">
+          {action.label}
+        </label>
+        <span className="text-xs text-[var(--text-muted)]">
+          {action.description}
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <select
+          value={selectValue}
+          onChange={(e) => handleSelectChange(e.target.value)}
+          disabled={isLoading}
+          className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
+        >
+          <option value="">Default — {action.defaultSkill}</option>
+          {grouped.map((group) => (
+            <optgroup key={group.key} label={group.label}>
+              {group.skills.map((skill) => (
+                <option key={skill.id} value={skill.id}>
+                  {skill.id}
+                  {skill.description ? ` — ${skill.description}` : ""}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+          <option value="__custom__">Custom...</option>
+        </select>
+      </div>
+      {showCustomInput && (
+        <input
+          type="text"
+          value={currentValue}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="e.g. my-plugin:my-skill"
+          className="mt-2 w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+        />
+      )}
     </div>
   );
 }

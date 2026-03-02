@@ -39,6 +39,7 @@ pub fn run() {
             commands::skills::get_plugin_dir,
             commands::skills::list_plugin_skills,
             commands::skills::read_plugin_skill_file,
+            commands::skills::list_all_claude_skills,
             commands::workspace::scan_workspace,
             commands::pty::pty_spawn,
             commands::pty::pty_write,

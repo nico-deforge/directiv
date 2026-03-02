@@ -168,6 +168,14 @@ export interface PluginSkillInfo {
   files: string[];
 }
 
+export interface ClaudeSkillEntry {
+  id: string;
+  name: string;
+  description: string | null;
+  source: "user" | "plugin" | "directiv";
+  pluginName: string | null;
+}
+
 // --- Config ---
 
 export const TERMINAL_MODES = {
