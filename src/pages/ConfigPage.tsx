@@ -22,8 +22,7 @@ const CONFIG_SECTIONS = {
   INTEGRATIONS: "integrations",
 } as const;
 
-type ConfigSection =
-  (typeof CONFIG_SECTIONS)[keyof typeof CONFIG_SECTIONS];
+type ConfigSection = (typeof CONFIG_SECTIONS)[keyof typeof CONFIG_SECTIONS];
 
 export function ConfigPage() {
   const [activeSection, setActiveSection] = useState<ConfigSection>(
