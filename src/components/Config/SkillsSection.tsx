@@ -145,7 +145,7 @@ export function SkillsSection() {
 function SkillMappingSection() {
   const config = useSettingsStore((s) => s.config);
   const setConfig = useSettingsStore((s) => s.setConfig);
-  const { data: allSkills, isLoading } = useAllClaudeSkills();
+  const { data: allSkills, isLoading, error } = useAllClaudeSkills();
 
   const grouped = useMemo(
     () => groupSkillsBySource(allSkills ?? []),
@@ -173,6 +173,14 @@ function SkillMappingSection() {
           default Directiv skill.
         </p>
       </div>
+
+      {error && (
+        <div className="rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/10 p-4">
+          <p className="text-sm text-[var(--accent-red)]">
+            Failed to load available skills: {error.message}
+          </p>
+        </div>
+      )}
 
       <section>
         <div className="mb-3 flex items-center gap-2">
@@ -216,18 +224,19 @@ function SkillMappingRow({
 }) {
   const isKnownSkill =
     !currentValue || allSkills.some((s) => s.id === currentValue);
-  const [isCustom, setIsCustom] = useState(!isKnownSkill && !!currentValue);
+  const [isCustomOverride, setIsCustomOverride] = useState(false);
 
-  // If current value doesn't match any known skill, treat as custom
-  const showCustomInput = isCustom || (!isKnownSkill && !!currentValue);
+  // Show custom input when user explicitly selected "Custom..." or when value
+  // is unknown and skills have finished loading
+  const showCustomInput =
+    isCustomOverride || (!isLoading && !isKnownSkill && !!currentValue);
   const selectValue = showCustomInput ? "__custom__" : currentValue;
 
   function handleSelectChange(value: string) {
     if (value === "__custom__") {
-      setIsCustom(true);
-      // Don't clear the value yet — let user type
+      setIsCustomOverride(true);
     } else {
-      setIsCustom(false);
+      setIsCustomOverride(false);
       onChange(value);
     }
   }

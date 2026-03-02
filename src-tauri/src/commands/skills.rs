@@ -1,5 +1,6 @@
+use log;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
@@ -155,12 +156,20 @@ pub fn read_plugin_skill_file(
 // --- Discover all Claude skills ---
 
 #[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum SkillSource {
+    User,
+    Plugin,
+    Directiv,
+}
+
+#[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaudeSkillEntry {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub source: String,
+    pub source: SkillSource,
     pub plugin_name: Option<String>,
 }
 
@@ -182,7 +191,11 @@ struct ClaudeSettings {
 }
 
 /// Scan a directory of skill folders (each with SKILL.md) and return entries.
-fn scan_skill_dirs(dir: &PathBuf, source: &str, prefix: Option<&str>) -> Vec<ClaudeSkillEntry> {
+fn scan_skill_dirs(
+    dir: &PathBuf,
+    source: SkillSource,
+    prefix: Option<&str>,
+) -> Vec<ClaudeSkillEntry> {
     let mut results = Vec::new();
     let Ok(entries) = fs::read_dir(dir) else {
         return results;
@@ -201,7 +214,10 @@ fn scan_skill_dirs(dir: &PathBuf, source: &str, prefix: Option<&str>) -> Vec<Cla
         let (name, description) = if skill_md.exists() {
             match fs::read_to_string(&skill_md) {
                 Ok(content) => parse_skill_frontmatter(&content),
-                Err(_) => (None, None),
+                Err(e) => {
+                    log::warn!("Failed to read {}: {}", skill_md.display(), e);
+                    (None, None)
+                }
             }
         } else {
             (None, None)
@@ -216,7 +232,7 @@ fn scan_skill_dirs(dir: &PathBuf, source: &str, prefix: Option<&str>) -> Vec<Cla
             id,
             name: name.unwrap_or(folder_name),
             description,
-            source: source.to_string(),
+            source: source.clone(),
             plugin_name: prefix.map(|s| s.to_string()),
         });
     }
@@ -224,7 +240,7 @@ fn scan_skill_dirs(dir: &PathBuf, source: &str, prefix: Option<&str>) -> Vec<Cla
 }
 
 /// Scan a directory of command .md files (flat, no subdirs) and return entries.
-fn scan_command_files(dir: &PathBuf, source: &str, prefix: &str) -> Vec<ClaudeSkillEntry> {
+fn scan_command_files(dir: &PathBuf, source: SkillSource, prefix: &str) -> Vec<ClaudeSkillEntry> {
     let mut results = Vec::new();
     let Ok(entries) = fs::read_dir(dir) else {
         return results;
@@ -245,14 +261,17 @@ fn scan_command_files(dir: &PathBuf, source: &str, prefix: &str) -> Vec<ClaudeSk
 
         let (name, description) = match fs::read_to_string(&path) {
             Ok(content) => parse_skill_frontmatter(&content),
-            Err(_) => (None, None),
+            Err(e) => {
+                log::warn!("Failed to read {}: {}", path.display(), e);
+                (None, None)
+            }
         };
 
         results.push(ClaudeSkillEntry {
             id: format!("{prefix}:{stem}"),
             name: name.unwrap_or_else(|| stem.clone()),
             description,
-            source: source.to_string(),
+            source: source.clone(),
             plugin_name: Some(prefix.to_string()),
         });
     }
@@ -269,44 +288,60 @@ pub fn list_all_claude_skills(app: tauri::AppHandle) -> Result<Vec<ClaudeSkillEn
     // 1. User standalone skills: ~/.claude/skills/<name>/SKILL.md
     let user_skills_dir = claude_dir.join("skills");
     if user_skills_dir.is_dir() {
-        all_skills.extend(scan_skill_dirs(&user_skills_dir, "user", None));
+        all_skills.extend(scan_skill_dirs(&user_skills_dir, SkillSource::User, None));
     }
 
     // 2. Installed plugins (only enabled ones)
     let enabled = load_enabled_plugins(&claude_dir);
     let installed_path = claude_dir.join("plugins").join("installed_plugins.json");
-    if let Ok(content) = fs::read_to_string(&installed_path) {
-        if let Ok(installed) = serde_json::from_str::<InstalledPluginsFile>(&content) {
-            for (plugin_key, entries) in &installed.plugins {
-                if !enabled.contains(plugin_key) {
-                    continue;
-                }
-                // plugin_key format: "name@marketplace" — extract name part
-                let plugin_name = plugin_key.split('@').next().unwrap_or(plugin_key);
-                if let Some(entry) = entries.first() {
-                    let install_path = PathBuf::from(&entry.install_path);
-                    let skills_dir = install_path.join("skills");
-                    if skills_dir.is_dir() {
-                        all_skills.extend(scan_skill_dirs(
-                            &skills_dir,
-                            "plugin",
-                            Some(plugin_name),
-                        ));
+    match fs::read_to_string(&installed_path) {
+        Ok(content) => match serde_json::from_str::<InstalledPluginsFile>(&content) {
+            Ok(installed) => {
+                for (plugin_key, entries) in &installed.plugins {
+                    if !enabled.contains(plugin_key.as_str()) {
+                        continue;
                     }
-                    let commands_dir = install_path.join("commands");
-                    if commands_dir.is_dir() {
-                        all_skills.extend(scan_command_files(&commands_dir, "plugin", plugin_name));
+                    let plugin_name = plugin_key.split('@').next().unwrap_or(plugin_key);
+                    if let Some(entry) = entries.first() {
+                        let install_path = PathBuf::from(&entry.install_path);
+                        let skills_dir = install_path.join("skills");
+                        if skills_dir.is_dir() {
+                            all_skills.extend(scan_skill_dirs(
+                                &skills_dir,
+                                SkillSource::Plugin,
+                                Some(plugin_name),
+                            ));
+                        }
+                        let commands_dir = install_path.join("commands");
+                        if commands_dir.is_dir() {
+                            all_skills.extend(scan_command_files(
+                                &commands_dir,
+                                SkillSource::Plugin,
+                                plugin_name,
+                            ));
+                        }
                     }
                 }
             }
+            Err(e) => {
+                log::warn!("Failed to parse {}: {}", installed_path.display(), e);
+            }
+        },
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            log::warn!("Failed to read {}: {}", installed_path.display(), e);
         }
+        _ => {}
     }
 
     // 3. Directiv bundled plugin
     if let Ok(Some(plugin_dir)) = resolve_plugin_dir(&app) {
         let skills_dir = plugin_dir.join("skills");
         if skills_dir.is_dir() {
-            all_skills.extend(scan_skill_dirs(&skills_dir, "directiv", Some("directiv")));
+            all_skills.extend(scan_skill_dirs(
+                &skills_dir,
+                SkillSource::Directiv,
+                Some("directiv"),
+            ));
         }
     }
 
@@ -314,19 +349,27 @@ pub fn list_all_claude_skills(app: tauri::AppHandle) -> Result<Vec<ClaudeSkillEn
     Ok(all_skills)
 }
 
-fn load_enabled_plugins(claude_dir: &std::path::Path) -> Vec<String> {
+fn load_enabled_plugins(claude_dir: &std::path::Path) -> HashSet<String> {
     let settings_path = claude_dir.join("settings.json");
-    let Ok(content) = fs::read_to_string(&settings_path) else {
-        return Vec::new();
+    let content = match fs::read_to_string(&settings_path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return HashSet::new(),
+        Err(e) => {
+            log::warn!("Failed to read {}: {}", settings_path.display(), e);
+            return HashSet::new();
+        }
     };
-    let Ok(settings) = serde_json::from_str::<ClaudeSettings>(&content) else {
-        return Vec::new();
-    };
-    settings
-        .enabled_plugins
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|(_, enabled)| *enabled)
-        .map(|(key, _)| key)
-        .collect()
+    match serde_json::from_str::<ClaudeSettings>(&content) {
+        Ok(settings) => settings
+            .enabled_plugins
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(_, enabled)| *enabled)
+            .map(|(key, _)| key)
+            .collect(),
+        Err(e) => {
+            log::warn!("Failed to parse {}: {}", settings_path.display(), e);
+            HashSet::new()
+        }
+    }
 }

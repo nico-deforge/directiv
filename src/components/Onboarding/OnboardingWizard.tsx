@@ -25,10 +25,11 @@ export function OnboardingWizard() {
   const [editor, setEditor] = useState<CodeEditor>(config.editor);
 
   function saveAllState(extra?: Partial<{ onboardingCompleted: boolean }>) {
+    const current = useSettingsStore.getState().config;
     setConfig({
-      ...useSettingsStore.getState().config,
+      ...current,
       workspaces,
-      linear: { ...config.linear, teamIds: teamKeys },
+      linear: { ...current.linear, teamIds: teamKeys },
       editor,
       ...extra,
     });
