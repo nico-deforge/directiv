@@ -214,7 +214,8 @@ export interface DiscoveredRepo {
   githubNwo?: string;
 }
 
-export interface LinearConfig {
+export interface LinearOrgConfig {
+  name: string;
   teamIds: string[];
 }
 
@@ -223,7 +224,7 @@ export interface DirectivConfig {
   terminalMode?: TerminalMode;
   editor: CodeEditor;
   workspaces: WorkspaceConfig[];
-  linear: LinearConfig;
+  linear: Record<string, LinearOrgConfig>;
   theme: Theme;
   skills?: SkillOverrides;
   onboardingCompleted?: boolean;

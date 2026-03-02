@@ -31,6 +31,8 @@ interface AuthState {
   linearAccessToken: string | null;
   linearStatus: AuthProviderStatus;
   linearError: string | null;
+  linearOrgId: string | null;
+  linearOrgName: string | null;
   initializeLinearAuth: () => Promise<void>;
   startLinearOAuth: () => Promise<void>;
   disconnectLinear: () => Promise<void>;
@@ -50,6 +52,8 @@ const LINEAR_DISCONNECTED = {
   linearAccessToken: null,
   linearStatus: AUTH_PROVIDER_STATUS.DISCONNECTED,
   linearError: null,
+  linearOrgId: null,
+  linearOrgName: null,
 } as const;
 
 const GITHUB_DISCONNECTED = {
@@ -61,6 +65,15 @@ const GITHUB_DISCONNECTED = {
 
 function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+async function fetchLinearOrg(
+  token: string,
+): Promise<{ id: string; name: string }> {
+  const client = new LinearClient({ accessToken: token });
+  const me = await client.viewer;
+  const org = await me.organization;
+  return { id: org.id, name: org.name };
 }
 
 function createCachedClientFactory<T>(
@@ -100,6 +113,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   linearAccessToken: null,
   linearStatus: AUTH_PROVIDER_STATUS.DISCONNECTED,
   linearError: null,
+  linearOrgId: null,
+  linearOrgName: null,
 
   initializeLinearAuth: async () => {
     if (_initInFlight.has("linear")) return;
@@ -107,10 +122,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const token = await linearGetValidToken();
       if (token) {
+        const org = await fetchLinearOrg(token);
         set({
           linearAccessToken: token,
           linearStatus: AUTH_PROVIDER_STATUS.CONNECTED,
           linearError: null,
+          linearOrgId: org.id,
+          linearOrgName: org.name,
         });
       } else {
         set(LINEAR_DISCONNECTED);
@@ -118,6 +136,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (err) {
       set({
         linearAccessToken: null,
+        linearOrgId: null,
+        linearOrgName: null,
         linearStatus: AUTH_PROVIDER_STATUS.ERROR,
         linearError: toErrorMessage(err),
       });
@@ -133,10 +153,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
     try {
       const token = await linearOAuthStart();
+      const org = await fetchLinearOrg(token);
       set({
         linearAccessToken: token,
         linearStatus: AUTH_PROVIDER_STATUS.CONNECTED,
         linearError: null,
+        linearOrgId: org.id,
+        linearOrgName: org.name,
       });
     } catch (err) {
       set({

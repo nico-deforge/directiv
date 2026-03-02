@@ -19,7 +19,8 @@ async function resolveTeamIds(keys: string[]): Promise<string[]> {
 
   if (keys.every((k) => UUID_RE.test(k))) return keys;
 
-  const teams = await client.teams();
+  const me = await client.viewer;
+  const teams = await me.teams();
   return keys.map((key) => {
     if (UUID_RE.test(key)) return key;
     const team = teams.nodes.find((t) => t.key === key);
@@ -45,6 +46,7 @@ export type LinearProjectStatusType =
 export interface LinearTeam {
   id: string;
   name: string;
+  displayName: string;
   key: string;
 }
 
@@ -55,8 +57,14 @@ export function useLinearTeams() {
     queryFn: async () => {
       const client = getLinearClient();
       if (!client) return [];
-      const result = await client.teams();
-      return result.nodes.map((t) => ({ id: t.id, name: t.name, key: t.key }));
+      const me = await client.viewer;
+      const result = await me.teams();
+      return result.nodes.map((t) => ({
+        id: t.id,
+        name: t.name,
+        displayName: t.displayName,
+        key: t.key,
+      }));
     },
     enabled: isConnected,
     staleTime: 5 * 60 * 1000,

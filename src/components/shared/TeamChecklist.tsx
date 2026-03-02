@@ -44,7 +44,7 @@ export function TeamChecklist({
             </div>
             <div className="min-w-0 flex-1">
               <span className="text-sm font-medium text-[var(--text-primary)]">
-                {team.name}
+                {team.displayName}
               </span>
               <span className="ml-2 text-xs text-[var(--text-muted)]">
                 {team.key}

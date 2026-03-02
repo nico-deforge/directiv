@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useAuthStore } from "../../stores/authStore";
+import { useCurrentLinearConfig } from "../../hooks/useLinearConfig";
 import type { WorkspaceConfig, CodeEditor } from "../../types";
 import { WorkspacesStep } from "./steps/WorkspacesStep";
 import { LinearTeamsStep } from "./steps/LinearTeamsStep";
@@ -16,20 +18,29 @@ function stepDotClass(i: number, current: number): string {
 export function OnboardingWizard() {
   const config = useSettingsStore((s) => s.config);
   const setConfig = useSettingsStore((s) => s.setConfig);
+  const orgId = useAuthStore((s) => s.linearOrgId);
+  const orgName = useAuthStore((s) => s.linearOrgName);
+  const orgConfig = useCurrentLinearConfig();
 
   const [step, setStep] = useState(0);
   const [workspaces, setWorkspaces] = useState<WorkspaceConfig[]>(
     config.workspaces,
   );
-  const [teamKeys, setTeamKeys] = useState<string[]>(config.linear.teamIds);
+  const [teamKeys, setTeamKeys] = useState<string[]>(orgConfig?.teamIds ?? []);
   const [editor, setEditor] = useState<CodeEditor>(config.editor);
 
   function saveAllState(extra?: Partial<{ onboardingCompleted: boolean }>) {
     const current = useSettingsStore.getState().config;
+    const linearUpdate = orgId
+      ? {
+          ...current.linear,
+          [orgId]: { name: orgName ?? orgId, teamIds: teamKeys },
+        }
+      : current.linear;
     setConfig({
       ...current,
       workspaces,
-      linear: { ...current.linear, teamIds: teamKeys },
+      linear: linearUpdate,
       editor,
       ...extra,
     });
@@ -65,7 +76,7 @@ export function OnboardingWizard() {
           ))}
         </div>
 
-        <div className="min-h-[300px]">
+        <div className="min-h-[300px] max-h-[60vh] overflow-y-auto">
           {step === 0 && (
             <WorkspacesStep workspaces={workspaces} onChange={setWorkspaces} />
           )}

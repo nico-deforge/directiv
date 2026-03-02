@@ -1,20 +1,35 @@
 import { KanbanSquare, Loader2, AlertCircle } from "lucide-react";
 import { useLinearTeams } from "../../hooks/useLinear";
+import {
+  useLinearOrgId,
+  useCurrentLinearConfig,
+} from "../../hooks/useLinearConfig";
+import { useAuthStore } from "../../stores/authStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { TeamChecklist } from "../shared/TeamChecklist";
 
 export function LinearSection() {
   const config = useSettingsStore((s) => s.config);
   const setConfig = useSettingsStore((s) => s.setConfig);
+  const orgId = useLinearOrgId();
+  const orgName = useAuthStore((s) => s.linearOrgName);
+  const orgConfig = useCurrentLinearConfig();
   const { data: teams, isLoading, error } = useLinearTeams();
 
-  const selectedKeys = config.linear.teamIds;
+  const selectedKeys = orgConfig?.teamIds ?? [];
 
   function toggleTeam(key: string) {
+    if (!orgId) return;
     const next = selectedKeys.includes(key)
       ? selectedKeys.filter((k) => k !== key)
       : [...selectedKeys, key];
-    setConfig({ ...config, linear: { ...config.linear, teamIds: next } });
+    setConfig({
+      ...config,
+      linear: {
+        ...config.linear,
+        [orgId]: { name: orgName ?? orgId, teamIds: next },
+      },
+    });
   }
 
   return (

@@ -20,6 +20,7 @@ import {
   useLinearIssuesByBranches,
   useLinearMyActiveIdentifiers,
 } from "../../hooks/useLinear";
+import { useCurrentLinearTeamIds } from "../../hooks/useLinearConfig";
 import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
 import { useGitHubMyOpenPRs, useGitHubRepoAccess } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
@@ -84,7 +85,7 @@ export function DependencyGraph() {
 }
 
 function DependencyGraphInner() {
-  const teamIds = useSettingsStore((s) => s.config.linear.teamIds);
+  const teamIds = useCurrentLinearTeamIds();
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
   const repos = useWorkspaceRepos();
 

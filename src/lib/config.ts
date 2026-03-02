@@ -1,14 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { DirectivConfig, WorkspaceConfig } from "../types";
+import type {
+  DirectivConfig,
+  LinearOrgConfig,
+  WorkspaceConfig,
+} from "../types";
 
 export const defaultConfig: DirectivConfig = {
   terminal: "ghostty",
   terminalMode: "internal",
   editor: "zed",
   workspaces: [],
-  linear: {
-    teamIds: [],
-  },
+  linear: {},
   theme: "system",
 };
 
@@ -30,6 +32,21 @@ export async function saveConfigToDisk(config: DirectivConfig): Promise<void> {
   await invoke("save_config", { json: JSON.stringify(config, null, 2) });
 }
 
+function isValidLinearRecord(
+  value: unknown,
+): value is Record<string, LinearOrgConfig> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  // Reject old format: { teamIds: [...] }
+  if ("teamIds" in value) return false;
+  return Object.values(value).every(
+    (v) =>
+      typeof v === "object" &&
+      v !== null &&
+      "teamIds" in v &&
+      Array.isArray((v as LinearOrgConfig).teamIds),
+  );
+}
+
 export function validateConfig(
   config: Partial<DirectivConfig>,
 ): DirectivConfig {
@@ -44,7 +61,7 @@ export function validateConfig(
         path: ws.path,
       }),
     ),
-    linear: config.linear ?? defaultConfig.linear,
+    linear: isValidLinearRecord(config.linear) ? config.linear : {},
     theme: config.theme ?? defaultConfig.theme,
     skills: config.skills,
     onboardingCompleted: config.onboardingCompleted ?? false,
