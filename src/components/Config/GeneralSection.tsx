@@ -47,7 +47,7 @@ export function GeneralSection() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-lg space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">
           General

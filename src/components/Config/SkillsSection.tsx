@@ -102,7 +102,7 @@ export function SkillsSection() {
   );
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="max-w-lg space-y-8">
       {/* Skill Mapping */}
       <SkillMappingSection />
 
