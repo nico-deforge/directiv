@@ -152,7 +152,14 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       `(resolution: ${window.devicePixelRatio}dppx)`,
     );
     const onDprChange = () => {
-      fitAndResize();
+      try {
+        fitAndResize();
+      } catch (err) {
+        console.warn(
+          "[TerminalPanel] fitAndResize failed during DPI change:",
+          err,
+        );
+      }
       dprMedia.removeEventListener("change", onDprChange);
       dprMedia = window.matchMedia(
         `(resolution: ${window.devicePixelRatio}dppx)`,
