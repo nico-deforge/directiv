@@ -108,8 +108,8 @@ function parseWorktreeError(
 }
 
 export const SKILLS = {
-  CODE: "directiv:linear-issue",
-  PLAN: "directiv:linear-tactic",
+  CODE: "directiv:linear-code",
+  PLAN: "directiv:linear-plan",
   FIX_CI: "directiv:fix-ci",
 } as const;
 

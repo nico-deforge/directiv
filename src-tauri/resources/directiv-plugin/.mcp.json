@@ -1,12 +1,8 @@
 {
   "mcpServers": {
-    "linear-server": {
-      "type": "sse",
-      "url": "https://mcp.linear.app/sse"
-    },
-    "sentry": {
+    "linear": {
       "type": "http",
-      "url": "https://mcp.sentry.dev/mcp"
+      "url": "https://mcp.linear.app/mcp"
     }
   }
 }
