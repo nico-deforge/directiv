@@ -17,7 +17,7 @@ Use this template when creating or updating a Linear issue description. Write al
 - [ ] Critère 1
 - [ ] Critère 2
 
-## 🛠️ Tactique
+## 🛠️ Plan
 
 ### Stratégie
 
@@ -40,6 +40,6 @@ Use this template when creating or updating a Linear issue description. Write al
 
 - **Contexte**: 2-4 sentences max. Link to parent ticket if relevant.
 - **Objectif**: Single clear outcome. Not a list of tasks.
-- **Validation**: Testable criteria. Include edge cases.
-- **Tactique**: Two parts. (1) **Stratégie** — 2-4 sentences describing the global approach, the pattern to follow, the data flow. No file paths here. (2) **Entrypoints** — flat bullet list, one bullet per touchpoint. Format: `**[Verb]** — \`path\` → what (max 15 words)`. No implementation details, no field types, no validation rules. The tactic is a map, not a manual.
+- **Validation**: Each criterion must be independently verifiable: a concrete behavior, artifact, or state. Prefer "L'endpoint GET /api/x retourne les données filtrées par date" over "Le filtrage fonctionne". Include edge cases when relevant.
+- **Plan**: Two parts. (1) **Stratégie** — 2-4 sentences describing the global approach, the pattern to follow, the data flow. No file paths here. (2) **Entrypoints** — flat bullet list, one bullet per touchpoint. Format: `**[Verb]** — \`path\` → what (max 15 words)`. No implementation details, no field types, no validation rules. The plan is a map, not a manual.
 - **Questions**: Only include if real blockers or assumptions exist. Do not add placeholder questions.
