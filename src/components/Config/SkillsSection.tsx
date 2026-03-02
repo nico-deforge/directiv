@@ -20,7 +20,7 @@ const SKILL_ACTIONS = [
     key: "code" as const,
     label: "Code",
     description: "Start button — launches a Claude session on a task",
-    defaultSkill: "directiv:linear-issue",
+    defaultSkill: "directiv:linear-code",
   },
   {
     key: "plan" as const,

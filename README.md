@@ -156,7 +156,7 @@ Create `.directiv.json` at the root of each repository:
 
 #### Skill overrides
 
-By default, the **Code**, **Plan**, and **Fix CI** buttons launch Claude Code with the bundled Directiv plugin (`--plugin-dir`) and built-in skills (`directiv:linear-issue`, `directiv:linear-tactic`, `directiv:fix-ci`). You can override skills at two levels:
+By default, the **Code**, **Plan**, and **Fix CI** buttons launch Claude Code with the bundled Directiv plugin (`--plugin-dir`) and built-in skills (`directiv:linear-code`, `directiv:linear-plan`, `directiv:fix-ci`). You can override skills at two levels:
 
 **Global overrides** — in global config, apply to all repos:
 
@@ -279,7 +279,7 @@ For AI agent integration:
 npm install -g @anthropic-ai/claude-code
 ```
 
-Directiv ships with a bundled Claude Code plugin containing the `linear-issue`, `linear-plan`, and `fix-ci` skills. When you click **[Start]** on a task, Claude Code is launched with `--plugin-dir` pointing to the bundled plugin, so skills like `/directiv:linear-issue` and `/directiv:fix-ci` are available out of the box — no manual skill installation required. You can also override skills per-repo to use your own — see [Skill overrides](#skill-overrides).
+Directiv ships with a bundled Claude Code plugin containing the `linear-code`, `linear-plan`, and `fix-ci` skills. When you click **[Start]** on a task, Claude Code is launched with `--plugin-dir` pointing to the bundled plugin, so skills like `/directiv:linear-code` and `/directiv:fix-ci` are available out of the box — no manual skill installation required. You can also override skills per-repo to use your own — see [Skill overrides](#skill-overrides).
 
 #### GitHub CLI (strongly recommended)
 
