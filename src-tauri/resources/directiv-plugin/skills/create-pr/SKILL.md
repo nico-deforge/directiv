@@ -8,7 +8,7 @@ description: Use when I ask you to create the Github Pull Request.
 - If changes left execute /directiv:commit skill
 
 ### ACTIONS
-- Use code-reviewer subagents to produce a code review
+- Use directiv:code-reviewer subagent to produce a code review
 - Use all pr-review-toolkit subagents to produce a code review
 - Take the pragmatic and relevant changes into account
 - Create Github Pull Request without reviewer
