@@ -15,12 +15,7 @@ import {
 } from "../../lib/pty";
 import type { PtyOutputEvent } from "../../lib/pty";
 import { useTerminalStore } from "../../stores/terminalStore";
-import { useSettingsStore } from "../../stores/settingsStore";
-import { openInEditor } from "../../lib/editor";
-import { toastError } from "../../lib/toast";
-import { createFilePathLinkProvider } from "./filePathLinkProvider";
 import { TerminalSearch } from "./TerminalSearch";
-import { ScrollToBottomButton } from "./ScrollToBottomButton";
 import "@xterm/xterm/css/xterm.css";
 
 const TERMINAL_BG = "#282c34";
@@ -35,14 +30,9 @@ const PASTE_CHUNK_DELAY_MS = 10;
 interface TerminalPanelProps {
   sessionName: string;
   isActive: boolean;
-  worktreeDir?: string;
 }
 
-export function TerminalPanel({
-  sessionName,
-  isActive,
-  worktreeDir,
-}: TerminalPanelProps) {
+export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -52,11 +42,6 @@ export function TerminalPanel({
   const writeQueueRef = useRef(Promise.resolve());
 
   const [showSearch, setShowSearch] = useState(false);
-  const [termReady, setTermReady] = useState(false);
-
-  // Read via refs so the main Effect doesn't tear down the terminal on change
-  const worktreeDirRef = useRef(worktreeDir);
-  worktreeDirRef.current = worktreeDir;
 
   const fitAndResize = useCallback(() => {
     if (!fitAddonRef.current || !termRef.current || !containerRef.current)
@@ -270,21 +255,7 @@ export function TerminalPanel({
             term.write(`\r\n[Failed to connect: ${String(err)}]\r\n`);
           }
         });
-
-      setTermReady(true);
     });
-
-    // --- File path link provider (reads latest editor/worktreeDir via refs/store) ---
-    term.registerLinkProvider(
-      createFilePathLinkProvider(
-        term,
-        worktreeDirRef,
-        (filePath, line, col) => {
-          const currentEditor = useSettingsStore.getState().config.editor;
-          openInEditor(currentEditor, filePath, line, col).catch(toastError);
-        },
-      ),
-    );
 
     // Resize observer
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -343,7 +314,6 @@ export function TerminalPanel({
       termRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
-      setTermReady(false);
     };
   }, [sessionName, fitAndResize, writeChunked]);
 
@@ -372,7 +342,6 @@ export function TerminalPanel({
           }}
         />
       )}
-      {termReady && <ScrollToBottomButton term={termRef.current} />}
     </div>
   );
 }

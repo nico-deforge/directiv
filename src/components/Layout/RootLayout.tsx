@@ -99,7 +99,6 @@ export function RootLayout() {
                 <TerminalPanel
                   sessionName={tab.sessionName}
                   isActive={activeTab === tab.sessionName}
-                  worktreeDir={tab.worktreeDir}
                 />
               </div>
             ))}

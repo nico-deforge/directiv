@@ -4,7 +4,6 @@ export interface TerminalTab {
   sessionName: string;
   identifier: string;
   title: string;
-  worktreeDir?: string;
 }
 
 interface TerminalState {

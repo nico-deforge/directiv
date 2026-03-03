@@ -316,7 +316,6 @@ export async function startTask({
       sessionName,
       identifier,
       title,
-      worktreeDir: worktree.path,
     });
   }
 
@@ -366,7 +365,6 @@ export async function startFreeTask({
       sessionName,
       identifier: branchName,
       title: branchName,
-      worktreeDir: worktree.path,
     });
   }
 }

@@ -91,7 +91,6 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           sessionName,
           identifier: worktree.branch,
           title: linearIssue?.title ?? worktree.branch,
-          worktreeDir: worktree.path,
         });
       }
       queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] });
@@ -112,7 +111,6 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         sessionName: session.name,
         identifier: worktree.branch,
         title: linearIssue?.title ?? worktree.branch,
-        worktreeDir: worktree.path,
       });
     }
   }
