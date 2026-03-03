@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { open } from "@tauri-apps/plugin-shell";
 import { Channel } from "@tauri-apps/api/core";
 import {
@@ -26,6 +27,17 @@ let webglFailed = false;
 /** Chunk large pastes to avoid overwhelming the PTY buffer. */
 const PASTE_CHUNK_SIZE = 4096;
 const PASTE_CHUNK_DELAY_MS = 10;
+const WHEEL_PIXELS_PER_LINE = 40;
+/**
+ * After a Shift+scroll gesture ends, macOS trackpads keep firing momentum
+ * (inertia) wheel events WITHOUT shiftKey. If those reach the TUI via mouse
+ * tracking they defocus Claude Code's UI. We intercept wheel events for a
+ * sliding cooldown after the last intercepted scroll tick, redirecting them
+ * to the xterm viewport instead of letting them reach the TUI.
+ */
+const SHIFT_SCROLL_COOLDOWN_MS = 600;
+const RESIZE_DEBOUNCE_MS = 100;
+const WRITE_DEPTH_WARN_THRESHOLD = 50;
 
 interface TerminalPanelProps {
   sessionName: string;
@@ -97,6 +109,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       scrollback: 10_000,
       cursorBlink: true,
       macOptionIsMeta: true,
+      rescaleOverlappingGlyphs: true,
       allowProposedApi: true,
       scrollSensitivity: 0.5,
       fastScrollSensitivity: 3,
@@ -106,9 +119,55 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
         foreground: "#ffffff",
         cursor: "#ffffff",
         selectionBackground: "#444444",
+        // Tomorrow Night ANSI palette (Ghostty defaults)
+        black: "#1d1f21",
+        red: "#cc6666",
+        green: "#b5bd68",
+        yellow: "#f0c674",
+        blue: "#81a2be",
+        magenta: "#b294bb",
+        cyan: "#8abeb7",
+        white: "#c5c8c6",
+        brightBlack: "#666666",
+        brightRed: "#d54e53",
+        brightGreen: "#b9ca4a",
+        brightYellow: "#e7c547",
+        brightBlue: "#7aa6da",
+        brightMagenta: "#c397d8",
+        brightCyan: "#70c0b1",
+        brightWhite: "#eaeaea",
       },
     });
     termRef.current = term;
+
+    // Shift+scroll → scroll the xterm viewport even when mouse tracking is
+    // active (e.g. Claude Code's TUI captures all wheel events for menu
+    // navigation, preventing terminal buffer scrollback).
+    // After the gesture ends, absorb macOS trackpad momentum events that
+    // would otherwise reach the TUI and defocus Claude Code.
+    let shiftScrollCooldown = 0;
+    term.attachCustomWheelEventHandler((ev) => {
+      if (!term.element) return true;
+      if (term.modes.mouseTrackingMode === "none") return true;
+
+      const inCooldown = Date.now() < shiftScrollCooldown;
+      const isAtBottom =
+        term.buffer.active.viewportY >= term.buffer.active.baseY;
+      if (!ev.shiftKey && !inCooldown && isAtBottom) return true;
+      if (ev.deltaY === 0) return true;
+
+      const lines =
+        Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
+        (ev.deltaY > 0 ? 1 : -1);
+      term.scrollLines(lines);
+      if (ev.shiftKey) term.focus();
+      if (ev.shiftKey || inCooldown) {
+        shiftScrollCooldown = Date.now() + SHIFT_SCROLL_COOLDOWN_MS;
+      }
+      ev.stopPropagation();
+      ev.preventDefault();
+      return false;
+    });
 
     // --- Addons ---
 
@@ -131,6 +190,16 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
     // Unicode 11
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = "11";
+
+    // OSC 52 clipboard — enables tmux remote clipboard sync
+    try {
+      term.loadAddon(new ClipboardAddon());
+    } catch (err) {
+      console.warn(
+        "[TerminalPanel] ClipboardAddon failed, OSC 52 disabled:",
+        err,
+      );
+    }
 
     // --- Custom key event handler (Cmd+F, Cmd+K, Cmd+C copy trim) ---
     term.attachCustomKeyEventHandler((event) => {
@@ -181,6 +250,16 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       term.open(container);
       fitAddon.fit();
 
+      let pendingWrites = 0;
+
+      term.onWriteParsed(() => {
+        if (pendingWrites > WRITE_DEPTH_WARN_THRESHOLD) {
+          console.debug(
+            `[TerminalPanel] Write buffer depth: ${pendingWrites} (threshold: ${WRITE_DEPTH_WARN_THRESHOLD})`,
+          );
+        }
+      });
+
       // --- WebGL renderer (loaded after open) ---
       if (!webglFailed) {
         requestAnimationFrame(() => {
@@ -191,7 +270,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
               const webglAddon = new WebglAddon();
               webglAddon.onContextLoss(() => {
                 console.warn(
-                  "[TerminalPanel] WebGL context lost, falling back to canvas",
+                  "[TerminalPanel] WebGL context lost, falling back to DOM renderer",
                 );
                 webglAddon.dispose();
                 webglFailed = true;
@@ -201,7 +280,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
             .catch((err) => {
               webglFailed = true;
               console.warn(
-                "[TerminalPanel] WebGL addon failed, using canvas:",
+                "[TerminalPanel] WebGL addon failed, using DOM renderer:",
                 err,
               );
             });
@@ -225,7 +304,18 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       channel.onmessage = (event: PtyOutputEvent) => {
         switch (event.event) {
           case PTY_EVENTS.DATA:
-            term.write(event.data.output);
+            pendingWrites++;
+            try {
+              term.write(event.data.output, () => {
+                pendingWrites--;
+              });
+            } catch (err) {
+              pendingWrites--;
+              console.warn(
+                "[TerminalPanel] term.write failed, output may be lost:",
+                err,
+              );
+            }
             break;
           case PTY_EVENTS.EXIT:
             term.write("\r\n[Session ended]\r\n");
@@ -261,7 +351,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const observer = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(fitAndResize, 200);
+      resizeTimer = setTimeout(fitAndResize, RESIZE_DEBOUNCE_MS);
     });
     observer.observe(container);
 

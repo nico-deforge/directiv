@@ -136,7 +136,7 @@ pub fn pty_spawn(
     // Spawn reader thread — keep an Arc to access the shutdown flag
     let session_ref = pty_session.clone();
     std::thread::spawn(move || {
-        let mut buf = [0u8; 4096];
+        let mut buf = [0u8; 2048];
         loop {
             if session_ref.shutdown.load(Ordering::Relaxed) {
                 break;
