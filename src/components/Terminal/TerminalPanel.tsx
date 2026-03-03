@@ -128,33 +128,18 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
     term.attachCustomWheelEventHandler((ev) => {
       if (term.modes.mouseTrackingMode === "none") return true;
 
-      if (ev.shiftKey) {
-        const lines =
-          Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
-          (ev.deltaY > 0 ? 1 : -1);
-        term.scrollLines(lines);
-        term.focus();
-        shiftScrollCooldown = Date.now() + SHIFT_SCROLL_COOLDOWN_MS;
-        ev.stopPropagation();
-        ev.preventDefault();
-        return false;
-      }
+      const inCooldown = Date.now() < shiftScrollCooldown;
+      if (!ev.shiftKey && !inCooldown) return true;
 
-      // Absorb trackpad momentum events after Shift is released —
-      // continue scrolling the viewport so momentum feels natural
-      if (Date.now() < shiftScrollCooldown) {
-        const lines =
-          Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
-          (ev.deltaY > 0 ? 1 : -1);
-        term.scrollLines(lines);
-        term.focus();
-        shiftScrollCooldown = Date.now() + SHIFT_SCROLL_COOLDOWN_MS;
-        ev.stopPropagation();
-        ev.preventDefault();
-        return false;
-      }
-
-      return true;
+      const lines =
+        Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
+        (ev.deltaY > 0 ? 1 : -1);
+      term.scrollLines(lines);
+      term.focus();
+      shiftScrollCooldown = Date.now() + SHIFT_SCROLL_COOLDOWN_MS;
+      ev.stopPropagation();
+      ev.preventDefault();
+      return false;
     });
 
     // --- Addons ---
