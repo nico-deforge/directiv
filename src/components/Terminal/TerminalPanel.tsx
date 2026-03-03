@@ -26,6 +26,7 @@ let webglFailed = false;
 /** Chunk large pastes to avoid overwhelming the PTY buffer. */
 const PASTE_CHUNK_SIZE = 4096;
 const PASTE_CHUNK_DELAY_MS = 10;
+const WHEEL_PIXELS_PER_LINE = 40;
 
 interface TerminalPanelProps {
   sessionName: string;
@@ -100,6 +101,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       allowProposedApi: true,
       scrollSensitivity: 0.5,
       fastScrollSensitivity: 3,
+      fastScrollModifier: "shift",
       fontFamily: "'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace",
       theme: {
         background: TERMINAL_BG,
@@ -109,6 +111,20 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       },
     });
     termRef.current = term;
+
+    // Shift+scroll → scroll the xterm viewport even when mouse tracking is
+    // active (e.g. Claude Code's TUI captures all wheel events for menu
+    // navigation, preventing terminal buffer scrollback).
+    term.attachCustomWheelEventHandler((ev) => {
+      if (ev.shiftKey && term.modes.mouseTrackingMode !== "none") {
+        const lines =
+          Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
+          (ev.deltaY > 0 ? 1 : -1);
+        term.scrollLines(lines);
+        return false;
+      }
+      return true;
+    });
 
     // --- Addons ---
 
