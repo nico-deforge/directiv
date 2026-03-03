@@ -133,14 +133,18 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       if (term.modes.mouseTrackingMode === "none") return true;
 
       const inCooldown = Date.now() < shiftScrollCooldown;
-      if (!ev.shiftKey && !inCooldown) return true;
+      const isAtBottom =
+        term.buffer.active.viewportY >= term.buffer.active.baseY;
+      if (!ev.shiftKey && !inCooldown && isAtBottom) return true;
 
       const lines =
         Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
         (ev.deltaY > 0 ? 1 : -1);
       term.scrollLines(lines);
       if (ev.shiftKey) term.focus();
-      shiftScrollCooldown = Date.now() + SHIFT_SCROLL_COOLDOWN_MS;
+      if (ev.shiftKey || inCooldown) {
+        shiftScrollCooldown = Date.now() + SHIFT_SCROLL_COOLDOWN_MS;
+      }
       ev.stopPropagation();
       ev.preventDefault();
       return false;
