@@ -37,7 +37,7 @@ const WHEEL_PIXELS_PER_LINE = 40;
  */
 const SHIFT_SCROLL_COOLDOWN_MS = 600;
 const RESIZE_DEBOUNCE_MS = 100;
-const WRITE_HIGH_WATERMARK = 5;
+const WRITE_DEPTH_WARN_THRESHOLD = 5;
 
 interface TerminalPanelProps {
   sessionName: string;
@@ -139,7 +139,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
         Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
         (ev.deltaY > 0 ? 1 : -1);
       term.scrollLines(lines);
-      term.focus();
+      if (ev.shiftKey) term.focus();
       shiftScrollCooldown = Date.now() + SHIFT_SCROLL_COOLDOWN_MS;
       ev.stopPropagation();
       ev.preventDefault();
@@ -169,7 +169,14 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
     term.unicode.activeVersion = "11";
 
     // OSC 52 clipboard — enables tmux remote clipboard sync
-    term.loadAddon(new ClipboardAddon());
+    try {
+      term.loadAddon(new ClipboardAddon());
+    } catch (err) {
+      console.warn(
+        "[TerminalPanel] ClipboardAddon failed, OSC 52 disabled:",
+        err,
+      );
+    }
 
     // --- Custom key event handler (Cmd+F, Cmd+K, Cmd+C copy trim) ---
     term.attachCustomKeyEventHandler((event) => {
@@ -223,9 +230,9 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       let pendingWrites = 0;
 
       term.onWriteParsed(() => {
-        if (pendingWrites > WRITE_HIGH_WATERMARK) {
+        if (pendingWrites > WRITE_DEPTH_WARN_THRESHOLD) {
           console.warn(
-            `[TerminalPanel] Write buffer depth: ${pendingWrites} (high watermark: ${WRITE_HIGH_WATERMARK})`,
+            `[TerminalPanel] Write buffer depth: ${pendingWrites} (threshold: ${WRITE_DEPTH_WARN_THRESHOLD})`,
           );
         }
       });
@@ -275,9 +282,13 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
         switch (event.event) {
           case PTY_EVENTS.DATA:
             pendingWrites++;
-            term.write(event.data.output, () => {
+            try {
+              term.write(event.data.output, () => {
+                pendingWrites--;
+              });
+            } catch {
               pendingWrites--;
-            });
+            }
             break;
           case PTY_EVENTS.EXIT:
             term.write("\r\n[Session ended]\r\n");
