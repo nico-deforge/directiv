@@ -149,7 +149,7 @@ export function createFilePathLinkProvider(
       const links: ILink[] = parsed.map((p) => ({
         range: {
           start: { x: p.startIndex + 1, y: bufferLineNumber },
-          end: { x: p.endIndex + 1, y: bufferLineNumber },
+          end: { x: p.endIndex, y: bufferLineNumber },
         },
         text:
           p.file + (p.line ? `:${p.line}` : "") + (p.col ? `:${p.col}` : ""),

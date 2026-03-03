@@ -32,6 +32,13 @@ export function TerminalSearch({ searchAddon, onClose }: TerminalSearchProps) {
     return () => disposable.dispose();
   }, [searchAddon]);
 
+  // Clear decorations on unmount (e.g., Cmd+F toggle closing the search bar)
+  useEffect(() => {
+    return () => {
+      searchAddon?.clearDecorations();
+    };
+  }, [searchAddon]);
+
   function triggerSearch(q: string, cs: boolean) {
     if (!searchAddon) return;
     if (!q) {

@@ -49,6 +49,7 @@ export function TerminalPanel({
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const handleRef = useRef<number | null>(null);
   const channelRef = useRef<Channel<PtyOutputEvent> | null>(null);
+  const writeQueueRef = useRef(Promise.resolve());
 
   const [showSearch, setShowSearch] = useState(false);
   const [termReady, setTermReady] = useState(false);
@@ -76,25 +77,28 @@ export function TerminalPanel({
     }
   }, []);
 
-  /** Send data to PTY in chunks to prevent buffer overflow on large pastes. */
-  const writeChunked = useCallback(async (data: string) => {
-    if (handleRef.current === null) return;
-    if (data.length <= PASTE_CHUNK_SIZE) {
-      await ptyWrite(handleRef.current, data).catch(() => {});
-      return;
-    }
-    for (let i = 0; i < data.length; i += PASTE_CHUNK_SIZE) {
+  /** Send data to PTY in chunks to prevent buffer overflow on large pastes.
+   *  Writes are serialized via a queue to prevent interleaving from concurrent calls. */
+  const writeChunked = useCallback((data: string) => {
+    writeQueueRef.current = writeQueueRef.current.then(async () => {
       if (handleRef.current === null) return;
-      const chunk = data.slice(i, i + PASTE_CHUNK_SIZE);
-      try {
-        await ptyWrite(handleRef.current, chunk);
-      } catch {
-        break; // Stop sending chunks to a broken pipe
+      if (data.length <= PASTE_CHUNK_SIZE) {
+        await ptyWrite(handleRef.current, data).catch(() => {});
+        return;
       }
-      if (i + PASTE_CHUNK_SIZE < data.length) {
-        await new Promise((r) => setTimeout(r, PASTE_CHUNK_DELAY_MS));
+      for (let i = 0; i < data.length; i += PASTE_CHUNK_SIZE) {
+        if (handleRef.current === null) return;
+        const chunk = data.slice(i, i + PASTE_CHUNK_SIZE);
+        try {
+          await ptyWrite(handleRef.current, chunk);
+        } catch {
+          break; // Stop sending chunks to a broken pipe
+        }
+        if (i + PASTE_CHUNK_SIZE < data.length) {
+          await new Promise((r) => setTimeout(r, PASTE_CHUNK_DELAY_MS));
+        }
       }
-    }
+    });
   }, []);
 
   // Mount terminal and PTY connection

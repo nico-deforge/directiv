@@ -9,9 +9,9 @@ export async function openInEditor(
   col?: number,
 ): Promise<void> {
   let target = filePath;
-  if (line) {
+  if (line !== undefined) {
     target += `:${line}`;
-    if (col) target += `:${col}`;
+    if (col !== undefined) target += `:${col}`;
   }
 
   await invoke<void>("open_editor", { editor, path: target });
