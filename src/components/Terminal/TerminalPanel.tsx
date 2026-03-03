@@ -27,6 +27,13 @@ let webglFailed = false;
 const PASTE_CHUNK_SIZE = 4096;
 const PASTE_CHUNK_DELAY_MS = 10;
 const WHEEL_PIXELS_PER_LINE = 40;
+/**
+ * After a Shift+scroll gesture ends, macOS trackpads keep firing momentum
+ * (inertia) wheel events WITHOUT shiftKey. If those reach the TUI via mouse
+ * tracking they defocus Claude Code's UI. We swallow wheel events for a short
+ * cooldown after the last Shift+scroll tick to absorb the momentum tail.
+ */
+const SHIFT_SCROLL_COOLDOWN_MS = 600;
 
 interface TerminalPanelProps {
   sessionName: string;
@@ -115,16 +122,38 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
     // Shift+scroll → scroll the xterm viewport even when mouse tracking is
     // active (e.g. Claude Code's TUI captures all wheel events for menu
     // navigation, preventing terminal buffer scrollback).
+    // After the gesture ends, absorb macOS trackpad momentum events that
+    // would otherwise reach the TUI and defocus Claude Code.
+    let shiftScrollCooldown = 0;
     term.attachCustomWheelEventHandler((ev) => {
-      if (ev.shiftKey && term.modes.mouseTrackingMode !== "none") {
+      if (term.modes.mouseTrackingMode === "none") return true;
+
+      if (ev.shiftKey) {
         const lines =
           Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
           (ev.deltaY > 0 ? 1 : -1);
         term.scrollLines(lines);
         term.focus();
+        shiftScrollCooldown = Date.now() + SHIFT_SCROLL_COOLDOWN_MS;
+        ev.stopPropagation();
         ev.preventDefault();
         return false;
       }
+
+      // Absorb trackpad momentum events after Shift is released —
+      // continue scrolling the viewport so momentum feels natural
+      if (Date.now() < shiftScrollCooldown) {
+        const lines =
+          Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
+          (ev.deltaY > 0 ? 1 : -1);
+        term.scrollLines(lines);
+        term.focus();
+        shiftScrollCooldown = Date.now() + SHIFT_SCROLL_COOLDOWN_MS;
+        ev.stopPropagation();
+        ev.preventDefault();
+        return false;
+      }
+
       return true;
     });
 
