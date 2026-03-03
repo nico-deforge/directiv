@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
+import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { open } from "@tauri-apps/plugin-shell";
 import { Channel } from "@tauri-apps/api/core";
 import {
@@ -35,6 +36,8 @@ const WHEEL_PIXELS_PER_LINE = 40;
  * to the xterm viewport instead of letting them reach the TUI.
  */
 const SHIFT_SCROLL_COOLDOWN_MS = 600;
+const RESIZE_DEBOUNCE_MS = 100;
+const WRITE_HIGH_WATERMARK = 5;
 
 interface TerminalPanelProps {
   sessionName: string;
@@ -106,10 +109,10 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       scrollback: 10_000,
       cursorBlink: true,
       macOptionIsMeta: true,
+      rescaleOverlappingGlyphs: true,
       allowProposedApi: true,
       scrollSensitivity: 0.5,
       fastScrollSensitivity: 3,
-      fastScrollModifier: "shift",
       fontFamily: "'JetBrains Mono', Menlo, Monaco, 'Courier New', monospace",
       theme: {
         background: TERMINAL_BG,
@@ -165,6 +168,9 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = "11";
 
+    // OSC 52 clipboard — enables tmux remote clipboard sync
+    term.loadAddon(new ClipboardAddon());
+
     // --- Custom key event handler (Cmd+F, Cmd+K, Cmd+C copy trim) ---
     term.attachCustomKeyEventHandler((event) => {
       if (event.type !== "keydown") return true;
@@ -214,6 +220,16 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       term.open(container);
       fitAddon.fit();
 
+      let pendingWrites = 0;
+
+      term.onWriteParsed(() => {
+        if (pendingWrites > WRITE_HIGH_WATERMARK) {
+          console.warn(
+            `[TerminalPanel] Write buffer depth: ${pendingWrites} (high watermark: ${WRITE_HIGH_WATERMARK})`,
+          );
+        }
+      });
+
       // --- WebGL renderer (loaded after open) ---
       if (!webglFailed) {
         requestAnimationFrame(() => {
@@ -224,7 +240,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
               const webglAddon = new WebglAddon();
               webglAddon.onContextLoss(() => {
                 console.warn(
-                  "[TerminalPanel] WebGL context lost, falling back to canvas",
+                  "[TerminalPanel] WebGL context lost, falling back to DOM renderer",
                 );
                 webglAddon.dispose();
                 webglFailed = true;
@@ -234,7 +250,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
             .catch((err) => {
               webglFailed = true;
               console.warn(
-                "[TerminalPanel] WebGL addon failed, using canvas:",
+                "[TerminalPanel] WebGL addon failed, using DOM renderer:",
                 err,
               );
             });
@@ -258,7 +274,10 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
       channel.onmessage = (event: PtyOutputEvent) => {
         switch (event.event) {
           case PTY_EVENTS.DATA:
-            term.write(event.data.output);
+            pendingWrites++;
+            term.write(event.data.output, () => {
+              pendingWrites--;
+            });
             break;
           case PTY_EVENTS.EXIT:
             term.write("\r\n[Session ended]\r\n");
@@ -294,7 +313,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const observer = new ResizeObserver(() => {
       if (resizeTimer) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(fitAndResize, 200);
+      resizeTimer = setTimeout(fitAndResize, RESIZE_DEBOUNCE_MS);
     });
     observer.observe(container);
 
