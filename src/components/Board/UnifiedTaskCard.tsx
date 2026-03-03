@@ -377,6 +377,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         sessionName: session.name,
         identifier: task.identifier,
         title: task.title,
+        worktreeDir: task.worktree?.path,
       });
     }
   }
