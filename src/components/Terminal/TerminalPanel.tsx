@@ -121,6 +121,8 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
           Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
           (ev.deltaY > 0 ? 1 : -1);
         term.scrollLines(lines);
+        term.focus();
+        ev.preventDefault();
         return false;
       }
       return true;
