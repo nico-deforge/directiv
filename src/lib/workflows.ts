@@ -312,9 +312,11 @@ export async function startTask({
   if (terminalMode === "external") {
     openTerminalWithToast(terminal, sessionName);
   } else {
-    useTerminalStore
-      .getState()
-      .openTerminal({ sessionName, identifier, title });
+    useTerminalStore.getState().openTerminal({
+      sessionName,
+      identifier,
+      title,
+    });
   }
 
   await updateLinearStatusToStarted(issueId).catch((err) => {
@@ -359,9 +361,11 @@ export async function startFreeTask({
   if (terminalMode === "external") {
     openTerminalWithToast(terminal, sessionName);
   } else {
-    useTerminalStore
-      .getState()
-      .openTerminal({ sessionName, identifier: branchName, title: branchName });
+    useTerminalStore.getState().openTerminal({
+      sessionName,
+      identifier: branchName,
+      title: branchName,
+    });
   }
 }
 
