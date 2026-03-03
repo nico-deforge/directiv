@@ -248,7 +248,8 @@ set -s escape-time 0
 set -g mouse on
 
 # OSC 52 clipboard sync — lets tmux copy/paste reach the host clipboard
-# (set-clipboard is "on" by default since tmux 3.3, but allow-passthrough is "off")
+# (set-clipboard defaults to "external" since tmux 3.3; "on" is needed so
+# applications inside tmux can also write to the clipboard via OSC 52)
 set -g set-clipboard on
 set -g allow-passthrough on
 ```

@@ -37,7 +37,7 @@ const WHEEL_PIXELS_PER_LINE = 40;
  */
 const SHIFT_SCROLL_COOLDOWN_MS = 600;
 const RESIZE_DEBOUNCE_MS = 100;
-const WRITE_DEPTH_WARN_THRESHOLD = 5;
+const WRITE_DEPTH_WARN_THRESHOLD = 50;
 
 interface TerminalPanelProps {
   sessionName: string;
@@ -130,12 +130,14 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
     // would otherwise reach the TUI and defocus Claude Code.
     let shiftScrollCooldown = 0;
     term.attachCustomWheelEventHandler((ev) => {
+      if (!term.element) return true;
       if (term.modes.mouseTrackingMode === "none") return true;
 
       const inCooldown = Date.now() < shiftScrollCooldown;
       const isAtBottom =
         term.buffer.active.viewportY >= term.buffer.active.baseY;
       if (!ev.shiftKey && !inCooldown && isAtBottom) return true;
+      if (ev.deltaY === 0) return true;
 
       const lines =
         Math.round(ev.deltaY / WHEEL_PIXELS_PER_LINE) ||
@@ -235,7 +237,7 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
 
       term.onWriteParsed(() => {
         if (pendingWrites > WRITE_DEPTH_WARN_THRESHOLD) {
-          console.warn(
+          console.debug(
             `[TerminalPanel] Write buffer depth: ${pendingWrites} (threshold: ${WRITE_DEPTH_WARN_THRESHOLD})`,
           );
         }
@@ -290,8 +292,12 @@ export function TerminalPanel({ sessionName, isActive }: TerminalPanelProps) {
               term.write(event.data.output, () => {
                 pendingWrites--;
               });
-            } catch {
+            } catch (err) {
               pendingWrites--;
+              console.warn(
+                "[TerminalPanel] term.write failed, output may be lost:",
+                err,
+              );
             }
             break;
           case PTY_EVENTS.EXIT:
