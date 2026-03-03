@@ -30,8 +30,9 @@ const WHEEL_PIXELS_PER_LINE = 40;
 /**
  * After a Shift+scroll gesture ends, macOS trackpads keep firing momentum
  * (inertia) wheel events WITHOUT shiftKey. If those reach the TUI via mouse
- * tracking they defocus Claude Code's UI. We swallow wheel events for a short
- * cooldown after the last Shift+scroll tick to absorb the momentum tail.
+ * tracking they defocus Claude Code's UI. We intercept wheel events for a
+ * sliding cooldown after the last intercepted scroll tick, redirecting them
+ * to the xterm viewport instead of letting them reach the TUI.
  */
 const SHIFT_SCROLL_COOLDOWN_MS = 600;
 
