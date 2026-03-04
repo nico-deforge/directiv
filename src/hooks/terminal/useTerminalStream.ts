@@ -8,6 +8,7 @@ import { useTerminalStore } from "../../stores/terminalStore";
 interface UseTerminalStreamParams {
   termRef: React.MutableRefObject<Terminal | null>;
   sessionName: string;
+  /** Owned by this hook — set on pty_spawn, cleared on pty_close. Other hooks read only. */
   handleRef: React.MutableRefObject<number | null>;
   writeChunked: (data: string) => void;
   enabled: boolean;
@@ -25,6 +26,10 @@ export function useTerminalStream({
   enabled,
 }: UseTerminalStreamParams) {
   const channelRef = useRef<Channel<PtyOutputEvent> | null>(null);
+  // Ref to decouple writeChunked from the effect lifecycle — prevents
+  // PTY teardown/rebuild if the callback identity ever changes.
+  const writeChunkedRef = useRef(writeChunked);
+  writeChunkedRef.current = writeChunked;
 
   useEffect(() => {
     const term = termRef.current;
@@ -34,7 +39,7 @@ export function useTerminalStream({
     // Forward keyboard input to PTY (chunked for large pastes)
     const dataDisposable = term.onData((data) => {
       if (handleRef.current !== null) {
-        writeChunked(data);
+        writeChunkedRef.current(data);
       }
     });
 
@@ -57,7 +62,9 @@ export function useTerminalStream({
         case PTY_EVENTS.EXIT:
           term.write("\r\n[Session ended]\r\n");
           if (handleRef.current !== null) {
-            ptyClose(handleRef.current).catch(() => {});
+            ptyClose(handleRef.current).catch((err) => {
+              console.warn("[Terminal] ptyClose failed on session exit:", err);
+            });
             handleRef.current = null;
           }
           useTerminalStore.getState().closeTerminal(sessionName);
@@ -74,7 +81,9 @@ export function useTerminalStream({
     ptySpawn(sessionName, cols, rows, channel)
       .then((h) => {
         if (cancelled) {
-          ptyClose(h).catch(() => {});
+          ptyClose(h).catch((err) => {
+            console.warn("[Terminal] ptyClose failed (spawn cancelled):", err);
+          });
           return;
         }
         handleRef.current = h;
@@ -94,10 +103,15 @@ export function useTerminalStream({
         channelRef.current = null;
       }
 
-      if (handleRef.current !== null) {
-        ptyClose(handleRef.current).catch(() => {});
+      // If ptySpawn hasn't resolved yet, the .then() handler will see
+      // cancelled=true and close the handle itself.
+      const h = handleRef.current;
+      if (h !== null) {
         handleRef.current = null;
+        ptyClose(h).catch((err) => {
+          console.warn("[Terminal] ptyClose failed during cleanup:", err);
+        });
       }
     };
-  }, [enabled, sessionName, termRef, handleRef, writeChunked]);
+  }, [enabled, sessionName, termRef, handleRef]);
 }

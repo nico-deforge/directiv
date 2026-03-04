@@ -94,5 +94,10 @@ export function useTerminalKeyboard({
 
       return true;
     });
+
+    return () => {
+      // Reset to pass-through so no stale closure remains if effect re-runs
+      term.attachCustomKeyEventHandler(() => true);
+    };
   }, [enabled, termRef, handleRef, writeChunked, onToggleSearch]);
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Terminal } from "@xterm/xterm";
+import { Terminal, type IDisposable } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { SearchAddon } from "@xterm/addon-search";
@@ -20,8 +20,6 @@ const WHEEL_PIXELS_PER_LINE = 40;
  * to the xterm viewport instead of letting them reach the TUI.
  */
 const SHIFT_SCROLL_COOLDOWN_MS = 600;
-const WRITE_DEPTH_WARN_THRESHOLD = 50;
-
 // Track WebGL failures globally so we don't retry on every terminal instance
 let webglFailed = false;
 
@@ -118,7 +116,9 @@ export function useTerminalInstance({
 
     term.loadAddon(
       new WebLinksAddon((_event, uri) => {
-        open(uri).catch(() => {});
+        open(uri).catch((err) => {
+          console.warn("[Terminal] Failed to open URL:", uri, err);
+        });
       }),
     );
 
@@ -137,7 +137,7 @@ export function useTerminalInstance({
 
     // Wait for fonts then open the terminal
     const container = containerRef.current;
-    let querySupp: { dispose: () => void } | null = null;
+    let querySupp: IDisposable | null = null;
 
     document.fonts.ready.then(() => {
       if (cancelled || !container.isConnected) return;
@@ -145,13 +145,6 @@ export function useTerminalInstance({
       term.open(container);
       querySupp = suppressQueryResponses(term);
       fitAddon.fit();
-
-      term.onWriteParsed(() => {
-        const depth = term.buffer.active.length;
-        if (depth > WRITE_DEPTH_WARN_THRESHOLD) {
-          // Intentionally left as debug — only visible when DevTools is open
-        }
-      });
 
       // WebGL renderer (loaded after open)
       if (!webglFailed) {
@@ -189,8 +182,9 @@ export function useTerminalInstance({
       querySupp?.dispose();
       try {
         term.dispose();
-      } catch {
+      } catch (err) {
         // Addon disposal may race with terminal core teardown
+        console.debug("[Terminal] dispose error (likely addon race):", err);
       }
       termRef.current = null;
       fitAddonRef.current = null;

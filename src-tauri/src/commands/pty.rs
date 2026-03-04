@@ -56,13 +56,14 @@ impl PtySession {
 }
 
 /// Flush accumulated PTY output bytes as a single Data event.
-fn flush_batch(batch: &mut Vec<u8>, channel: &Channel<PtyOutputEvent>) {
+/// Returns `false` if the channel is dead and the flusher should stop.
+fn flush_batch(batch: &mut Vec<u8>, channel: &Channel<PtyOutputEvent>) -> bool {
     if batch.is_empty() {
-        return;
+        return true;
     }
     let output = String::from_utf8_lossy(batch).to_string();
     batch.clear();
-    let _ = channel.send(PtyOutputEvent::Data { output });
+    channel.send(PtyOutputEvent::Data { output }).is_ok()
 }
 
 fn pty_size(cols: u16, rows: u16) -> PtySize {
@@ -178,6 +179,7 @@ pub fn pty_spawn(
                 }
                 Ok(n) => {
                     if tx.send(ReaderMsg::Data(buf[..n].to_vec())).is_err() {
+                        session_reader.shutdown.store(true, Ordering::Relaxed);
                         break; // Flusher dropped — channel closed
                     }
                 }
@@ -226,9 +228,14 @@ pub fn pty_spawn(
                     if !handle_msg(msg, &mut batch, &on_data) {
                         return;
                     }
+                    if batch.len() >= MAX_OUTPUT_BATCH_SIZE && !flush_batch(&mut batch, &on_data) {
+                        return;
+                    }
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                    flush_batch(&mut batch, &on_data);
+                    if !flush_batch(&mut batch, &on_data) {
+                        return;
+                    }
                     continue;
                 }
                 Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
@@ -242,11 +249,13 @@ pub fn pty_spawn(
                 if !handle_msg(msg, &mut batch, &on_data) {
                     return;
                 }
-                if batch.len() >= MAX_OUTPUT_BATCH_SIZE {
-                    flush_batch(&mut batch, &on_data);
+                if batch.len() >= MAX_OUTPUT_BATCH_SIZE && !flush_batch(&mut batch, &on_data) {
+                    return;
                 }
             }
-            flush_batch(&mut batch, &on_data);
+            if !flush_batch(&mut batch, &on_data) {
+                return;
+            }
         }
     });
 

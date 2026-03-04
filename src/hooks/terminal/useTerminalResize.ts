@@ -40,7 +40,9 @@ export function useTerminalResize({
         handleRef.current,
         termRef.current.cols,
         termRef.current.rows,
-      ).catch(() => {});
+      ).catch((err) => {
+        console.warn("[Terminal] PTY resize failed:", err);
+      });
     }
   }, [containerRef, termRef, fitAddonRef, handleRef]);
 
