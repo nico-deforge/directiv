@@ -4,10 +4,25 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::Duration;
 use tauri::ipc::Channel;
 
 /// Tmux detach key sequence: Ctrl+B followed by 'd'
 const TMUX_DETACH_SEQ: &[u8] = b"\x02d";
+
+/// Flush batched PTY output at ~30fps to reduce IPC message frequency
+const OUTPUT_FLUSH_INTERVAL: Duration = Duration::from_millis(33);
+/// Hard cap per flush to bound memory usage during heavy output
+const MAX_OUTPUT_BATCH_SIZE: usize = 128 * 1024;
+/// Read buffer size — larger than default 2KB to reduce syscall overhead with batching
+const PTY_READ_BUF_SIZE: usize = 8192;
+
+/// Internal message from reader thread to flusher thread.
+enum ReaderMsg {
+    Data(Vec<u8>),
+    Error(String),
+    Eof,
+}
 
 #[derive(Clone, Serialize)]
 #[serde(tag = "event", content = "data")]
@@ -38,6 +53,17 @@ impl PtySession {
             let _ = child.kill();
         }
     }
+}
+
+/// Flush accumulated PTY output bytes as a single Data event.
+/// Returns `false` if the channel is dead and the flusher should stop.
+fn flush_batch(batch: &mut Vec<u8>, channel: &Channel<PtyOutputEvent>) -> bool {
+    if batch.is_empty() {
+        return true;
+    }
+    let output = String::from_utf8_lossy(batch).to_string();
+    batch.clear();
+    channel.send(PtyOutputEvent::Data { output }).is_ok()
 }
 
 fn pty_size(cols: u16, rows: u16) -> PtySize {
@@ -133,38 +159,102 @@ pub fn pty_spawn(
         sessions.insert(handle, pty_session.clone());
     }
 
-    // Spawn reader thread — keep an Arc to access the shutdown flag
-    let session_ref = pty_session.clone();
+    // Reader + flusher threads: the reader pushes raw bytes into an mpsc channel,
+    // the flusher batches them and sends to the Tauri Channel at ~30fps or 128KB.
+    let (tx, rx) = std::sync::mpsc::channel::<ReaderMsg>();
+
+    // Reader thread — reads from PTY, pushes raw chunks into mpsc
+    let session_reader = pty_session.clone();
     std::thread::spawn(move || {
-        let mut buf = [0u8; 2048];
+        let mut buf = [0u8; PTY_READ_BUF_SIZE];
         loop {
-            if session_ref.shutdown.load(Ordering::Relaxed) {
+            if session_reader.shutdown.load(Ordering::Relaxed) {
                 break;
             }
             match reader.read(&mut buf) {
                 Ok(0) => {
-                    // EOF — mark as shut down so dedup allows re-spawn
-                    session_ref.shutdown.store(true, Ordering::Relaxed);
-                    let _ = on_data.send(PtyOutputEvent::Exit { code: None });
+                    session_reader.shutdown.store(true, Ordering::Relaxed);
+                    let _ = tx.send(ReaderMsg::Eof);
                     break;
                 }
                 Ok(n) => {
-                    let output = String::from_utf8_lossy(&buf[..n]).to_string();
-                    if on_data.send(PtyOutputEvent::Data { output }).is_err() {
-                        session_ref.shutdown.store(true, Ordering::Relaxed);
-                        break;
+                    if tx.send(ReaderMsg::Data(buf[..n].to_vec())).is_err() {
+                        session_reader.shutdown.store(true, Ordering::Relaxed);
+                        break; // Flusher dropped — channel closed
                     }
                 }
                 Err(e) => {
-                    if !session_ref.shutdown.load(Ordering::Relaxed) {
-                        session_ref.shutdown.store(true, Ordering::Relaxed);
-                        let _ = on_data.send(PtyOutputEvent::Error {
-                            message: e.to_string(),
-                        });
-                        let _ = on_data.send(PtyOutputEvent::Exit { code: None });
-                    }
+                    session_reader.shutdown.store(true, Ordering::Relaxed);
+                    let _ = tx.send(ReaderMsg::Error(e.to_string()));
                     break;
                 }
+            }
+        }
+    });
+
+    // Flusher thread — batches data chunks and flushes at ~30fps or 128KB.
+    // Owns on_data (Tauri Channel) exclusively — all events go through here.
+    std::thread::spawn(move || {
+        let mut batch = Vec::with_capacity(MAX_OUTPUT_BATCH_SIZE);
+
+        /// Process a single message. Returns `true` to continue, `false` to exit.
+        fn handle_msg(
+            msg: ReaderMsg,
+            batch: &mut Vec<u8>,
+            channel: &Channel<PtyOutputEvent>,
+        ) -> bool {
+            match msg {
+                ReaderMsg::Data(chunk) => {
+                    batch.extend_from_slice(&chunk);
+                    true
+                }
+                ReaderMsg::Error(message) => {
+                    flush_batch(batch, channel);
+                    let _ = channel.send(PtyOutputEvent::Error { message });
+                    let _ = channel.send(PtyOutputEvent::Exit { code: None });
+                    false
+                }
+                ReaderMsg::Eof => {
+                    flush_batch(batch, channel);
+                    let _ = channel.send(PtyOutputEvent::Exit { code: None });
+                    false
+                }
+            }
+        }
+
+        loop {
+            match rx.recv_timeout(OUTPUT_FLUSH_INTERVAL) {
+                Ok(msg) => {
+                    if !handle_msg(msg, &mut batch, &on_data) {
+                        return;
+                    }
+                    if batch.len() >= MAX_OUTPUT_BATCH_SIZE && !flush_batch(&mut batch, &on_data) {
+                        return;
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    if !flush_batch(&mut batch, &on_data) {
+                        return;
+                    }
+                    continue;
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    flush_batch(&mut batch, &on_data);
+                    let _ = on_data.send(PtyOutputEvent::Exit { code: None });
+                    return;
+                }
+            }
+            // Drain remaining messages without blocking
+            while let Ok(msg) = rx.try_recv() {
+                if !handle_msg(msg, &mut batch, &on_data) {
+                    return;
+                }
+                if batch.len() >= MAX_OUTPUT_BATCH_SIZE && !flush_batch(&mut batch, &on_data) {
+                    return;
+                }
+            }
+            if !flush_batch(&mut batch, &on_data) {
+                return;
             }
         }
     });
