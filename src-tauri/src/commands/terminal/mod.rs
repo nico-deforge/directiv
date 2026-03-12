@@ -3,68 +3,56 @@ pub mod ghostty;
 pub mod iterm;
 pub mod types;
 
+use controller::TerminalController;
+use ghostty::GhosttyController;
+use iterm::ITermController;
 use tauri_plugin_shell::ShellExt;
-
-async fn has_attached_clients(app: &tauri::AppHandle, session: &str) -> bool {
-    app.shell()
-        .command("tmux")
-        .args(["list-clients", "-t", session])
-        .output()
-        .await
-        .is_ok_and(|output| {
-            output.status.success() && !String::from_utf8_lossy(&output.stdout).trim().is_empty()
-        })
-}
+use types::TerminalConfig;
 
 #[tauri::command]
 pub async fn open_terminal(
     app: tauri::AppHandle,
     emulator: String,
     session: String,
+    identifier: String,
+    worktree_path: String,
 ) -> Result<bool, String> {
-    if has_attached_clients(&app, &session).await {
-        return Ok(true);
-    }
-
-    let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-    let tmux_cmd = format!("tmux attach -t {session}");
-
     match emulator.as_str() {
         "ghostty" => {
-            app.shell()
-                .command("open")
-                .args([
-                    "-n",
-                    "-a",
-                    "Ghostty",
-                    "--args",
-                    "-e",
-                    &user_shell,
-                    "-lc",
-                    &tmux_cmd,
-                ])
-                .spawn()
-                .map_err(|e| format!("Failed to open Ghostty: {e}"))?;
+            dispatch_terminal(&app, GhosttyController, &session, &identifier, &worktree_path).await
         }
         "iterm2" => {
-            let script = format!(
-                r#"tell application "iTerm"
-    activate
-    create window with default profile
-    tell current session of current window
-        write text "tmux -CC attach -t {session}"
-    end tell
-end tell"#
-            );
-            app.shell()
-                .command("osascript")
-                .args(["-e", &script])
-                .spawn()
-                .map_err(|e| format!("Failed to open iTerm2: {e}"))?;
+            dispatch_terminal(&app, ITermController, &session, &identifier, &worktree_path).await
         }
-        _ => return Err(format!("Unknown terminal emulator: {emulator}")),
+        _ => Err(format!("Unknown terminal emulator: {emulator}")),
+    }
+}
+
+async fn dispatch_terminal(
+    app: &tauri::AppHandle,
+    controller: impl TerminalController,
+    session: &str,
+    identifier: &str,
+    worktree_path: &str,
+) -> Result<bool, String> {
+    if let Some(terminal_ref) = controller.find_session(app, identifier, worktree_path).await? {
+        match controller.focus(app, &terminal_ref).await {
+            Ok(()) => return Ok(true),
+            Err(e) => {
+                eprintln!("Focus failed (stale ref?), creating new: {e}");
+            }
+        }
     }
 
+    let config = TerminalConfig {
+        identifier: identifier.to_string(),
+        session: session.to_string(),
+        worktree_path: worktree_path.to_string(),
+        env_vars: std::collections::HashMap::new(),
+        layout: types::TerminalLayout::default(),
+    };
+
+    controller.create(app, &config).await?;
     Ok(false)
 }
 

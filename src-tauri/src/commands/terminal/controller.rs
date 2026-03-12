@@ -4,6 +4,7 @@ pub trait TerminalController {
     fn find_session(
         &self,
         app: &tauri::AppHandle,
+        identifier: &str,
         worktree_path: &str,
     ) -> impl std::future::Future<Output = Result<Option<TerminalRef>, String>> + Send;
 

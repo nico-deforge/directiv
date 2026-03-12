@@ -92,6 +92,9 @@ fn build_focus_script(identifier: &str) -> String {
     set matches to every terminal whose id is "{id}"
     if (count of matches) > 0 then
         focus (item 1 of matches)
+        return "focused"
+    else
+        return "not_found"
     end if
 end tell"#
     )
@@ -126,6 +129,9 @@ fn build_split_script(identifier: &str) -> String {
         tell (item 1 of matches)
             split right
         end tell
+        return "split"
+    else
+        return "not_found"
     end if
 end tell"#
     )
@@ -141,6 +147,9 @@ fn build_send_text_script(identifier: &str, text: &str) -> String {
         tell (item 1 of matches)
             input text "{escaped_text}"
         end tell
+        return "sent"
+    else
+        return "not_found"
     end if
 end tell"#
     )
@@ -150,6 +159,7 @@ impl TerminalController for GhosttyController {
     async fn find_session(
         &self,
         app: &tauri::AppHandle,
+        _identifier: &str,
         worktree_path: &str,
     ) -> Result<Option<TerminalRef>, String> {
         check_ghostty_version(app).await?;
@@ -198,6 +208,14 @@ impl TerminalController for GhosttyController {
             return Err(format!(
                 "Ghostty focus failed: {}",
                 String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if stdout == "not_found" {
+            return Err(format!(
+                "Ghostty terminal not found: {}",
+                terminal_ref.identifier
             ));
         }
 
@@ -250,6 +268,14 @@ impl TerminalController for GhosttyController {
             ));
         }
 
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if stdout == "not_found" {
+            return Err(format!(
+                "Ghostty terminal not found for split: {}",
+                terminal_ref.identifier
+            ));
+        }
+
         Ok(())
     }
 
@@ -272,6 +298,14 @@ impl TerminalController for GhosttyController {
             return Err(format!(
                 "Ghostty send_text failed: {}",
                 String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if stdout == "not_found" {
+            return Err(format!(
+                "Ghostty terminal not found for send_text: {}",
+                terminal_ref.identifier
             ));
         }
 
@@ -319,6 +353,8 @@ mod tests {
         assert!(script.contains("activate"));
         assert!(script.contains(r#"every terminal whose id is "terminal-123""#));
         assert!(script.contains("focus (item 1 of matches)"));
+        assert!(script.contains(r#"return "focused""#));
+        assert!(script.contains(r#"return "not_found""#));
     }
 
     #[test]
@@ -359,6 +395,8 @@ mod tests {
         let script = build_split_script("terminal-123");
         assert!(script.contains(r#"every terminal whose id is "terminal-123""#));
         assert!(script.contains("split right"));
+        assert!(script.contains(r#"return "split""#));
+        assert!(script.contains(r#"return "not_found""#));
     }
 
     #[test]
@@ -366,6 +404,8 @@ mod tests {
         let script = build_send_text_script("terminal-123", "hello world");
         assert!(script.contains(r#"every terminal whose id is "terminal-123""#));
         assert!(script.contains(r#"input text "hello world""#));
+        assert!(script.contains(r#"return "sent""#));
+        assert!(script.contains(r#"return "not_found""#));
     }
 
     #[test]

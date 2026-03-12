@@ -269,8 +269,10 @@ export async function removeWorktreeFlow({
 export function openTerminalWithToast(
   terminal: string,
   sessionName: string,
+  identifier: string,
+  worktreePath: string,
 ): void {
-  openTerminal(terminal, sessionName)
+  openTerminal(terminal, sessionName, identifier, worktreePath)
     .then((alreadyOpen) => {
       if (alreadyOpen) {
         toast.success("Terminal already open");
@@ -310,7 +312,7 @@ export async function startTask({
   await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
   if (terminalMode === "external") {
-    openTerminalWithToast(terminal, sessionName);
+    openTerminalWithToast(terminal, sessionName, identifier, worktree.path);
   } else {
     useTerminalStore.getState().openTerminal({
       sessionName,
@@ -359,7 +361,7 @@ export async function startFreeTask({
   await ensureSession(sessionName, worktree.path, onStart);
 
   if (terminalMode === "external") {
-    openTerminalWithToast(terminal, sessionName);
+    openTerminalWithToast(terminal, sessionName, branchName, worktree.path);
   } else {
     useTerminalStore.getState().openTerminal({
       sessionName,
