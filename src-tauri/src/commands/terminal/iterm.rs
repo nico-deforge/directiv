@@ -196,7 +196,7 @@ impl TerminalController for ITermController {
         } else {
             Ok(Some(TerminalRef {
                 identifier: worktree_path.to_string(),
-                emulator: "iterm2".to_string(),
+                emulator: super::types::Emulator::Iterm2,
             }))
         }
     }
