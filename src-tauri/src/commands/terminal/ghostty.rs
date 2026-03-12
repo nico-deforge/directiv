@@ -64,7 +64,9 @@ async fn check_ghostty_version(app: &tauri::AppHandle) -> Result<(), String> {
     }
 
     let result = check_ghostty_version_uncached(app).await;
-    let _ = VERSION_CHECK.set(result.clone());
+    if result.is_ok() {
+        let _ = VERSION_CHECK.set(result.clone());
+    }
     result
 }
 
