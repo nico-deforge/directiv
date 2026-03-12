@@ -129,7 +129,7 @@ end tell"#,
 /// don't always inherit the working directory).
 fn build_split_script(identifier: &str, worktree_path: &str) -> String {
     let identifier = escape_applescript(identifier);
-    let path = escape_applescript(worktree_path);
+    let quoted_path = escape_applescript(&shell_quote(worktree_path));
     format!(
         r#"tell application "iTerm2"
     set winCount to count of windows
@@ -146,7 +146,7 @@ fn build_split_script(identifier: &str, worktree_path: &str) -> String {
                         set newSession to (split vertically with default profile)
                     end tell
                     tell newSession
-                        write text "cd {path}"
+                        write text "cd {quoted_path}"
                     end tell
                     return "split"
                 end if
@@ -156,7 +156,7 @@ fn build_split_script(identifier: &str, worktree_path: &str) -> String {
     return "not_found"
 end tell"#,
         identifier = identifier,
-        path = path,
+        quoted_path = quoted_path,
     )
 }
 
@@ -403,7 +403,14 @@ mod tests {
         let script = build_split_script("ACQ-145", "/path/to/worktree");
         assert!(script.contains("split vertically with default profile"));
         assert!(script.contains(r#"starts with "ACQ-145""#));
-        assert!(script.contains(r#"write text "cd /path/to/worktree""#));
+        // Path is shell-quoted for safe cd
+        assert!(script.contains(r#"write text "cd '/path/to/worktree'""#));
+    }
+
+    #[test]
+    fn test_build_split_script_path_with_spaces() {
+        let script = build_split_script("ACQ-145", "/Users/me/my projects/worktree");
+        assert!(script.contains(r#"write text "cd '/Users/me/my projects/worktree'""#));
     }
 
     #[test]

@@ -89,13 +89,21 @@ async fn dispatch_terminal(
         // Give the terminal time to register before looking it up
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
-        if let Some(terminal_ref) = controller
+        match controller
             .find_session(app, identifier, worktree_path)
-            .await?
+            .await
         {
-            controller
-                .split(app, &terminal_ref, worktree_path)
-                .await?;
+            Ok(Some(terminal_ref)) => {
+                if let Err(e) = controller.split(app, &terminal_ref, worktree_path).await {
+                    eprintln!("split failed (non-fatal): {e}");
+                }
+            }
+            Ok(None) => {
+                eprintln!("split: session not found after delay, skipping for {identifier}");
+            }
+            Err(e) => {
+                eprintln!("split: find_session failed (non-fatal): {e}");
+            }
         }
     }
 
