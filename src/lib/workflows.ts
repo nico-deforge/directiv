@@ -272,17 +272,13 @@ export function openTerminalWithToast(
   identifier: string,
   worktreePath: string,
 ): void {
-  openTerminal(terminal, sessionName, identifier, worktreePath)
-    .then((alreadyOpen) => {
-      if (alreadyOpen) {
-        toast.success("Terminal already open");
-      }
-    })
-    .catch((err) => {
+  openTerminal(terminal, sessionName, identifier, worktreePath).catch(
+    (err) => {
       toast.warning(
         `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
       );
-    });
+    },
+  );
 }
 
 export async function startTask({
