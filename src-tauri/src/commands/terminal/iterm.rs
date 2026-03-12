@@ -4,10 +4,16 @@ use tauri_plugin_shell::ShellExt;
 
 pub struct ITermController;
 
+/// Escape a string for safe interpolation into AppleScript double-quoted strings.
+fn escape_applescript(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 /// Build an AppleScript that iterates all iTerm2 windows, tabs, and sessions
 /// looking for a session whose `name` starts with the given identifier.
 /// Returns "window_index,tab_index,session_index" if found, or "not_found".
 fn build_find_script(identifier: &str) -> String {
+    let identifier = escape_applescript(identifier);
     format!(
         r#"tell application "iTerm2"
     set winCount to count of windows
@@ -34,6 +40,7 @@ end tell"#,
 /// Build an AppleScript that activates iTerm2 and focuses the window/tab
 /// containing the session with the given identifier.
 fn build_focus_script(identifier: &str) -> String {
+    let identifier = escape_applescript(identifier);
     format!(
         r#"tell application "iTerm2"
     activate
@@ -69,6 +76,9 @@ end tell"#,
 /// cds into the worktree path, attaches to the tmux session, and names the session.
 fn build_create_script(config: &TerminalConfig) -> String {
     let display_name = format!("{} — {}", config.identifier, config.session);
+    let worktree_path = escape_applescript(&config.worktree_path);
+    let session = escape_applescript(&config.session);
+    let display_name = escape_applescript(&display_name);
     format!(
         r#"tell application "iTerm2"
     activate
@@ -78,14 +88,15 @@ fn build_create_script(config: &TerminalConfig) -> String {
         set name to "{display_name}"
     end tell
 end tell"#,
-        worktree_path = config.worktree_path,
-        session = config.session,
+        worktree_path = worktree_path,
+        session = session,
         display_name = display_name,
     )
 }
 
 /// Build an AppleScript that splits the session matching the identifier vertically.
 fn build_split_script(identifier: &str) -> String {
+    let identifier = escape_applescript(identifier);
     format!(
         r#"tell application "iTerm2"
     set winCount to count of windows
@@ -114,7 +125,8 @@ end tell"#,
 
 /// Build an AppleScript that sends text to the session matching the identifier.
 fn build_send_text_script(identifier: &str, text: &str) -> String {
-    let escaped_text = text.replace('\\', "\\\\").replace('"', "\\\"");
+    let identifier = escape_applescript(identifier);
+    let text = escape_applescript(text);
     format!(
         r#"tell application "iTerm2"
     set winCount to count of windows
@@ -138,23 +150,28 @@ fn build_send_text_script(identifier: &str, text: &str) -> String {
     return "not_found"
 end tell"#,
         identifier = identifier,
-        text = escaped_text,
+        text = text,
     )
 }
 
 /// Execute an AppleScript via osascript and return the trimmed stdout.
-async fn run_osascript(app: &tauri::AppHandle, script: &str) -> Result<String, String> {
+/// The `operation` parameter is included in error messages for context.
+async fn run_osascript(
+    app: &tauri::AppHandle,
+    script: &str,
+    operation: &str,
+) -> Result<String, String> {
     let output = app
         .shell()
         .command("osascript")
         .args(["-e", script])
         .output()
         .await
-        .map_err(|e| format!("Failed to execute osascript: {e}"))?;
+        .map_err(|e| format!("iTerm2 {operation}: failed to execute osascript: {e}"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("osascript error: {stderr}"));
+        return Err(format!("iTerm2 {operation}: osascript error: {stderr}"));
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
@@ -172,7 +189,7 @@ impl TerminalController for ITermController {
         // The caller passes the identifier via worktree_path for now; this will
         // be refined when DIR-001.04 widens the signature.
         let script = build_find_script(worktree_path);
-        let result = run_osascript(app, &script).await?;
+        let result = run_osascript(app, &script, "find_session").await?;
 
         if result == "not_found" {
             Ok(None)
@@ -190,7 +207,7 @@ impl TerminalController for ITermController {
         terminal_ref: &TerminalRef,
     ) -> Result<(), String> {
         let script = build_focus_script(&terminal_ref.identifier);
-        let result = run_osascript(app, &script).await?;
+        let result = run_osascript(app, &script, "focus").await?;
 
         if result == "not_found" {
             return Err(format!(
@@ -208,7 +225,7 @@ impl TerminalController for ITermController {
         config: &TerminalConfig,
     ) -> Result<(), String> {
         let script = build_create_script(config);
-        run_osascript(app, &script).await?;
+        run_osascript(app, &script, "create").await?;
         Ok(())
     }
 
@@ -218,7 +235,7 @@ impl TerminalController for ITermController {
         terminal_ref: &TerminalRef,
     ) -> Result<(), String> {
         let script = build_split_script(&terminal_ref.identifier);
-        let result = run_osascript(app, &script).await?;
+        let result = run_osascript(app, &script, "split").await?;
 
         if result == "not_found" {
             return Err(format!(
@@ -237,7 +254,7 @@ impl TerminalController for ITermController {
         text: &str,
     ) -> Result<(), String> {
         let script = build_send_text_script(&terminal_ref.identifier, text);
-        let result = run_osascript(app, &script).await?;
+        let result = run_osascript(app, &script, "send_text").await?;
 
         if result == "not_found" {
             return Err(format!(
@@ -313,5 +330,34 @@ mod tests {
     fn test_build_send_text_script_escapes_backslashes() {
         let script = build_send_text_script("ACQ-145", r#"echo \n"#);
         assert!(script.contains(r#"write text "echo \\n""#));
+    }
+
+    #[test]
+    fn test_escape_applescript_basic() {
+        assert_eq!(escape_applescript("hello"), "hello");
+        assert_eq!(escape_applescript(r#"say "hi""#), r#"say \"hi\""#);
+        assert_eq!(escape_applescript(r"path\to"), r"path\\to");
+        assert_eq!(escape_applescript(r#"a\"b"#), r#"a\\\"b"#);
+    }
+
+    #[test]
+    fn test_find_script_escapes_identifier() {
+        let script = build_find_script(r#"malicious" & do shell script "rm -rf /""#);
+        assert!(script.contains(r#"starts with "malicious\" & do shell script \"rm -rf /\""#));
+    }
+
+    #[test]
+    fn test_create_script_escapes_all_values() {
+        let config = TerminalConfig {
+            identifier: r#"id"inject"#.to_string(),
+            session: r#"sess"inject"#.to_string(),
+            worktree_path: r#"/path/"inject"#.to_string(),
+            env_vars: HashMap::new(),
+            layout: super::super::types::TerminalLayout::Focus,
+        };
+        let script = build_create_script(&config);
+        assert!(script.contains(r#"cd /path/\"inject"#));
+        assert!(script.contains(r#"tmux -CC attach -t sess\"inject"#));
+        assert!(script.contains(r#"set name to "id\"inject — sess\"inject""#));
     }
 }
