@@ -371,7 +371,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     if (!session) return;
     const terminalMode = useSettingsStore.getState().config.terminalMode;
     if (terminalMode === "external") {
-      openTerminalWithToast(terminal, session.name, task.identifier, worktree?.path ?? "");
+      if (!worktree) return;
+      openTerminalWithToast(terminal, session.name, task.identifier, worktree.path);
     } else {
       useTerminalStore.getState().openTerminal({
         sessionName: session.name,
