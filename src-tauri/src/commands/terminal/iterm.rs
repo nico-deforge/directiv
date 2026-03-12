@@ -84,7 +84,7 @@ fn build_create_script(config: &TerminalConfig) -> String {
     activate
     set newWindow to (create window with default profile)
     tell current session of newWindow
-        write text "cd {worktree_path} && tmux -CC attach -t {session}"
+        write text "cd {worktree_path} && tmux set-option allow-rename off \\; -CC attach -t {session}"
         set name to "{display_name}"
     end tell
 end tell"#,
@@ -224,6 +224,20 @@ impl TerminalController for ITermController {
         app: &tauri::AppHandle,
         config: &TerminalConfig,
     ) -> Result<(), String> {
+        let check = app
+            .shell()
+            .command("tmux")
+            .args(["has-session", "-t", &config.session])
+            .output()
+            .await
+            .map_err(|e| format!("Failed to check tmux session: {e}"))?;
+        if !check.status.success() {
+            return Err(format!(
+                "tmux session '{}' does not exist",
+                config.session
+            ));
+        }
+
         let script = build_create_script(config);
         run_osascript(app, &script, "create").await?;
         Ok(())
@@ -302,7 +316,7 @@ mod tests {
         };
         let script = build_create_script(&config);
         assert!(script.contains("create window with default profile"));
-        assert!(script.contains("cd /path/to/worktree && tmux -CC attach -t acq-145"));
+        assert!(script.contains(r#"cd /path/to/worktree && tmux set-option allow-rename off \\; -CC attach -t acq-145"#));
         assert!(script.contains(r#"set name to "ACQ-145 — acq-145""#));
     }
 
@@ -357,7 +371,7 @@ mod tests {
         };
         let script = build_create_script(&config);
         assert!(script.contains(r#"cd /path/\"inject"#));
-        assert!(script.contains(r#"tmux -CC attach -t sess\"inject"#));
+        assert!(script.contains(r#"tmux set-option allow-rename off \\; -CC attach -t sess\"inject"#));
         assert!(script.contains(r#"set name to "id\"inject — sess\"inject""#));
     }
 }
