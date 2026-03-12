@@ -44,9 +44,8 @@ async fn check_ghostty_version_uncached(app: &tauri::AppHandle) -> Result<(), St
     }
 
     let version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let version = parse_version(&version_str).ok_or_else(|| {
-        format!("Could not parse Ghostty version: \"{version_str}\"")
-    })?;
+    let version = parse_version(&version_str)
+        .ok_or_else(|| format!("Could not parse Ghostty version: \"{version_str}\""))?;
 
     if version < MIN_VERSION {
         return Err(format!(
@@ -222,11 +221,7 @@ impl TerminalController for GhosttyController {
         Ok(())
     }
 
-    async fn create(
-        &self,
-        app: &tauri::AppHandle,
-        config: &TerminalConfig,
-    ) -> Result<(), String> {
+    async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
         check_ghostty_version(app).await?;
         let script = build_create_script(config);
         let output = app
@@ -335,7 +330,8 @@ mod tests {
     fn test_build_find_script() {
         let script = build_find_script("/path/to/worktree");
         assert!(script.contains(r#"tell application "Ghostty""#));
-        assert!(script.contains(r#"every terminal whose working directory contains "/path/to/worktree""#));
+        assert!(script
+            .contains(r#"every terminal whose working directory contains "/path/to/worktree""#));
         assert!(script.contains("return id of (item 1 of matches)"));
         assert!(script.contains(r#"return """#));
     }
@@ -386,7 +382,9 @@ mod tests {
             layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
-        assert!(script.contains(r#"set initial working directory of cfg to "/path/with \"quotes\"""#));
+        assert!(
+            script.contains(r#"set initial working directory of cfg to "/path/with \"quotes\"""#)
+        );
         assert!(script.contains(r#"set title of cfg to "task \"special\"""#));
     }
 
