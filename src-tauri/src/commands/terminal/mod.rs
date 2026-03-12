@@ -16,7 +16,13 @@ pub async fn open_terminal(
     session: String,
     identifier: String,
     worktree_path: String,
+    layout: Option<String>,
 ) -> Result<bool, String> {
+    let layout = match layout.as_deref() {
+        Some("focus") => types::TerminalLayout::Focus,
+        _ => types::TerminalLayout::SideBySide,
+    };
+
     match emulator.as_str() {
         "ghostty" => {
             dispatch_terminal(
@@ -25,11 +31,20 @@ pub async fn open_terminal(
                 &session,
                 &identifier,
                 &worktree_path,
+                layout,
             )
             .await
         }
         "iterm2" => {
-            dispatch_terminal(&app, ITermController, &session, &identifier, &worktree_path).await
+            dispatch_terminal(
+                &app,
+                ITermController,
+                &session,
+                &identifier,
+                &worktree_path,
+                layout,
+            )
+            .await
         }
         _ => Err(format!("Unknown terminal emulator: {emulator}")),
     }
@@ -41,6 +56,7 @@ async fn dispatch_terminal(
     session: &str,
     identifier: &str,
     worktree_path: &str,
+    layout: types::TerminalLayout,
 ) -> Result<bool, String> {
     if let Some(terminal_ref) = controller
         .find_session(app, identifier, worktree_path)
@@ -65,7 +81,7 @@ async fn dispatch_terminal(
         session: session.to_string(),
         worktree_path: worktree_path.to_string(),
         env_vars,
-        layout: types::TerminalLayout::default(),
+        layout,
     };
 
     controller.create(app, &config).await?;

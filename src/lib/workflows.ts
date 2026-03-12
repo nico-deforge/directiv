@@ -15,7 +15,7 @@ import {
   getPluginDir,
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
-import type { SkillOverrides, TerminalMode } from "../types";
+import type { SkillOverrides, TerminalLayout, TerminalMode } from "../types";
 import { useTerminalStore } from "../stores/terminalStore";
 
 // --- Typed errors for worktree creation ---
@@ -177,6 +177,7 @@ export interface StartTaskParams {
   repoPath: string;
   terminal: string;
   terminalMode?: TerminalMode;
+  terminalLayout?: TerminalLayout;
   copyPaths?: string[];
   onStart?: string[];
   baseBranch?: string;
@@ -271,8 +272,9 @@ export function openTerminalWithToast(
   sessionName: string,
   identifier: string,
   worktreePath: string,
+  layout?: TerminalLayout,
 ): void {
-  openTerminal(terminal, sessionName, identifier, worktreePath).catch(
+  openTerminal(terminal, sessionName, identifier, worktreePath, layout).catch(
     (err) => {
       toast.warning(
         `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
@@ -288,6 +290,7 @@ export async function startTask({
   repoPath,
   terminal,
   terminalMode,
+  terminalLayout,
   copyPaths,
   onStart,
   baseBranch,
@@ -308,7 +311,7 @@ export async function startTask({
   await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
   if (terminalMode === "external") {
-    openTerminalWithToast(terminal, sessionName, identifier, worktree.path);
+    openTerminalWithToast(terminal, sessionName, identifier, worktree.path, terminalLayout);
   } else {
     useTerminalStore.getState().openTerminal({
       sessionName,
@@ -329,6 +332,7 @@ interface StartFreeTaskParams {
   repoPath: string;
   terminal: string;
   terminalMode?: TerminalMode;
+  terminalLayout?: TerminalLayout;
   copyPaths?: string[];
   onStart?: string[];
   baseBranch?: string;
@@ -340,6 +344,7 @@ export async function startFreeTask({
   repoPath,
   terminal,
   terminalMode,
+  terminalLayout,
   copyPaths,
   onStart,
   baseBranch,
@@ -357,7 +362,7 @@ export async function startFreeTask({
   await ensureSession(sessionName, worktree.path, onStart);
 
   if (terminalMode === "external") {
-    openTerminalWithToast(terminal, sessionName, branchName, worktree.path);
+    openTerminalWithToast(terminal, sessionName, branchName, worktree.path, terminalLayout);
   } else {
     useTerminalStore.getState().openTerminal({
       sessionName,

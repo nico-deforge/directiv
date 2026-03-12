@@ -163,12 +163,14 @@ export function openTerminal(
   session: string,
   identifier: string,
   worktreePath: string,
+  layout?: string,
 ): Promise<boolean> {
   return invoke<boolean>("open_terminal", {
     emulator,
     session,
     identifier,
     worktreePath,
+    layout,
   });
 }
 
