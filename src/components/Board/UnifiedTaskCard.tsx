@@ -260,7 +260,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       repoPath,
       key ?? pendingSkillKey,
     );
-    const terminalMode = useSettingsStore.getState().config.terminalMode;
+    const { terminalMode, terminalLayout } = useSettingsStore.getState().config;
     startTask.mutate(
       {
         issueId: task.id,
@@ -269,6 +269,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         repoPath,
         terminal,
         terminalMode,
+        terminalLayout,
         copyPaths: repo?.copyPaths,
         onStart: repo?.onStart,
         baseBranch,
@@ -322,6 +323,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         resetToBase,
         force,
       );
+      const existingConfig = useSettingsStore.getState().config;
       startTask.mutate(
         {
           issueId: task.id,
@@ -329,7 +331,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           title: task.title,
           repoPath,
           terminal,
-          terminalMode: useSettingsStore.getState().config.terminalMode,
+          terminalMode: existingConfig.terminalMode,
+          terminalLayout: existingConfig.terminalLayout,
           copyPaths: repo?.copyPaths,
           onStart: repo?.onStart,
           baseBranch,
@@ -369,10 +372,16 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   function handleOpenTerminal() {
     if (!session) return;
-    const terminalMode = useSettingsStore.getState().config.terminalMode;
+    const { terminalMode, terminalLayout } = useSettingsStore.getState().config;
     if (terminalMode === "external") {
       if (!worktree) return;
-      openTerminalWithToast(terminal, session.name, task.identifier, worktree.path);
+      openTerminalWithToast(
+        terminal,
+        session.name,
+        task.identifier,
+        worktree.path,
+        terminalLayout,
+      );
     } else {
       useTerminalStore.getState().openTerminal({
         sessionName: session.name,

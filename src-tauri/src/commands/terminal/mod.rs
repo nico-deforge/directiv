@@ -67,6 +67,8 @@ async fn dispatch_terminal(
         }
     }
 
+    let should_split = matches!(layout, types::TerminalLayout::SideBySide);
+
     let env_vars = std::collections::HashMap::from([
         ("DIRECTIV_TASK".to_string(), identifier.to_string()),
         ("DIRECTIV_WORKTREE".to_string(), worktree_path.to_string()),
@@ -82,6 +84,21 @@ async fn dispatch_terminal(
     };
 
     controller.create(app, &config).await?;
+
+    if should_split {
+        // Give the terminal time to register before looking it up
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+        if let Some(terminal_ref) = controller
+            .find_session(app, identifier, worktree_path)
+            .await?
+        {
+            controller
+                .split(app, &terminal_ref, worktree_path)
+                .await?;
+        }
+    }
+
     Ok(false)
 }
 

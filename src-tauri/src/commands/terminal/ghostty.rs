@@ -265,6 +265,7 @@ impl TerminalController for GhosttyController {
         &self,
         app: &tauri::AppHandle,
         terminal_ref: &TerminalRef,
+        _worktree_path: &str,
     ) -> Result<(), String> {
         let script = build_split_script(&terminal_ref.identifier);
         let output = app
