@@ -8,6 +8,10 @@ static VERSION_CHECK: OnceLock<Result<(), String>> = OnceLock::new();
 
 pub struct GhosttyController;
 
+fn escape_applescript(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
 fn parse_version(version_str: &str) -> Option<(u32, u32, u32)> {
     let parts: Vec<&str> = version_str.split('.').collect();
     if parts.len() >= 3 {
@@ -65,9 +69,10 @@ async fn check_ghostty_version(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 fn build_find_script(worktree_path: &str) -> String {
+    let path = escape_applescript(worktree_path);
     format!(
         r#"tell application "Ghostty"
-    set matches to every terminal whose working directory contains "{worktree_path}"
+    set matches to every terminal whose working directory contains "{path}"
     if (count of matches) > 0 then
         return id of (item 1 of matches)
     else
@@ -78,10 +83,11 @@ end tell"#
 }
 
 fn build_focus_script(identifier: &str) -> String {
+    let id = escape_applescript(identifier);
     format!(
         r#"tell application "Ghostty"
     activate
-    set matches to every terminal whose id is "{identifier}"
+    set matches to every terminal whose id is "{id}"
     if (count of matches) > 0 then
         focus (item 1 of matches)
     end if
@@ -91,7 +97,11 @@ end tell"#
 
 fn build_create_script(config: &TerminalConfig) -> String {
     let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-    let tmux_cmd = format!("tmux attach -t {}", config.session);
+    let worktree_path = escape_applescript(&config.worktree_path);
+    let session = escape_applescript(&config.session);
+    let identifier = escape_applescript(&config.identifier);
+    let shell = escape_applescript(&user_shell);
+    let tmux_cmd = format!("tmux attach -t {session}");
 
     format!(
         r#"tell application "Ghostty"
@@ -99,18 +109,17 @@ fn build_create_script(config: &TerminalConfig) -> String {
     set cfg to new surface configuration
     set initial working directory of cfg to "{worktree_path}"
     set command of cfg to "{shell} -lc '{tmux_cmd}'"
+    set title of cfg to "{identifier}"
     new window with cfg
-end tell"#,
-        worktree_path = config.worktree_path,
-        shell = user_shell,
-        tmux_cmd = tmux_cmd,
+end tell"#
     )
 }
 
 fn build_split_script(identifier: &str) -> String {
+    let id = escape_applescript(identifier);
     format!(
         r#"tell application "Ghostty"
-    set matches to every terminal whose id is "{identifier}"
+    set matches to every terminal whose id is "{id}"
     if (count of matches) > 0 then
         tell (item 1 of matches)
             split right
@@ -121,13 +130,14 @@ end tell"#
 }
 
 fn build_send_text_script(identifier: &str, text: &str) -> String {
-    let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
+    let id = escape_applescript(identifier);
+    let escaped_text = escape_applescript(text);
     format!(
         r#"tell application "Ghostty"
-    set matches to every terminal whose id is "{identifier}"
+    set matches to every terminal whose id is "{id}"
     if (count of matches) > 0 then
         tell (item 1 of matches)
-            input text "{escaped}"
+            input text "{escaped_text}"
         end tell
     end if
 end tell"#
@@ -148,11 +158,11 @@ impl TerminalController for GhosttyController {
             .args(["-e", &script])
             .output()
             .await
-            .map_err(|e| format!("Failed to run osascript: {e}"))?;
+            .map_err(|e| format!("Ghostty find_session failed: {e}"))?;
 
         if !output.status.success() {
             return Err(format!(
-                "osascript failed: {}",
+                "Ghostty find_session failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
@@ -180,11 +190,11 @@ impl TerminalController for GhosttyController {
             .args(["-e", &script])
             .output()
             .await
-            .map_err(|e| format!("Failed to run osascript: {e}"))?;
+            .map_err(|e| format!("Ghostty focus failed: {e}"))?;
 
         if !output.status.success() {
             return Err(format!(
-                "osascript failed: {}",
+                "Ghostty focus failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
@@ -205,11 +215,11 @@ impl TerminalController for GhosttyController {
             .args(["-e", &script])
             .output()
             .await
-            .map_err(|e| format!("Failed to run osascript: {e}"))?;
+            .map_err(|e| format!("Ghostty create failed: {e}"))?;
 
         if !output.status.success() {
             return Err(format!(
-                "osascript failed: {}",
+                "Ghostty create failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
@@ -229,11 +239,11 @@ impl TerminalController for GhosttyController {
             .args(["-e", &script])
             .output()
             .await
-            .map_err(|e| format!("Failed to run osascript: {e}"))?;
+            .map_err(|e| format!("Ghostty split failed: {e}"))?;
 
         if !output.status.success() {
             return Err(format!(
-                "osascript failed: {}",
+                "Ghostty split failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
@@ -254,11 +264,11 @@ impl TerminalController for GhosttyController {
             .args(["-e", &script])
             .output()
             .await
-            .map_err(|e| format!("Failed to run osascript: {e}"))?;
+            .map_err(|e| format!("Ghostty send_text failed: {e}"))?;
 
         if !output.status.success() {
             return Err(format!(
-                "osascript failed: {}",
+                "Ghostty send_text failed: {}",
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
@@ -273,12 +283,31 @@ mod tests {
     use std::collections::HashMap;
 
     #[test]
+    fn test_escape_applescript() {
+        assert_eq!(escape_applescript("hello"), "hello");
+        assert_eq!(escape_applescript(r#"say "hi""#), r#"say \"hi\""#);
+        assert_eq!(escape_applescript(r"path\to"), r"path\\to");
+    }
+
+    #[test]
+    fn test_escape_applescript_order() {
+        // Backslashes must be escaped before quotes to avoid double-escaping
+        assert_eq!(escape_applescript(r#"a\"b"#), r#"a\\\"b"#);
+    }
+
+    #[test]
     fn test_build_find_script() {
         let script = build_find_script("/path/to/worktree");
         assert!(script.contains(r#"tell application "Ghostty""#));
         assert!(script.contains(r#"every terminal whose working directory contains "/path/to/worktree""#));
         assert!(script.contains("return id of (item 1 of matches)"));
         assert!(script.contains(r#"return """#));
+    }
+
+    #[test]
+    fn test_build_find_script_escapes_path() {
+        let script = build_find_script(r#"/path/with "quotes"/dir"#);
+        assert!(script.contains(r#"contains "/path/with \"quotes\"/dir""#));
     }
 
     #[test]
@@ -306,6 +335,21 @@ mod tests {
         assert!(script.contains(r#"set initial working directory of cfg to "/path/to/worktree""#));
         assert!(script.contains("tmux attach -t ACQ-145"));
         assert!(script.contains("new window with cfg"));
+        assert!(script.contains(r#"set title of cfg to "ACQ-145""#));
+    }
+
+    #[test]
+    fn test_build_create_script_escapes_values() {
+        let config = TerminalConfig {
+            identifier: r#"task "special""#.to_string(),
+            session: "session-1".to_string(),
+            worktree_path: r#"/path/with "quotes""#.to_string(),
+            env_vars: HashMap::new(),
+            layout: super::super::types::TerminalLayout::Focus,
+        };
+        let script = build_create_script(&config);
+        assert!(script.contains(r#"set initial working directory of cfg to "/path/with \"quotes\"""#));
+        assert!(script.contains(r#"set title of cfg to "task \"special\"""#));
     }
 
     #[test]
@@ -326,6 +370,12 @@ mod tests {
     fn test_build_send_text_script_escapes_quotes() {
         let script = build_send_text_script("terminal-123", r#"say "hello""#);
         assert!(script.contains(r#"input text "say \"hello\"""#));
+    }
+
+    #[test]
+    fn test_build_send_text_script_escapes_backslashes() {
+        let script = build_send_text_script("terminal-123", r"path\to\file");
+        assert!(script.contains(r#"input text "path\\to\\file""#));
     }
 
     #[test]
