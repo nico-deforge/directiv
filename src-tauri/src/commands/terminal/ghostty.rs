@@ -1,10 +1,70 @@
 use super::controller::TerminalController;
 use super::types::{TerminalConfig, TerminalRef};
+use std::sync::OnceLock;
 use tauri_plugin_shell::ShellExt;
 
 const EMULATOR: &str = "ghostty";
+const MIN_VERSION: (u32, u32, u32) = (1, 3, 0);
+
+static VERSION_CHECK: OnceLock<Result<(), String>> = OnceLock::new();
 
 pub struct GhosttyController;
+
+fn parse_version(version_str: &str) -> Option<(u32, u32, u32)> {
+    let parts: Vec<&str> = version_str.split('.').collect();
+    if parts.len() >= 3 {
+        Some((
+            parts[0].parse().ok()?,
+            parts[1].parse().ok()?,
+            parts[2].parse().ok()?,
+        ))
+    } else if parts.len() == 2 {
+        Some((parts[0].parse().ok()?, parts[1].parse().ok()?, 0))
+    } else {
+        None
+    }
+}
+
+async fn check_ghostty_version_uncached(app: &tauri::AppHandle) -> Result<(), String> {
+    let output = app
+        .shell()
+        .command("osascript")
+        .args(["-e", r#"tell application "Ghostty" to get version"#])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to check Ghostty version: {e}"))?;
+
+    if !output.status.success() {
+        return Err(
+            "Ghostty is not installed or not responding. Please install Ghostty >= 1.3.0."
+                .to_string(),
+        );
+    }
+
+    let version_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let version = parse_version(&version_str).ok_or_else(|| {
+        format!("Could not parse Ghostty version: \"{version_str}\"")
+    })?;
+
+    if version < MIN_VERSION {
+        return Err(format!(
+            "Ghostty >= {}.{}.{} required for AppleScript integration (found {version_str})",
+            MIN_VERSION.0, MIN_VERSION.1, MIN_VERSION.2,
+        ));
+    }
+
+    Ok(())
+}
+
+async fn check_ghostty_version(app: &tauri::AppHandle) -> Result<(), String> {
+    if let Some(result) = VERSION_CHECK.get() {
+        return result.clone();
+    }
+
+    let result = check_ghostty_version_uncached(app).await;
+    let _ = VERSION_CHECK.set(result.clone());
+    result
+}
 
 fn build_find_script(worktree_path: &str) -> String {
     format!(
@@ -82,6 +142,7 @@ impl TerminalController for GhosttyController {
         app: &tauri::AppHandle,
         worktree_path: &str,
     ) -> Result<Option<TerminalRef>, String> {
+        check_ghostty_version(app).await?;
         let script = build_find_script(worktree_path);
         let output = app
             .shell()
@@ -138,6 +199,7 @@ impl TerminalController for GhosttyController {
         app: &tauri::AppHandle,
         config: &TerminalConfig,
     ) -> Result<(), String> {
+        check_ghostty_version(app).await?;
         let script = build_create_script(config);
         let output = app
             .shell()
@@ -266,5 +328,31 @@ mod tests {
     fn test_build_send_text_script_escapes_quotes() {
         let script = build_send_text_script("terminal-123", r#"say "hello""#);
         assert!(script.contains(r#"input text "say \"hello\"""#));
+    }
+
+    #[test]
+    fn test_parse_version_full() {
+        assert_eq!(parse_version("1.3.0"), Some((1, 3, 0)));
+        assert_eq!(parse_version("2.10.5"), Some((2, 10, 5)));
+    }
+
+    #[test]
+    fn test_parse_version_two_parts() {
+        assert_eq!(parse_version("1.3"), Some((1, 3, 0)));
+    }
+
+    #[test]
+    fn test_parse_version_invalid() {
+        assert_eq!(parse_version("abc"), None);
+        assert_eq!(parse_version(""), None);
+    }
+
+    #[test]
+    fn test_version_comparison() {
+        assert!((1, 3, 0) >= MIN_VERSION);
+        assert!((1, 4, 0) >= MIN_VERSION);
+        assert!((2, 0, 0) >= MIN_VERSION);
+        assert!((1, 2, 9) < MIN_VERSION);
+        assert!((0, 9, 0) < MIN_VERSION);
     }
 }
