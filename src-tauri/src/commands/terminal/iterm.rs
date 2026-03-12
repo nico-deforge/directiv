@@ -72,24 +72,47 @@ end tell"#,
     )
 }
 
+/// Build a string of `KEY=VALUE` pairs from the config's env_vars, suitable for
+/// passing to the `env` command. Each key and value is escaped for AppleScript.
+fn build_env_string(env_vars: &std::collections::HashMap<String, String>) -> String {
+    let mut pairs: Vec<_> = env_vars.iter().collect();
+    pairs.sort_by_key(|(k, _)| (*k).clone());
+    pairs
+        .iter()
+        .map(|(k, v)| format!("{}={}", escape_applescript(k), escape_applescript(v)))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Build an AppleScript that creates a new iTerm2 window with the default profile,
 /// cds into the worktree path, attaches to the tmux session, and names the session.
+/// If env_vars are present, they are injected via the `env` command wrapper.
 fn build_create_script(config: &TerminalConfig) -> String {
     let display_name = format!("{} — {}", config.identifier, config.session);
     let worktree_path = escape_applescript(&config.worktree_path);
     let session = escape_applescript(&config.session);
     let display_name = escape_applescript(&display_name);
+
+    let tmux_cmd = format!("tmux set-option allow-rename off \\\\; -CC attach -t {session}");
+
+    let command = if config.env_vars.is_empty() {
+        tmux_cmd
+    } else {
+        let env_str = build_env_string(&config.env_vars);
+        format!("env {env_str} {tmux_cmd}")
+    };
+
     format!(
         r#"tell application "iTerm2"
     activate
     set newWindow to (create window with default profile)
     tell current session of newWindow
-        write text "cd {worktree_path} && tmux set-option allow-rename off \\; -CC attach -t {session}"
+        write text "cd {worktree_path} && {command}"
         set name to "{display_name}"
     end tell
 end tell"#,
         worktree_path = worktree_path,
-        session = session,
+        command = command,
         display_name = display_name,
     )
 }
@@ -215,11 +238,7 @@ impl TerminalController for ITermController {
         Ok(())
     }
 
-    async fn create(
-        &self,
-        app: &tauri::AppHandle,
-        config: &TerminalConfig,
-    ) -> Result<(), String> {
+    async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
         let check = app
             .shell()
             .command("tmux")
@@ -228,10 +247,7 @@ impl TerminalController for ITermController {
             .await
             .map_err(|e| format!("Failed to check tmux session: {e}"))?;
         if !check.status.success() {
-            return Err(format!(
-                "tmux session '{}' does not exist",
-                config.session
-            ));
+            return Err(format!("tmux session '{}' does not exist", config.session));
         }
 
         let script = build_create_script(config);
@@ -302,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    fn test_build_create_script_structure() {
+    fn test_build_create_script_no_env_vars() {
         let config = TerminalConfig {
             identifier: "ACQ-145".to_string(),
             session: "acq-145".to_string(),
@@ -312,8 +328,59 @@ mod tests {
         };
         let script = build_create_script(&config);
         assert!(script.contains("create window with default profile"));
-        assert!(script.contains(r#"cd /path/to/worktree && tmux set-option allow-rename off \\; -CC attach -t acq-145"#));
+        assert!(script.contains(
+            r#"cd /path/to/worktree && tmux set-option allow-rename off \\; -CC attach -t acq-145"#
+        ));
         assert!(script.contains(r#"set name to "ACQ-145 — acq-145""#));
+        // No env command when env_vars is empty
+        assert!(!script.contains("env "));
+    }
+
+    #[test]
+    fn test_build_create_script_with_env_vars() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("DIRECTIV_TASK".to_string(), "ACQ-145".to_string());
+        env_vars.insert(
+            "DIRECTIV_WORKTREE".to_string(),
+            "/path/to/worktree".to_string(),
+        );
+        env_vars.insert("DIRECTIV_SESSION".to_string(), "acq-145".to_string());
+        let config = TerminalConfig {
+            identifier: "ACQ-145".to_string(),
+            session: "acq-145".to_string(),
+            worktree_path: "/path/to/worktree".to_string(),
+            env_vars,
+            layout: super::super::types::TerminalLayout::Focus,
+        };
+        let script = build_create_script(&config);
+        assert!(script.contains("create window with default profile"));
+        // env vars are injected via the env command, sorted alphabetically
+        assert!(script.contains("env DIRECTIV_SESSION=acq-145 DIRECTIV_TASK=ACQ-145 DIRECTIV_WORKTREE=/path/to/worktree tmux set-option allow-rename off"));
+        assert!(script.contains(r#"set name to "ACQ-145 — acq-145""#));
+        // set name must come AFTER the write text (tmux command)
+        let write_pos = script.find("write text").unwrap();
+        let name_pos = script.find("set name to").unwrap();
+        assert!(write_pos < name_pos, "set name must come after write text");
+    }
+
+    #[test]
+    fn test_build_create_script_env_vars_special_chars() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert(
+            "MY_VAR".to_string(),
+            r#"value with "quotes" and \backslash"#.to_string(),
+        );
+        let config = TerminalConfig {
+            identifier: "ACQ-145".to_string(),
+            session: "acq-145".to_string(),
+            worktree_path: "/path/to/worktree".to_string(),
+            env_vars,
+            layout: super::super::types::TerminalLayout::Focus,
+        };
+        let script = build_create_script(&config);
+        // Values with special chars must be properly escaped for AppleScript
+        assert!(script.contains(r#"MY_VAR=value with \"quotes\" and \\backslash"#));
+        assert!(script.contains("env "));
     }
 
     #[test]
@@ -367,7 +434,25 @@ mod tests {
         };
         let script = build_create_script(&config);
         assert!(script.contains(r#"cd /path/\"inject"#));
-        assert!(script.contains(r#"tmux set-option allow-rename off \\; -CC attach -t sess\"inject"#));
+        assert!(
+            script.contains(r#"tmux set-option allow-rename off \\; -CC attach -t sess\"inject"#)
+        );
         assert!(script.contains(r#"set name to "id\"inject — sess\"inject""#));
+    }
+
+    #[test]
+    fn test_build_env_string_sorted_and_escaped() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("Z_VAR".to_string(), "last".to_string());
+        env_vars.insert("A_VAR".to_string(), "first".to_string());
+        let result = build_env_string(&env_vars);
+        assert_eq!(result, "A_VAR=first Z_VAR=last");
+    }
+
+    #[test]
+    fn test_build_env_string_empty() {
+        let env_vars = HashMap::new();
+        let result = build_env_string(&env_vars);
+        assert_eq!(result, "");
     }
 }

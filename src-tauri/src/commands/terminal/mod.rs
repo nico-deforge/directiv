@@ -19,7 +19,14 @@ pub async fn open_terminal(
 ) -> Result<bool, String> {
     match emulator.as_str() {
         "ghostty" => {
-            dispatch_terminal(&app, GhosttyController, &session, &identifier, &worktree_path).await
+            dispatch_terminal(
+                &app,
+                GhosttyController,
+                &session,
+                &identifier,
+                &worktree_path,
+            )
+            .await
         }
         "iterm2" => {
             dispatch_terminal(&app, ITermController, &session, &identifier, &worktree_path).await
@@ -35,7 +42,10 @@ async fn dispatch_terminal(
     identifier: &str,
     worktree_path: &str,
 ) -> Result<bool, String> {
-    if let Some(terminal_ref) = controller.find_session(app, identifier, worktree_path).await? {
+    if let Some(terminal_ref) = controller
+        .find_session(app, identifier, worktree_path)
+        .await?
+    {
         match controller.focus(app, &terminal_ref).await {
             Ok(()) => return Ok(true),
             Err(e) => {
