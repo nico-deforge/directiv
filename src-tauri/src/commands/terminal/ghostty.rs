@@ -108,12 +108,24 @@ fn build_create_script(config: &TerminalConfig) -> String {
     let shell = escape_applescript(&user_shell);
     let tmux_cmd = format!("tmux attach -t {session}");
 
+    let env_prefix = if config.env_vars.is_empty() {
+        String::new()
+    } else {
+        let mut pairs: Vec<String> = config
+            .env_vars
+            .iter()
+            .map(|(k, v)| format!("{}={}", escape_applescript(k), escape_applescript(v)))
+            .collect();
+        pairs.sort();
+        format!("env {} ", pairs.join(" "))
+    };
+
     format!(
         r#"tell application "Ghostty"
     activate
     set cfg to new surface configuration
     set initial working directory of cfg to "{worktree_path}"
-    set command of cfg to "{shell} -lc '{tmux_cmd}'"
+    set command of cfg to "{env_prefix}{shell} -lc '{tmux_cmd}'"
     set title of cfg to "{identifier}"
     new window with cfg
 end tell"#
@@ -363,7 +375,11 @@ mod tests {
             identifier: "ACQ-145".to_string(),
             session: "ACQ-145".to_string(),
             worktree_path: "/path/to/worktree".to_string(),
-            env_vars: HashMap::new(),
+            env_vars: HashMap::from([
+                ("DIRECTIV_TASK".to_string(), "ACQ-145".to_string()),
+                ("DIRECTIV_WORKTREE".to_string(), "/path/to/worktree".to_string()),
+                ("DIRECTIV_SESSION".to_string(), "ACQ-145".to_string()),
+            ]),
             layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
@@ -374,6 +390,42 @@ mod tests {
         assert!(script.contains("tmux attach -t ACQ-145"));
         assert!(script.contains("new window with cfg"));
         assert!(script.contains(r#"set title of cfg to "ACQ-145""#));
+        // Env vars should appear in the command, sorted alphabetically
+        assert!(script.contains("env DIRECTIV_SESSION=ACQ-145 DIRECTIV_TASK=ACQ-145 DIRECTIV_WORKTREE=/path/to/worktree"));
+    }
+
+    #[test]
+    fn test_build_create_script_no_env_vars() {
+        let config = TerminalConfig {
+            identifier: "ACQ-145".to_string(),
+            session: "ACQ-145".to_string(),
+            worktree_path: "/path/to/worktree".to_string(),
+            env_vars: HashMap::new(),
+            layout: super::super::types::TerminalLayout::Focus,
+        };
+        let script = build_create_script(&config);
+        // No "env " prefix when env_vars is empty
+        assert!(!script.contains("env "));
+        assert!(script.contains("tmux attach -t ACQ-145"));
+    }
+
+    #[test]
+    fn test_build_create_script_env_vars_special_chars() {
+        let config = TerminalConfig {
+            identifier: "ACQ-145".to_string(),
+            session: "ACQ-145".to_string(),
+            worktree_path: "/path/to/worktree".to_string(),
+            env_vars: HashMap::from([
+                ("DIRECTIV_TASK".to_string(), r#"task "with quotes""#.to_string()),
+                ("DIRECTIV_WORKTREE".to_string(), r"path\with\backslashes".to_string()),
+            ]),
+            layout: super::super::types::TerminalLayout::Focus,
+        };
+        let script = build_create_script(&config);
+        // Quotes should be escaped for AppleScript
+        assert!(script.contains(r#"DIRECTIV_TASK=task \"with quotes\""#));
+        // Backslashes should be escaped for AppleScript
+        assert!(script.contains(r"DIRECTIV_WORKTREE=path\\with\\backslashes"));
     }
 
     #[test]
