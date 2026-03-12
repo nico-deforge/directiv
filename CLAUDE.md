@@ -177,3 +177,7 @@ The architecture doc may be in French. Code identifiers, comments in code and co
 ## Documentation
 Linear GrapQL API doc : https://studio.apollographql.com/public/Linear-API/variant/current/schema/reference
 The Linear sdk follows the Linear GraphQL API conventions.
+
+## Project Management Tool Configuration
+pm-tool: obsidian
+pm-vault: /Users/nicod/Documents/0-DEV/directiv-ws/Directiv Vault
