@@ -9,6 +9,10 @@ fn escape_applescript(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 /// Build an AppleScript that iterates all iTerm2 windows, tabs, and sessions
 /// looking for a session whose `name` starts with the given identifier.
 /// Returns "window_index,tab_index,session_index" if found, or "not_found".
@@ -72,14 +76,17 @@ end tell"#,
     )
 }
 
-/// Build a string of `KEY=VALUE` pairs from the config's env_vars, suitable for
-/// passing to the `env` command. Each key and value is escaped for AppleScript.
+/// Build a string of `KEY='VALUE'` pairs from the config's env_vars, suitable for
+/// passing to the `env` command. Values are shell-quoted then AppleScript-escaped.
 fn build_env_string(env_vars: &std::collections::HashMap<String, String>) -> String {
     let mut pairs: Vec<_> = env_vars.iter().collect();
-    pairs.sort_by_key(|(k, _)| (*k).clone());
+    pairs.sort_by(|(a, _), (b, _)| a.cmp(b));
     pairs
         .iter()
-        .map(|(k, v)| format!("{}={}", escape_applescript(k), escape_applescript(v)))
+        .map(|(k, v)| {
+            let quoted = shell_quote(v);
+            format!("{}={}", escape_applescript(k), escape_applescript(&quoted))
+        })
         .collect::<Vec<_>>()
         .join(" ")
 }
@@ -354,8 +361,8 @@ mod tests {
         };
         let script = build_create_script(&config);
         assert!(script.contains("create window with default profile"));
-        // env vars are injected via the env command, sorted alphabetically
-        assert!(script.contains("env DIRECTIV_SESSION=acq-145 DIRECTIV_TASK=ACQ-145 DIRECTIV_WORKTREE=/path/to/worktree tmux set-option allow-rename off"));
+        // env vars are shell-quoted and sorted alphabetically
+        assert!(script.contains("env DIRECTIV_SESSION='acq-145' DIRECTIV_TASK='ACQ-145' DIRECTIV_WORKTREE='/path/to/worktree' tmux set-option allow-rename off"));
         assert!(script.contains(r#"set name to "ACQ-145 — acq-145""#));
         // set name must come AFTER the write text (tmux command)
         let write_pos = script.find("write text").unwrap();
@@ -378,8 +385,8 @@ mod tests {
             layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
-        // Values with special chars must be properly escaped for AppleScript
-        assert!(script.contains(r#"MY_VAR=value with \"quotes\" and \\backslash"#));
+        // Values are shell-quoted, then AppleScript-escaped
+        assert!(script.contains(r#"MY_VAR='value with \"quotes\" and \\backslash'"#));
         assert!(script.contains("env "));
     }
 
@@ -446,7 +453,7 @@ mod tests {
         env_vars.insert("Z_VAR".to_string(), "last".to_string());
         env_vars.insert("A_VAR".to_string(), "first".to_string());
         let result = build_env_string(&env_vars);
-        assert_eq!(result, "A_VAR=first Z_VAR=last");
+        assert_eq!(result, "A_VAR='first' Z_VAR='last'");
     }
 
     #[test]

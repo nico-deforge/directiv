@@ -12,6 +12,10 @@ fn escape_applescript(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 fn parse_version(version_str: &str) -> Option<(u32, u32, u32)> {
     let parts: Vec<&str> = version_str.split('.').collect();
     if parts.len() >= 3 {
@@ -113,7 +117,10 @@ fn build_create_script(config: &TerminalConfig) -> String {
         let mut pairs: Vec<String> = config
             .env_vars
             .iter()
-            .map(|(k, v)| format!("{}={}", escape_applescript(k), escape_applescript(v)))
+            .map(|(k, v)| {
+                let quoted = shell_quote(v);
+                format!("{}={}", escape_applescript(k), escape_applescript(&quoted))
+            })
             .collect();
         pairs.sort();
         format!("env {} ", pairs.join(" "))
@@ -386,8 +393,8 @@ mod tests {
         assert!(script.contains("tmux attach -t ACQ-145"));
         assert!(script.contains("new window with cfg"));
         assert!(script.contains(r#"set title of cfg to "ACQ-145""#));
-        // Env vars should appear in the command, sorted alphabetically
-        assert!(script.contains("env DIRECTIV_SESSION=ACQ-145 DIRECTIV_TASK=ACQ-145 DIRECTIV_WORKTREE=/path/to/worktree"));
+        // Env vars should appear shell-quoted in the command, sorted alphabetically
+        assert!(script.contains("env DIRECTIV_SESSION='ACQ-145' DIRECTIV_TASK='ACQ-145' DIRECTIV_WORKTREE='/path/to/worktree'"));
     }
 
     #[test]
@@ -418,10 +425,9 @@ mod tests {
             layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
-        // Quotes should be escaped for AppleScript
-        assert!(script.contains(r#"DIRECTIV_TASK=task \"with quotes\""#));
-        // Backslashes should be escaped for AppleScript
-        assert!(script.contains(r"DIRECTIV_WORKTREE=path\\with\\backslashes"));
+        // Values are shell-quoted, then AppleScript-escaped
+        assert!(script.contains(r#"DIRECTIV_TASK='task \"with quotes\"'"#));
+        assert!(script.contains(r"DIRECTIV_WORKTREE='path\\with\\backslashes'"));
     }
 
     #[test]

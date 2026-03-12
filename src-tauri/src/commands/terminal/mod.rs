@@ -16,12 +16,9 @@ pub async fn open_terminal(
     session: String,
     identifier: String,
     worktree_path: String,
-    layout: Option<String>,
+    layout: Option<types::TerminalLayout>,
 ) -> Result<bool, String> {
-    let layout = match layout.as_deref() {
-        Some("focus") => types::TerminalLayout::Focus,
-        _ => types::TerminalLayout::SideBySide,
-    };
+    let layout = layout.unwrap_or_default();
 
     match emulator.as_str() {
         "ghostty" => {
