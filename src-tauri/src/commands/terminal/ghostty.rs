@@ -1,9 +1,7 @@
 use super::controller::TerminalController;
-use super::types::{TerminalConfig, TerminalRef};
+use super::types::{Emulator, TerminalConfig, TerminalRef};
 use std::sync::OnceLock;
 use tauri_plugin_shell::ShellExt;
-
-const EMULATOR: &str = "ghostty";
 const MIN_VERSION: (u32, u32, u32) = (1, 3, 0);
 
 static VERSION_CHECK: OnceLock<Result<(), String>> = OnceLock::new();
@@ -165,7 +163,7 @@ impl TerminalController for GhosttyController {
         } else {
             Ok(Some(TerminalRef {
                 identifier: stdout,
-                emulator: EMULATOR.to_string(),
+                emulator: Emulator::Ghostty,
             }))
         }
     }
