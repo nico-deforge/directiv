@@ -150,6 +150,7 @@ impl TerminalController for GhosttyController {
     async fn find_session(
         &self,
         app: &tauri::AppHandle,
+        _identifier: &str,
         worktree_path: &str,
     ) -> Result<Option<TerminalRef>, String> {
         check_ghostty_version(app).await?;

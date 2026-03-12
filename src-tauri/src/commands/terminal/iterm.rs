@@ -181,21 +181,17 @@ impl TerminalController for ITermController {
     async fn find_session(
         &self,
         app: &tauri::AppHandle,
-        worktree_path: &str,
+        identifier: &str,
+        _worktree_path: &str,
     ) -> Result<Option<TerminalRef>, String> {
-        // For iTerm2, we search by session name (identifier), not worktree_path.
-        // The worktree_path parameter is used as the identifier for iTerm2 since
-        // sessions are named with the task identifier at creation time.
-        // The caller passes the identifier via worktree_path for now; this will
-        // be refined when DIR-001.04 widens the signature.
-        let script = build_find_script(worktree_path);
+        let script = build_find_script(identifier);
         let result = run_osascript(app, &script, "find_session").await?;
 
         if result == "not_found" {
             Ok(None)
         } else {
             Ok(Some(TerminalRef {
-                identifier: worktree_path.to_string(),
+                identifier: identifier.to_string(),
                 emulator: super::types::Emulator::Iterm2,
             }))
         }

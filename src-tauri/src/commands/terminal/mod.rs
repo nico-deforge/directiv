@@ -35,7 +35,7 @@ async fn dispatch_terminal(
     identifier: &str,
     worktree_path: &str,
 ) -> Result<bool, String> {
-    if let Some(terminal_ref) = controller.find_session(app, worktree_path).await? {
+    if let Some(terminal_ref) = controller.find_session(app, identifier, worktree_path).await? {
         controller.focus(app, &terminal_ref).await?;
         return Ok(true);
     }
