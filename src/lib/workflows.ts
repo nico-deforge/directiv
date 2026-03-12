@@ -15,7 +15,7 @@ import {
   getPluginDir,
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
-import type { SkillOverrides, TerminalMode } from "../types";
+import type { SkillOverrides, TerminalLayout, TerminalMode } from "../types";
 import { useTerminalStore } from "../stores/terminalStore";
 
 // --- Typed errors for worktree creation ---
@@ -177,6 +177,7 @@ export interface StartTaskParams {
   repoPath: string;
   terminal: string;
   terminalMode?: TerminalMode;
+  terminalLayout?: TerminalLayout;
   copyPaths?: string[];
   onStart?: string[];
   baseBranch?: string;
@@ -269,8 +270,9 @@ export async function removeWorktreeFlow({
 export function openTerminalWithToast(
   terminal: string,
   sessionName: string,
+  layout?: TerminalLayout,
 ): void {
-  openTerminal(terminal, sessionName)
+  openTerminal(terminal, sessionName, layout)
     .then((alreadyOpen) => {
       if (alreadyOpen) {
         toast.success("Terminal already open");
@@ -290,6 +292,7 @@ export async function startTask({
   repoPath,
   terminal,
   terminalMode,
+  terminalLayout,
   copyPaths,
   onStart,
   baseBranch,
@@ -310,7 +313,7 @@ export async function startTask({
   await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
   if (terminalMode === "external") {
-    openTerminalWithToast(terminal, sessionName);
+    openTerminalWithToast(terminal, sessionName, terminalLayout);
   } else {
     useTerminalStore.getState().openTerminal({
       sessionName,
@@ -331,6 +334,7 @@ interface StartFreeTaskParams {
   repoPath: string;
   terminal: string;
   terminalMode?: TerminalMode;
+  terminalLayout?: TerminalLayout;
   copyPaths?: string[];
   onStart?: string[];
   baseBranch?: string;
@@ -342,6 +346,7 @@ export async function startFreeTask({
   repoPath,
   terminal,
   terminalMode,
+  terminalLayout,
   copyPaths,
   onStart,
   baseBranch,
@@ -359,7 +364,7 @@ export async function startFreeTask({
   await ensureSession(sessionName, worktree.path, onStart);
 
   if (terminalMode === "external") {
-    openTerminalWithToast(terminal, sessionName);
+    openTerminalWithToast(terminal, sessionName, terminalLayout);
   } else {
     useTerminalStore.getState().openTerminal({
       sessionName,

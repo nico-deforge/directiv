@@ -161,8 +161,9 @@ export function runHooks(
 export function openTerminal(
   emulator: string,
   session: string,
+  layout?: string,
 ): Promise<boolean> {
-  return invoke<boolean>("open_terminal", { emulator, session });
+  return invoke<boolean>("open_terminal", { emulator, session, layout });
 }
 
 // --- Editor commands ---

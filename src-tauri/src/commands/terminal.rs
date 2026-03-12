@@ -16,7 +16,13 @@ pub async fn open_terminal(
     app: tauri::AppHandle,
     emulator: String,
     session: String,
+    layout: Option<String>,
 ) -> Result<bool, String> {
+    let _layout = match layout.as_deref() {
+        Some("focus") => "focus",
+        _ => "side-by-side",
+    };
+
     if has_attached_clients(&app, &session).await {
         return Ok(true);
     }
