@@ -1,3 +1,8 @@
+pub mod controller;
+pub mod ghostty;
+pub mod iterm;
+pub mod types;
+
 use tauri_plugin_shell::ShellExt;
 
 async fn has_attached_clients(app: &tauri::AppHandle, session: &str) -> bool {
