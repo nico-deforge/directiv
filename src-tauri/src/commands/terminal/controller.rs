@@ -24,6 +24,7 @@ pub trait TerminalController {
         &self,
         app: &tauri::AppHandle,
         terminal_ref: &TerminalRef,
+        worktree_path: &str,
     ) -> impl std::future::Future<Output = Result<(), String>> + Send;
 
     fn send_text(

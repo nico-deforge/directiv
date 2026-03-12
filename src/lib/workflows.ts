@@ -311,7 +311,13 @@ export async function startTask({
   await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
   if (terminalMode === "external") {
-    openTerminalWithToast(terminal, sessionName, identifier, worktree.path, terminalLayout);
+    openTerminalWithToast(
+      terminal,
+      sessionName,
+      identifier,
+      worktree.path,
+      terminalLayout,
+    );
   } else {
     useTerminalStore.getState().openTerminal({
       sessionName,
@@ -362,7 +368,13 @@ export async function startFreeTask({
   await ensureSession(sessionName, worktree.path, onStart);
 
   if (terminalMode === "external") {
-    openTerminalWithToast(terminal, sessionName, branchName, worktree.path, terminalLayout);
+    openTerminalWithToast(
+      terminal,
+      sessionName,
+      branchName,
+      worktree.path,
+      terminalLayout,
+    );
   } else {
     useTerminalStore.getState().openTerminal({
       sessionName,

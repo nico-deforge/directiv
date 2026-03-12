@@ -125,8 +125,11 @@ end tell"#,
 }
 
 /// Build an AppleScript that splits the session matching the identifier vertically.
-fn build_split_script(identifier: &str) -> String {
+/// After splitting, `cd` into `worktree_path` in the new pane (iTerm2 split panes
+/// don't always inherit the working directory).
+fn build_split_script(identifier: &str, worktree_path: &str) -> String {
     let identifier = escape_applescript(identifier);
+    let quoted_path = escape_applescript(&shell_quote(worktree_path));
     format!(
         r#"tell application "iTerm2"
     set winCount to count of windows
@@ -140,7 +143,10 @@ fn build_split_script(identifier: &str) -> String {
                 set theSession to session s of theTab
                 if name of theSession starts with "{identifier}" then
                     tell theSession
-                        split vertically with default profile
+                        set newSession to (split vertically with default profile)
+                    end tell
+                    tell newSession
+                        write text "cd {quoted_path}"
                     end tell
                     return "split"
                 end if
@@ -149,7 +155,8 @@ fn build_split_script(identifier: &str) -> String {
     end repeat
     return "not_found"
 end tell"#,
-        identifier = identifier
+        identifier = identifier,
+        quoted_path = quoted_path,
     )
 }
 
@@ -266,8 +273,9 @@ impl TerminalController for ITermController {
         &self,
         app: &tauri::AppHandle,
         terminal_ref: &TerminalRef,
+        worktree_path: &str,
     ) -> Result<(), String> {
-        let script = build_split_script(&terminal_ref.identifier);
+        let script = build_split_script(&terminal_ref.identifier, worktree_path);
         let result = run_osascript(app, &script, "split").await?;
 
         if result == "not_found" {
@@ -392,9 +400,17 @@ mod tests {
 
     #[test]
     fn test_build_split_script_splits_vertically() {
-        let script = build_split_script("ACQ-145");
+        let script = build_split_script("ACQ-145", "/path/to/worktree");
         assert!(script.contains("split vertically with default profile"));
         assert!(script.contains(r#"starts with "ACQ-145""#));
+        // Path is shell-quoted for safe cd
+        assert!(script.contains(r#"write text "cd '/path/to/worktree'""#));
+    }
+
+    #[test]
+    fn test_build_split_script_path_with_spaces() {
+        let script = build_split_script("ACQ-145", "/Users/me/my projects/worktree");
+        assert!(script.contains(r#"write text "cd '/Users/me/my projects/worktree'""#));
     }
 
     #[test]

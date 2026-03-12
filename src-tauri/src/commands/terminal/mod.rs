@@ -67,6 +67,8 @@ async fn dispatch_terminal(
         }
     }
 
+    let should_split = matches!(layout, types::TerminalLayout::SideBySide);
+
     let env_vars = std::collections::HashMap::from([
         ("DIRECTIV_TASK".to_string(), identifier.to_string()),
         ("DIRECTIV_WORKTREE".to_string(), worktree_path.to_string()),
@@ -82,6 +84,29 @@ async fn dispatch_terminal(
     };
 
     controller.create(app, &config).await?;
+
+    if should_split {
+        // Give the terminal time to register before looking it up
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+        match controller
+            .find_session(app, identifier, worktree_path)
+            .await
+        {
+            Ok(Some(terminal_ref)) => {
+                if let Err(e) = controller.split(app, &terminal_ref, worktree_path).await {
+                    eprintln!("split failed (non-fatal): {e}");
+                }
+            }
+            Ok(None) => {
+                eprintln!("split: session not found after delay, skipping for {identifier}");
+            }
+            Err(e) => {
+                eprintln!("split: find_session failed (non-fatal): {e}");
+            }
+        }
+    }
+
     Ok(false)
 }
 

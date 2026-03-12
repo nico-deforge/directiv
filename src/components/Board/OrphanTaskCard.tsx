@@ -83,9 +83,16 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       await tmuxWaitForReady(sessionName);
       const cmd = await buildClaudeCommand();
       await tmuxSendKeys(sessionName, cmd);
-      const terminalMode = useSettingsStore.getState().config.terminalMode;
+      const { terminalMode, terminalLayout } =
+        useSettingsStore.getState().config;
       if (terminalMode === "external") {
-        await openTerminal(terminal, sessionName, worktree.branch, worktree.path);
+        await openTerminal(
+          terminal,
+          sessionName,
+          worktree.branch,
+          worktree.path,
+          terminalLayout,
+        );
       } else {
         useTerminalStore.getState().openTerminal({
           sessionName,
@@ -103,9 +110,15 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
 
   function handleOpenTerminal() {
     if (!session) return;
-    const terminalMode = useSettingsStore.getState().config.terminalMode;
+    const { terminalMode, terminalLayout } = useSettingsStore.getState().config;
     if (terminalMode === "external") {
-      openTerminalWithToast(terminal, session.name, worktree.branch, worktree.path);
+      openTerminalWithToast(
+        terminal,
+        session.name,
+        worktree.branch,
+        worktree.path,
+        terminalLayout,
+      );
     } else {
       useTerminalStore.getState().openTerminal({
         sessionName: session.name,
