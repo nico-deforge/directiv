@@ -36,8 +36,12 @@ async fn dispatch_terminal(
     worktree_path: &str,
 ) -> Result<bool, String> {
     if let Some(terminal_ref) = controller.find_session(app, identifier, worktree_path).await? {
-        controller.focus(app, &terminal_ref).await?;
-        return Ok(true);
+        match controller.focus(app, &terminal_ref).await {
+            Ok(()) => return Ok(true),
+            Err(e) => {
+                eprintln!("Focus failed (stale ref?), creating new: {e}");
+            }
+        }
     }
 
     let config = TerminalConfig {
