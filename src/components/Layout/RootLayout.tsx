@@ -5,9 +5,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useAuthStore, AUTH_PROVIDER_STATUS } from "../../stores/authStore";
 import { useWorkspaceInit } from "../../hooks/useWorkspace";
-import { useTerminalStore } from "../../stores/terminalStore";
-import { TabBar } from "../Terminal/TabBar";
-import { TerminalPanel } from "../Terminal/TerminalPanel";
 import { AuthGate } from "../Auth/AuthGate";
 import { OnboardingGate } from "../Onboarding/OnboardingGate";
 import { useSessionRecovery } from "../../hooks/useSessionRecovery";
@@ -16,8 +13,6 @@ export function RootLayout() {
   const loadFromDisk = useSettingsStore((s) => s.loadFromDisk);
   const isLoaded = useSettingsStore((s) => s.isLoaded);
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
-  const tabs = useTerminalStore((s) => s.tabs);
-  const activeTab = useTerminalStore((s) => s.activeTab);
   const initializeLinearAuth = useAuthStore((s) => s.initializeLinearAuth);
   const initializeGitHubAuth = useAuthStore((s) => s.initializeGitHubAuth);
   const queryClient = useQueryClient();
@@ -81,31 +76,9 @@ export function RootLayout() {
       <AuthGate>
         <OnboardingGate>
           <div className="flex h-screen flex-col">
-            <TabBar />
-            <div
-              className={
-                activeTab === "board"
-                  ? "min-h-0 flex-1 overflow-hidden"
-                  : "hidden"
-              }
-            >
+            <div className="min-h-0 flex-1 overflow-hidden">
               <Outlet />
             </div>
-            {tabs.map((tab) => (
-              <div
-                key={tab.sessionName}
-                className={
-                  activeTab === tab.sessionName
-                    ? "min-h-0 flex-1 overflow-hidden"
-                    : "hidden"
-                }
-              >
-                <TerminalPanel
-                  sessionName={tab.sessionName}
-                  isActive={activeTab === tab.sessionName}
-                />
-              </div>
-            ))}
           </div>
         </OnboardingGate>
       </AuthGate>
