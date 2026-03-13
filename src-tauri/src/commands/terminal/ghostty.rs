@@ -155,24 +155,6 @@ end tell"#
     )
 }
 
-fn build_send_text_script(identifier: &str, text: &str) -> String {
-    let id = escape_applescript(identifier);
-    let escaped_text = escape_applescript(text);
-    format!(
-        r#"tell application "Ghostty"
-    set matches to every terminal whose id is "{id}"
-    if (count of matches) > 0 then
-        tell (item 1 of matches)
-            input text "{escaped_text}"
-        end tell
-        return "sent"
-    else
-        return "not_found"
-    end if
-end tell"#
-    )
-}
-
 fn build_list_sessions_script() -> String {
     r#"tell application "Ghostty"
     set output to ""
@@ -308,39 +290,6 @@ impl TerminalController for GhosttyController {
         Ok(())
     }
 
-    async fn send_text(
-        &self,
-        app: &tauri::AppHandle,
-        terminal_ref: &TerminalRef,
-        text: &str,
-    ) -> Result<(), String> {
-        let script = build_send_text_script(&terminal_ref.identifier, text);
-        let output = app
-            .shell()
-            .command("osascript")
-            .args(["-e", &script])
-            .output()
-            .await
-            .map_err(|e| format!("Ghostty send_text failed: {e}"))?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Ghostty send_text failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            ));
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if stdout == "not_found" {
-            return Err(format!(
-                "Ghostty terminal not found for send_text: {}",
-                terminal_ref.identifier
-            ));
-        }
-
-        Ok(())
-    }
-
     async fn list_sessions(&self, app: &tauri::AppHandle) -> Result<Vec<(String, String)>, String> {
         check_ghostty_version(app).await?;
         let script = build_list_sessions_script();
@@ -433,7 +382,6 @@ mod tests {
                 ),
                 ("DIRECTIV_SESSION".to_string(), "ACQ-145".to_string()),
             ]),
-            layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
         assert!(script.contains(r#"tell application "Ghostty""#));
@@ -454,7 +402,6 @@ mod tests {
             session: "ACQ-145".to_string(),
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::new(),
-            layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
         // No "env " prefix when env_vars is empty
@@ -478,7 +425,6 @@ mod tests {
                     r"path\with\backslashes".to_string(),
                 ),
             ]),
-            layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
         // Values are shell-quoted, then AppleScript-escaped
@@ -493,7 +439,6 @@ mod tests {
             session: "session-1".to_string(),
             worktree_path: r#"/path/with "quotes""#.to_string(),
             env_vars: HashMap::new(),
-            layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
         assert!(
@@ -509,27 +454,6 @@ mod tests {
         assert!(script.contains("split right"));
         assert!(script.contains(r#"return "split""#));
         assert!(script.contains(r#"return "not_found""#));
-    }
-
-    #[test]
-    fn test_build_send_text_script() {
-        let script = build_send_text_script("terminal-123", "hello world");
-        assert!(script.contains(r#"every terminal whose id is "terminal-123""#));
-        assert!(script.contains(r#"input text "hello world""#));
-        assert!(script.contains(r#"return "sent""#));
-        assert!(script.contains(r#"return "not_found""#));
-    }
-
-    #[test]
-    fn test_build_send_text_script_escapes_quotes() {
-        let script = build_send_text_script("terminal-123", r#"say "hello""#);
-        assert!(script.contains(r#"input text "say \"hello\"""#));
-    }
-
-    #[test]
-    fn test_build_send_text_script_escapes_backslashes() {
-        let script = build_send_text_script("terminal-123", r"path\to\file");
-        assert!(script.contains(r#"input text "path\\to\\file""#));
     }
 
     #[test]

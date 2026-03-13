@@ -27,13 +27,6 @@ pub trait TerminalController {
         worktree_path: &str,
     ) -> impl std::future::Future<Output = Result<(), String>> + Send;
 
-    fn send_text(
-        &self,
-        app: &tauri::AppHandle,
-        terminal_ref: &TerminalRef,
-        text: &str,
-    ) -> impl std::future::Future<Output = Result<(), String>> + Send;
-
     /// List all terminal sessions open in the emulator.
     /// Returns a Vec of (identifier, name_or_working_dir) pairs.
     fn list_sessions(

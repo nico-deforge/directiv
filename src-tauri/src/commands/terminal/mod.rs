@@ -80,7 +80,6 @@ async fn dispatch_terminal(
         session: session.to_string(),
         worktree_path: worktree_path.to_string(),
         env_vars,
-        layout,
     };
 
     controller.create(app, &config).await?;

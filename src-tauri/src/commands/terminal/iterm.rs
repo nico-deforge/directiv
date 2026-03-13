@@ -160,37 +160,6 @@ end tell"#,
     )
 }
 
-/// Build an AppleScript that sends text to the session matching the identifier.
-fn build_send_text_script(identifier: &str, text: &str) -> String {
-    let identifier = escape_applescript(identifier);
-    let text = escape_applescript(text);
-    format!(
-        r#"tell application "iTerm2"
-    set winCount to count of windows
-    repeat with w from 1 to winCount
-        set theWindow to window w
-        set tabCount to count of tabs of theWindow
-        repeat with t from 1 to tabCount
-            set theTab to tab t of theWindow
-            set sessCount to count of sessions of theTab
-            repeat with s from 1 to sessCount
-                set theSession to session s of theTab
-                if name of theSession starts with "{identifier}" then
-                    tell theSession
-                        write text "{text}"
-                    end tell
-                    return "sent"
-                end if
-            end repeat
-        end repeat
-    end repeat
-    return "not_found"
-end tell"#,
-        identifier = identifier,
-        text = text,
-    )
-}
-
 /// Execute an AppleScript via osascript and return the trimmed stdout.
 /// The `operation` parameter is included in error messages for context.
 async fn run_osascript(
@@ -313,25 +282,6 @@ impl TerminalController for ITermController {
         Ok(())
     }
 
-    async fn send_text(
-        &self,
-        app: &tauri::AppHandle,
-        terminal_ref: &TerminalRef,
-        text: &str,
-    ) -> Result<(), String> {
-        let script = build_send_text_script(&terminal_ref.identifier, text);
-        let result = run_osascript(app, &script, "send_text").await?;
-
-        if result == "not_found" {
-            return Err(format!(
-                "iTerm2 session not found for send_text: {}",
-                terminal_ref.identifier
-            ));
-        }
-
-        Ok(())
-    }
-
     async fn list_sessions(&self, app: &tauri::AppHandle) -> Result<Vec<(String, String)>, String> {
         let script = build_list_sessions_script();
         let result = run_osascript(app, &script, "list_sessions");
@@ -390,7 +340,6 @@ mod tests {
             session: "acq-145".to_string(),
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::new(),
-            layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
         assert!(script.contains("create window with default profile"));
@@ -416,7 +365,6 @@ mod tests {
             session: "acq-145".to_string(),
             worktree_path: "/path/to/worktree".to_string(),
             env_vars,
-            layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
         assert!(script.contains("create window with default profile"));
@@ -441,7 +389,6 @@ mod tests {
             session: "acq-145".to_string(),
             worktree_path: "/path/to/worktree".to_string(),
             env_vars,
-            layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
         // Values are shell-quoted, then AppleScript-escaped
@@ -465,25 +412,6 @@ mod tests {
     }
 
     #[test]
-    fn test_build_send_text_script_writes_text() {
-        let script = build_send_text_script("ACQ-145", "echo hello");
-        assert!(script.contains(r#"write text "echo hello""#));
-        assert!(script.contains(r#"starts with "ACQ-145""#));
-    }
-
-    #[test]
-    fn test_build_send_text_script_escapes_quotes() {
-        let script = build_send_text_script("ACQ-145", r#"echo "hello world""#);
-        assert!(script.contains(r#"write text "echo \"hello world\"""#));
-    }
-
-    #[test]
-    fn test_build_send_text_script_escapes_backslashes() {
-        let script = build_send_text_script("ACQ-145", r#"echo \n"#);
-        assert!(script.contains(r#"write text "echo \\n""#));
-    }
-
-    #[test]
     fn test_escape_applescript_basic() {
         assert_eq!(escape_applescript("hello"), "hello");
         assert_eq!(escape_applescript(r#"say "hi""#), r#"say \"hi\""#);
@@ -504,7 +432,6 @@ mod tests {
             session: r#"sess"inject"#.to_string(),
             worktree_path: r#"/path/"inject"#.to_string(),
             env_vars: HashMap::new(),
-            layout: super::super::types::TerminalLayout::Focus,
         };
         let script = build_create_script(&config);
         assert!(script.contains(r#"cd /path/\"inject"#));

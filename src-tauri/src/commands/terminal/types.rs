@@ -15,7 +15,6 @@ pub struct TerminalConfig {
     pub session: String,
     pub worktree_path: String,
     pub env_vars: HashMap<String, String>,
-    pub layout: TerminalLayout,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
