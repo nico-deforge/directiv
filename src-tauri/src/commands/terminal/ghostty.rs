@@ -12,10 +12,6 @@ fn escape_applescript(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-fn shell_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
-}
-
 fn parse_version(version_str: &str) -> Option<(u32, u32, u32)> {
     let parts: Vec<&str> = version_str.split('.').collect();
     if parts.len() >= 3 {
@@ -104,36 +100,42 @@ end tell"#
 }
 
 fn build_create_script(config: &TerminalConfig) -> String {
-    let user_shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
     let worktree_path = escape_applescript(&config.worktree_path);
     let session = escape_applescript(&config.session);
-    let identifier = escape_applescript(&config.identifier);
-    let shell = escape_applescript(&user_shell);
     let tmux_cmd = format!("tmux attach -t {session}");
 
-    let env_prefix = if config.env_vars.is_empty() {
+    let env_line = if config.env_vars.is_empty() {
         String::new()
     } else {
         let mut pairs: Vec<String> = config
             .env_vars
             .iter()
             .map(|(k, v)| {
-                let quoted = shell_quote(v);
-                format!("{}={}", escape_applescript(k), escape_applescript(&quoted))
+                format!(
+                    "\"{}={}\"",
+                    escape_applescript(k),
+                    escape_applescript(v)
+                )
             })
             .collect();
         pairs.sort();
-        format!("env {} ", pairs.join(" "))
+        format!(
+            "\n    set environment variables of cfg to {{{}}}",
+            pairs.join(", ")
+        )
     };
 
     format!(
         r#"tell application "Ghostty"
     activate
     set cfg to new surface configuration
-    set initial working directory of cfg to "{worktree_path}"
-    set command of cfg to "{env_prefix}{shell} -lc '{tmux_cmd}'"
-    set title of cfg to "{identifier}"
-    new window with cfg
+    set initial working directory of cfg to "{worktree_path}"{env_line}
+    set win to new window with configuration cfg
+    delay 0.5
+    set term to terminal 1 of selected tab of win
+    input text "{tmux_cmd}" to term
+    send key "enter" to term
+    focus term
 end tell"#
     )
 }
@@ -388,11 +390,16 @@ mod tests {
         assert!(script.contains("activate"));
         assert!(script.contains("set cfg to new surface configuration"));
         assert!(script.contains(r#"set initial working directory of cfg to "/path/to/worktree""#));
-        assert!(script.contains("tmux attach -t ACQ-145"));
-        assert!(script.contains("new window with cfg"));
-        assert!(script.contains(r#"set title of cfg to "ACQ-145""#));
-        // Env vars should appear shell-quoted in the command, sorted alphabetically
-        assert!(script.contains("env DIRECTIV_SESSION='ACQ-145' DIRECTIV_TASK='ACQ-145' DIRECTIV_WORKTREE='/path/to/worktree'"));
+        assert!(script.contains("new window with configuration cfg"));
+        // After window creation, sends tmux command via input text + send key
+        assert!(script.contains(r#"input text "tmux attach -t ACQ-145" to term"#));
+        assert!(script.contains(r#"send key "enter" to term"#));
+        assert!(script.contains("focus term"));
+        // Env vars use native Ghostty surface configuration property, sorted alphabetically
+        assert!(script.contains(r#"set environment variables of cfg to {"DIRECTIV_SESSION=ACQ-145", "DIRECTIV_TASK=ACQ-145", "DIRECTIV_WORKTREE=/path/to/worktree"}"#));
+        // Should not contain shell wrapper or env prefix
+        assert!(!script.contains("env "));
+        assert!(!script.contains("set command of cfg"));
     }
 
     #[test]
@@ -404,9 +411,11 @@ mod tests {
             env_vars: HashMap::new(),
         };
         let script = build_create_script(&config);
-        // No "env " prefix when env_vars is empty
-        assert!(!script.contains("env "));
-        assert!(script.contains("tmux attach -t ACQ-145"));
+        // No environment variables line when env_vars is empty
+        assert!(!script.contains("environment variables"));
+        assert!(script.contains(r#"input text "tmux attach -t ACQ-145" to term"#));
+        assert!(script.contains(r#"send key "enter" to term"#));
+        assert!(script.contains("focus term"));
     }
 
     #[test]
@@ -427,9 +436,9 @@ mod tests {
             ]),
         };
         let script = build_create_script(&config);
-        // Values are shell-quoted, then AppleScript-escaped
-        assert!(script.contains(r#"DIRECTIV_TASK='task \"with quotes\"'"#));
-        assert!(script.contains(r"DIRECTIV_WORKTREE='path\\with\\backslashes'"));
+        // Values are AppleScript-escaped in the environment variables list
+        assert!(script.contains(r#""DIRECTIV_TASK=task \"with quotes\"""#));
+        assert!(script.contains(r#""DIRECTIV_WORKTREE=path\\with\\backslashes""#));
     }
 
     #[test]
@@ -444,7 +453,6 @@ mod tests {
         assert!(
             script.contains(r#"set initial working directory of cfg to "/path/with \"quotes\"""#)
         );
-        assert!(script.contains(r#"set title of cfg to "task \"special\"""#));
     }
 
     #[test]
