@@ -32,4 +32,11 @@ pub trait TerminalController {
         terminal_ref: &TerminalRef,
         text: &str,
     ) -> impl std::future::Future<Output = Result<(), String>> + Send;
+
+    /// List all terminal sessions open in the emulator.
+    /// Returns a Vec of (identifier, name_or_working_dir) pairs.
+    fn list_sessions(
+        &self,
+        app: &tauri::AppHandle,
+    ) -> impl std::future::Future<Output = Result<Vec<(String, String)>, String>> + Send;
 }

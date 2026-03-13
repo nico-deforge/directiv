@@ -207,6 +207,31 @@ async fn run_osascript(
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// Build an AppleScript that lists all iTerm2 sessions with their unique IDs and names.
+/// Returns lines of "window,tab,session|name".
+fn build_list_sessions_script() -> String {
+    r#"tell application "iTerm2"
+    set output to ""
+    set winCount to count of windows
+    repeat with w from 1 to winCount
+        set theWindow to window w
+        set tabCount to count of tabs of theWindow
+        repeat with t from 1 to tabCount
+            set theTab to tab t of theWindow
+            set sessCount to count of sessions of theTab
+            repeat with s from 1 to sessCount
+                set theSession to session s of theTab
+                set sessName to name of theSession
+                set sessId to (w as text) & "," & (t as text) & "," & (s as text)
+                set output to output & sessId & "|" & sessName & linefeed
+            end repeat
+        end repeat
+    end repeat
+    return output
+end tell"#
+        .to_string()
+}
+
 impl TerminalController for ITermController {
     async fn find_session(
         &self,
@@ -297,6 +322,32 @@ impl TerminalController for ITermController {
         }
 
         Ok(())
+    }
+
+    async fn list_sessions(&self, app: &tauri::AppHandle) -> Result<Vec<(String, String)>, String> {
+        let script = build_list_sessions_script();
+        let result = run_osascript(app, &script, "list_sessions");
+
+        let stdout = match result.await {
+            Ok(s) => s,
+            Err(e) => {
+                if e.contains("not running") || e.contains("Not running") {
+                    return Ok(vec![]);
+                }
+                return Err(e);
+            }
+        };
+
+        let sessions = stdout
+            .lines()
+            .filter(|line| !line.is_empty())
+            .filter_map(|line| {
+                let (id, name) = line.split_once('|')?;
+                Some((id.trim().to_string(), name.trim().to_string()))
+            })
+            .collect();
+
+        Ok(sessions)
     }
 }
 
@@ -461,5 +512,15 @@ mod tests {
         let env_vars = HashMap::new();
         let result = build_env_string(&env_vars);
         assert_eq!(result, "");
+    }
+
+    #[test]
+    fn test_build_list_sessions_script() {
+        let script = build_list_sessions_script();
+        assert!(script.contains(r#"tell application "iTerm2""#));
+        assert!(script.contains("name of theSession"));
+        assert!(script.contains("count of windows"));
+        assert!(script.contains("count of tabs"));
+        assert!(script.contains("count of sessions"));
     }
 }
