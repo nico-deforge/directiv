@@ -172,7 +172,6 @@ export async function buildClaudeCommand(
 export interface StartTaskParams {
   issueId: string;
   identifier: string;
-  title: string;
   repoPath: string;
   terminal: string;
   terminalLayout?: TerminalLayout;
