@@ -186,13 +186,6 @@ export interface TerminalStatus {
 
 // --- Config ---
 
-export const TERMINAL_MODES = {
-  INTERNAL: "internal",
-  EXTERNAL: "external",
-} as const;
-
-export type TerminalMode = (typeof TERMINAL_MODES)[keyof typeof TERMINAL_MODES];
-
 export const TERMINAL_LAYOUTS = {
   FOCUS: "focus",
   SIDE_BY_SIDE: "side-by-side",
@@ -237,7 +230,6 @@ export interface LinearOrgConfig {
 
 export interface DirectivConfig {
   terminal: TerminalEmulator;
-  terminalMode?: TerminalMode;
   terminalLayout?: TerminalLayout;
   editor: CodeEditor;
   workspaces: WorkspaceConfig[];

@@ -103,8 +103,7 @@ function DependencyGraphInner() {
   const { data: blockedRepos } = useGitHubRepoAccess(repos);
   const { data: allWorktrees } = useAllWorktrees(repos);
   const { data: myActiveIdentifiers } = useLinearMyActiveIdentifiers(teamIds);
-  const { statusMap: terminalStatusMap, isExternalMode } =
-    useTerminalStatuses();
+  const { statusMap: terminalStatusMap } = useTerminalStatuses();
 
   const repoNwoById = useMemo(() => {
     const map = new Map<string, string>();
@@ -243,10 +242,9 @@ function DependencyGraphInner() {
       const repoNwo = wtInfo ? repoNwoById.get(wtInfo.repoId) : undefined;
       const githubRepoBlocked = !!(repoNwo && blockedRepos?.has(repoNwo));
       const hasSession = sessionByName.has(sessionName);
-      const terminalActive =
-        isExternalMode && hasSession
-          ? (terminalStatusMap.get(sessionName) ?? false)
-          : null;
+      const terminalActive = hasSession
+        ? (terminalStatusMap.get(sessionName) ?? false)
+        : null;
       return {
         id: task.id,
         type: "unifiedTask",
@@ -310,7 +308,6 @@ function DependencyGraphInner() {
     blockedRepos,
     linearIssuesByBranch,
     terminalStatusMap,
-    isExternalMode,
   ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);

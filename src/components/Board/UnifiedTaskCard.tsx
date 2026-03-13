@@ -43,7 +43,6 @@ import {
   openTerminalWithToast,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { useTerminalStore } from "../../stores/terminalStore";
 import {
   openEditor,
   tmuxKillSession,
@@ -199,7 +198,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setKillingSession(true);
     try {
       await tmuxKillSession(session.name);
-      useTerminalStore.getState().closeTerminal(session.name);
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
       toastError(err);
@@ -224,9 +222,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         beforeRemove: repo?.beforeRemove,
         skipHooks,
       });
-      if (session) {
-        useTerminalStore.getState().closeTerminal(session.name);
-      }
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
@@ -263,15 +258,13 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       repoPath,
       key ?? pendingSkillKey,
     );
-    const { terminalMode, terminalLayout } = useSettingsStore.getState().config;
+    const { terminalLayout } = useSettingsStore.getState().config;
     startTask.mutate(
       {
         issueId: task.id,
         identifier: task.identifier,
-        title: task.title,
         repoPath,
         terminal,
-        terminalMode,
         terminalLayout,
         copyPaths: repo?.copyPaths,
         onStart: repo?.onStart,
@@ -331,10 +324,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         {
           issueId: task.id,
           identifier: task.identifier,
-          title: task.title,
           repoPath,
           terminal,
-          terminalMode: existingConfig.terminalMode,
           terminalLayout: existingConfig.terminalLayout,
           copyPaths: repo?.copyPaths,
           onStart: repo?.onStart,
@@ -375,23 +366,15 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   function handleOpenTerminal() {
     if (!session) return;
-    const { terminalMode, terminalLayout } = useSettingsStore.getState().config;
-    if (terminalMode === "external") {
-      if (!worktree) return;
-      openTerminalWithToast(
-        terminal,
-        session.name,
-        task.identifier,
-        worktree.path,
-        terminalLayout,
-      );
-    } else {
-      useTerminalStore.getState().openTerminal({
-        sessionName: session.name,
-        identifier: task.identifier,
-        title: task.title,
-      });
-    }
+    if (!worktree) return;
+    const { terminalLayout } = useSettingsStore.getState().config;
+    openTerminalWithToast(
+      terminal,
+      session.name,
+      task.identifier,
+      worktree.path,
+      terminalLayout,
+    );
   }
 
   async function handleOpenEditor() {

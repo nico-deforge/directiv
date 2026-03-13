@@ -7,7 +7,6 @@ import { useAuthStore, AUTH_PROVIDER_STATUS } from "../../stores/authStore";
 import { useWorkspaceInit } from "../../hooks/useWorkspace";
 import { AuthGate } from "../Auth/AuthGate";
 import { OnboardingGate } from "../Onboarding/OnboardingGate";
-import { useSessionRecovery } from "../../hooks/useSessionRecovery";
 
 export function RootLayout() {
   const loadFromDisk = useSettingsStore((s) => s.loadFromDisk);
@@ -58,9 +57,6 @@ export function RootLayout() {
 
   // Initialize workspaces after config is loaded
   useWorkspaceInit();
-
-  // Recover tmux sessions from previous launch
-  useSessionRecovery();
 
   if (!isLoaded) {
     return (

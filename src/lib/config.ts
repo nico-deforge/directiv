@@ -7,7 +7,6 @@ import type {
 
 export const defaultConfig: DirectivConfig = {
   terminal: "ghostty",
-  terminalMode: "internal",
   editor: "zed",
   workspaces: [],
   linear: {},
@@ -60,7 +59,6 @@ export function validateConfig(
 ): DirectivConfig {
   return {
     terminal: config.terminal ?? defaultConfig.terminal,
-    terminalMode: config.terminalMode ?? defaultConfig.terminalMode,
     editor: config.editor ?? defaultConfig.editor,
     workspaces: (config.workspaces ?? defaultConfig.workspaces).map(
       (ws): WorkspaceConfig => ({
