@@ -120,6 +120,7 @@ export type UnifiedTaskNodeData = {
   repos: DiscoveredRepo[];
   claudeStatus: ClaudeSessionStatus | null;
   githubRepoBlocked: boolean;
+  terminalActive: boolean | null;
   onDragStart?: (nodeId: string, e: React.MouseEvent) => void;
   isBeingTargeted?: boolean;
 };
@@ -136,6 +137,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     repos,
     claudeStatus,
     githubRepoBlocked,
+    terminalActive,
     onDragStart,
     isBeingTargeted,
   } = data;
@@ -482,6 +484,20 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <AlertTriangle className="size-3" />
               Needs Claude Input
             </button>
+          )}
+          {hasSession && terminalActive !== null && (
+            <span
+              className={`${claudeWaiting ? "" : "ml-auto"} flex items-center`}
+              title={terminalActive ? "Terminal open" : "Terminal closed"}
+            >
+              <Terminal
+                className={`size-3.5 ${
+                  terminalActive
+                    ? "text-[var(--accent-green)]"
+                    : "text-[var(--text-muted)]"
+                }`}
+              />
+            </span>
           )}
         </div>
         <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
