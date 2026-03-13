@@ -224,7 +224,6 @@ export function ProjectSelector() {
 function NewWorktreeSection() {
   const repos = useWorkspaceRepos();
   const terminal = useSettingsStore((s) => s.config.terminal);
-  const terminalMode = useSettingsStore((s) => s.config.terminalMode);
   const terminalLayout = useSettingsStore((s) => s.config.terminalLayout);
   const startFreeTask = useStartFreeTask();
 
@@ -255,7 +254,6 @@ function NewWorktreeSection() {
         branchName: branchName.trim(),
         repoPath: repo.path,
         terminal,
-        terminalMode,
         terminalLayout,
         copyPaths: repo.copyPaths,
         onStart: repo.onStart,
@@ -303,7 +301,6 @@ function NewWorktreeSection() {
           branchName: branchName.trim(),
           repoPath,
           terminal,
-          terminalMode,
           terminalLayout,
           copyPaths: repo?.copyPaths,
           onStart: repo?.onStart,
