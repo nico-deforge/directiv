@@ -43,13 +43,13 @@ import {
   openTerminalWithToast,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { useTerminalStore } from "../../stores/terminalStore";
 import {
   openEditor,
   tmuxKillSession,
   worktreeCreateExistingBranch,
 } from "../../lib/tauri";
 import { BranchSelector } from "../shared/BranchSelector";
+import { QuickPeek } from "./QuickPeek";
 
 type WorkflowStatus =
   | "todo"
@@ -120,6 +120,7 @@ export type UnifiedTaskNodeData = {
   repos: DiscoveredRepo[];
   claudeStatus: ClaudeSessionStatus | null;
   githubRepoBlocked: boolean;
+  terminalActive: boolean | null;
   onDragStart?: (nodeId: string, e: React.MouseEvent) => void;
   isBeingTargeted?: boolean;
 };
@@ -136,6 +137,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     repos,
     claudeStatus,
     githubRepoBlocked,
+    terminalActive,
     onDragStart,
     isBeingTargeted,
   } = data;
@@ -196,7 +198,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setKillingSession(true);
     try {
       await tmuxKillSession(session.name);
-      useTerminalStore.getState().closeTerminal(session.name);
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
       toastError(err);
@@ -221,9 +222,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         beforeRemove: repo?.beforeRemove,
         skipHooks,
       });
-      if (session) {
-        useTerminalStore.getState().closeTerminal(session.name);
-      }
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
@@ -260,15 +258,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       repoPath,
       key ?? pendingSkillKey,
     );
-    const terminalMode = useSettingsStore.getState().config.terminalMode;
+    const { terminalLayout } = useSettingsStore.getState().config;
     startTask.mutate(
       {
         issueId: task.id,
         identifier: task.identifier,
-        title: task.title,
         repoPath,
         terminal,
-        terminalMode,
+        terminalLayout,
         copyPaths: repo?.copyPaths,
         onStart: repo?.onStart,
         baseBranch,
@@ -322,14 +319,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         resetToBase,
         force,
       );
+      const existingConfig = useSettingsStore.getState().config;
       startTask.mutate(
         {
           issueId: task.id,
           identifier: task.identifier,
-          title: task.title,
           repoPath,
           terminal,
-          terminalMode: useSettingsStore.getState().config.terminalMode,
+          terminalLayout: existingConfig.terminalLayout,
           copyPaths: repo?.copyPaths,
           onStart: repo?.onStart,
           baseBranch,
@@ -369,16 +366,15 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   function handleOpenTerminal() {
     if (!session) return;
-    const terminalMode = useSettingsStore.getState().config.terminalMode;
-    if (terminalMode === "external") {
-      openTerminalWithToast(terminal, session.name);
-    } else {
-      useTerminalStore.getState().openTerminal({
-        sessionName: session.name,
-        identifier: task.identifier,
-        title: task.title,
-      });
-    }
+    if (!worktree) return;
+    const { terminalLayout } = useSettingsStore.getState().config;
+    openTerminalWithToast(
+      terminal,
+      session.name,
+      task.identifier,
+      worktree.path,
+      terminalLayout,
+    );
   }
 
   async function handleOpenEditor() {
@@ -419,7 +415,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     [id, onDragStart],
   );
 
-  return (
+  const isTerminalActive = terminalActive !== null ? terminalActive : false;
+
+  const card = (
     <div
       className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative ${
         isBeingTargeted
@@ -472,6 +470,20 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <AlertTriangle className="size-3" />
               Needs Claude Input
             </button>
+          )}
+          {hasSession && terminalActive !== null && (
+            <span
+              className={`${claudeWaiting ? "" : "ml-auto"} flex items-center`}
+              title={terminalActive ? "Terminal open" : "Terminal closed"}
+            >
+              <Terminal
+                className={`size-3.5 ${
+                  terminalActive
+                    ? "text-[var(--accent-green)]"
+                    : "text-[var(--text-muted)]"
+                }`}
+              />
+            </span>
           )}
         </div>
         <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
@@ -823,4 +835,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       )}
     </div>
   );
+
+  if (hasSession) {
+    return (
+      <QuickPeek sessionName={session.name} active={isTerminalActive}>
+        {card}
+      </QuickPeek>
+    );
+  }
+
+  return card;
 }

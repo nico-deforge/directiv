@@ -22,6 +22,7 @@ import {
 } from "../../hooks/useLinear";
 import { useCurrentLinearTeamIds } from "../../hooks/useLinearConfig";
 import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
+import { useTerminalStatuses } from "../../hooks/useTerminalStatuses";
 import { useGitHubMyOpenPRs, useGitHubRepoAccess } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
 import {
@@ -102,6 +103,7 @@ function DependencyGraphInner() {
   const { data: blockedRepos } = useGitHubRepoAccess(repos);
   const { data: allWorktrees } = useAllWorktrees(repos);
   const { data: myActiveIdentifiers } = useLinearMyActiveIdentifiers(teamIds);
+  const { statusMap: terminalStatusMap } = useTerminalStatuses();
 
   const repoNwoById = useMemo(() => {
     const map = new Map<string, string>();
@@ -239,6 +241,10 @@ function DependencyGraphInner() {
       const sessionName = toSessionName(task.identifier);
       const repoNwo = wtInfo ? repoNwoById.get(wtInfo.repoId) : undefined;
       const githubRepoBlocked = !!(repoNwo && blockedRepos?.has(repoNwo));
+      const hasSession = sessionByName.has(sessionName);
+      const terminalActive = hasSession
+        ? (terminalStatusMap.get(sessionName) ?? false)
+        : null;
       return {
         id: task.id,
         type: "unifiedTask",
@@ -252,6 +258,7 @@ function DependencyGraphInner() {
           repos,
           claudeStatus: claudeStates?.get(sessionName) ?? null,
           githubRepoBlocked,
+          terminalActive,
         },
         draggable: false,
       };
@@ -300,6 +307,7 @@ function DependencyGraphInner() {
     repoNwoById,
     blockedRepos,
     linearIssuesByBranch,
+    terminalStatusMap,
   ]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);

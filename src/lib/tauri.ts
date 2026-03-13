@@ -6,6 +6,7 @@ import type {
   ClaudeSkillEntry,
   DiscoveredRepo,
   SkillOverrides,
+  TerminalStatus,
 } from "../types";
 
 // --- Workspace commands ---
@@ -161,8 +162,21 @@ export function runHooks(
 export function openTerminal(
   emulator: string,
   session: string,
+  identifier: string,
+  worktreePath: string,
+  layout?: string,
 ): Promise<boolean> {
-  return invoke<boolean>("open_terminal", { emulator, session });
+  return invoke<boolean>("open_terminal", {
+    emulator,
+    session,
+    identifier,
+    worktreePath,
+    layout,
+  });
+}
+
+export function queryTerminals(emulator: string): Promise<TerminalStatus[]> {
+  return invoke<TerminalStatus[]>("query_terminals", { emulator });
 }
 
 // --- Editor commands ---

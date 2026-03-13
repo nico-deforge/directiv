@@ -176,14 +176,23 @@ export interface ClaudeSkillEntry {
   pluginName: string | null;
 }
 
+// --- Terminal Status ---
+
+export interface TerminalStatus {
+  sessionName: string;
+  identifier: string;
+  active: boolean;
+}
+
 // --- Config ---
 
-export const TERMINAL_MODES = {
-  INTERNAL: "internal",
-  EXTERNAL: "external",
+export const TERMINAL_LAYOUTS = {
+  FOCUS: "focus",
+  SIDE_BY_SIDE: "side-by-side",
 } as const;
 
-export type TerminalMode = (typeof TERMINAL_MODES)[keyof typeof TERMINAL_MODES];
+export type TerminalLayout =
+  (typeof TERMINAL_LAYOUTS)[keyof typeof TERMINAL_LAYOUTS];
 
 export type TerminalEmulator = "ghostty" | "iterm2";
 export type CodeEditor = "zed" | "cursor" | "vscode" | "code";
@@ -221,7 +230,7 @@ export interface LinearOrgConfig {
 
 export interface DirectivConfig {
   terminal: TerminalEmulator;
-  terminalMode?: TerminalMode;
+  terminalLayout?: TerminalLayout;
   editor: CodeEditor;
   workspaces: WorkspaceConfig[];
   linear: Record<string, LinearOrgConfig>;

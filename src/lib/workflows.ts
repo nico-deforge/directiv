@@ -15,8 +15,7 @@ import {
   getPluginDir,
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
-import type { SkillOverrides, TerminalMode } from "../types";
-import { useTerminalStore } from "../stores/terminalStore";
+import type { SkillOverrides, TerminalLayout } from "../types";
 
 // --- Typed errors for worktree creation ---
 
@@ -173,10 +172,9 @@ export async function buildClaudeCommand(
 export interface StartTaskParams {
   issueId: string;
   identifier: string;
-  title: string;
   repoPath: string;
   terminal: string;
-  terminalMode?: TerminalMode;
+  terminalLayout?: TerminalLayout;
   copyPaths?: string[];
   onStart?: string[];
   baseBranch?: string;
@@ -269,27 +267,25 @@ export async function removeWorktreeFlow({
 export function openTerminalWithToast(
   terminal: string,
   sessionName: string,
+  identifier: string,
+  worktreePath: string,
+  layout?: TerminalLayout,
 ): void {
-  openTerminal(terminal, sessionName)
-    .then((alreadyOpen) => {
-      if (alreadyOpen) {
-        toast.success("Terminal already open");
-      }
-    })
-    .catch((err) => {
+  openTerminal(terminal, sessionName, identifier, worktreePath, layout).catch(
+    (err) => {
       toast.warning(
         `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
       );
-    });
+    },
+  );
 }
 
 export async function startTask({
   issueId,
   identifier,
-  title,
   repoPath,
   terminal,
-  terminalMode,
+  terminalLayout,
   copyPaths,
   onStart,
   baseBranch,
@@ -309,15 +305,13 @@ export async function startTask({
   const claudeCmd = await buildClaudeCommand(skill, identifier, usePlugin);
   await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
-  if (terminalMode === "external") {
-    openTerminalWithToast(terminal, sessionName);
-  } else {
-    useTerminalStore.getState().openTerminal({
-      sessionName,
-      identifier,
-      title,
-    });
-  }
+  openTerminalWithToast(
+    terminal,
+    sessionName,
+    identifier,
+    worktree.path,
+    terminalLayout,
+  );
 
   await updateLinearStatusToStarted(issueId).catch((err) => {
     toast.warning(
@@ -330,7 +324,7 @@ interface StartFreeTaskParams {
   branchName: string;
   repoPath: string;
   terminal: string;
-  terminalMode?: TerminalMode;
+  terminalLayout?: TerminalLayout;
   copyPaths?: string[];
   onStart?: string[];
   baseBranch?: string;
@@ -341,7 +335,7 @@ export async function startFreeTask({
   branchName,
   repoPath,
   terminal,
-  terminalMode,
+  terminalLayout,
   copyPaths,
   onStart,
   baseBranch,
@@ -358,15 +352,13 @@ export async function startFreeTask({
   const sessionName = toSessionName(branchName);
   await ensureSession(sessionName, worktree.path, onStart);
 
-  if (terminalMode === "external") {
-    openTerminalWithToast(terminal, sessionName);
-  } else {
-    useTerminalStore.getState().openTerminal({
-      sessionName,
-      identifier: branchName,
-      title: branchName,
-    });
-  }
+  openTerminalWithToast(
+    terminal,
+    sessionName,
+    branchName,
+    worktree.path,
+    terminalLayout,
+  );
 }
 
 async function updateLinearStatusToStarted(issueId: string): Promise<void> {
