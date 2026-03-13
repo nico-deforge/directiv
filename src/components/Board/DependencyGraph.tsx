@@ -40,9 +40,11 @@ import {
 } from "../../stores/projectStore";
 import { UnifiedTaskCard, type UnifiedTaskNodeData } from "./UnifiedTaskCard";
 import { OrphanTaskCard, type OrphanTaskNodeData } from "./OrphanTaskCard";
+import { GroupLabelNode, type GroupLabelNodeType } from "./GroupLabelNode";
 import { DragConnectionLine } from "./DragConnectionLine";
 import {
   calculatePositions,
+  calculateGroupedPositions,
   calculateEdges,
   CARD_WIDTH,
   CARD_HEIGHT,
@@ -77,6 +79,7 @@ interface DragState {
 const nodeTypes = {
   unifiedTask: UnifiedTaskCard,
   orphanTask: OrphanTaskCard,
+  groupLabel: GroupLabelNode,
 };
 
 const EDGE_COLOR = { dark: "#737373", light: "#8a8a84" } as const;
@@ -244,6 +247,61 @@ function DependencyGraphInner() {
     }
 
     const activeTasks = tasks ?? [];
+
+    // Grouped layout for cross-project "Other issues" view
+    if (selectedProjectId === OTHER_ISSUES_PROJECT_ID) {
+      const { nodes: groupPositions, labels } =
+        calculateGroupedPositions(activeTasks);
+      const posById = new Map(groupPositions.map((p) => [p.id, p]));
+
+      const labelNodes: GroupLabelNodeType[] = labels.map((lbl) => ({
+        id: `group-label-${lbl.groupKey}`,
+        type: "groupLabel",
+        position: { x: lbl.x, y: lbl.y },
+        data: { label: lbl.label },
+        draggable: false,
+        selectable: false,
+      }));
+
+      const taskNodes: Node<UnifiedTaskNodeData>[] = activeTasks.map((task) => {
+        const pos = posById.get(task.id) ?? { x: 0, y: 0 };
+        const wtInfo = worktreeByBranch.get(task.identifier.toLowerCase());
+        const pr =
+          prByBranch.get(task.identifier.toLowerCase()) ??
+          (wtInfo
+            ? prByBranch.get(wtInfo.worktree.branch.toLowerCase())
+            : null);
+        const sessionName = toSessionName(task.identifier);
+        const repoNwo = wtInfo ? repoNwoById.get(wtInfo.repoId) : undefined;
+        const githubRepoBlocked = !!(repoNwo && blockedRepos?.has(repoNwo));
+        const hasSession = sessionByName.has(sessionName);
+        const terminalActive = hasSession
+          ? (terminalStatusMap.get(sessionName) ?? false)
+          : null;
+        return {
+          id: task.id,
+          type: "unifiedTask" as const,
+          position: { x: pos.x, y: pos.y },
+          data: {
+            task,
+            worktree: wtInfo?.worktree ?? null,
+            worktreeRepoPath: wtInfo?.repoPath ?? null,
+            session: sessionByName.get(sessionName) ?? null,
+            pullRequest: pr ?? null,
+            repos,
+            claudeStatus: claudeStates?.get(sessionName) ?? null,
+            githubRepoBlocked,
+            terminalActive,
+          },
+          draggable: false,
+        };
+      });
+
+      return {
+        nextNodes: [...labelNodes, ...taskNodes],
+        nextEdges: [],
+      };
+    }
 
     // Calculate positions for dependency graph
     const positions = calculatePositions(activeTasks);

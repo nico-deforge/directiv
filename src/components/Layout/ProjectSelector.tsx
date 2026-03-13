@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { toastError } from "../../lib/toast";
 import { Link } from "@tanstack/react-router";
 import {
-  CircleDot,
   Folder,
   FolderOpen,
   GitBranch,
@@ -14,6 +13,7 @@ import {
   X,
   ExternalLink,
   Terminal,
+  Kanban,
   Plus,
   Settings,
   AlertCircle,
@@ -201,7 +201,7 @@ export function ProjectSelector() {
                 : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
             }`}
           >
-            <CircleDot className="size-4 shrink-0" />
+            <Kanban className="size-4 shrink-0" />
             <span className="truncate text-sm">Other issues</span>
           </button>
         )}
