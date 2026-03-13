@@ -173,6 +173,20 @@ end tell"#
     )
 }
 
+fn build_list_sessions_script() -> String {
+    r#"tell application "Ghostty"
+    set output to ""
+    set allTerminals to every terminal
+    repeat with t in allTerminals
+        set tid to id of t
+        set ttitle to title of t
+        set output to output & tid & "|" & ttitle & linefeed
+    end repeat
+    return output
+end tell"#
+        .to_string()
+}
+
 impl TerminalController for GhosttyController {
     async fn find_session(
         &self,
@@ -326,6 +340,38 @@ impl TerminalController for GhosttyController {
 
         Ok(())
     }
+
+    async fn list_sessions(&self, app: &tauri::AppHandle) -> Result<Vec<(String, String)>, String> {
+        check_ghostty_version(app).await?;
+        let script = build_list_sessions_script();
+        let output = app
+            .shell()
+            .command("osascript")
+            .args(["-e", &script])
+            .output()
+            .await
+            .map_err(|e| format!("Ghostty list_sessions failed: {e}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("Not running") || stderr.contains("not running") {
+                return Ok(vec![]);
+            }
+            return Err(format!("Ghostty list_sessions failed: {stderr}"));
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let sessions = stdout
+            .lines()
+            .filter(|line| !line.is_empty())
+            .filter_map(|line| {
+                let (id, title) = line.split_once('|')?;
+                Some((id.trim().to_string(), title.trim().to_string()))
+            })
+            .collect();
+
+        Ok(sessions)
+    }
 }
 
 #[cfg(test)]
@@ -381,7 +427,10 @@ mod tests {
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::from([
                 ("DIRECTIV_TASK".to_string(), "ACQ-145".to_string()),
-                ("DIRECTIV_WORKTREE".to_string(), "/path/to/worktree".to_string()),
+                (
+                    "DIRECTIV_WORKTREE".to_string(),
+                    "/path/to/worktree".to_string(),
+                ),
                 ("DIRECTIV_SESSION".to_string(), "ACQ-145".to_string()),
             ]),
             layout: super::super::types::TerminalLayout::Focus,
@@ -420,8 +469,14 @@ mod tests {
             session: "ACQ-145".to_string(),
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::from([
-                ("DIRECTIV_TASK".to_string(), r#"task "with quotes""#.to_string()),
-                ("DIRECTIV_WORKTREE".to_string(), r"path\with\backslashes".to_string()),
+                (
+                    "DIRECTIV_TASK".to_string(),
+                    r#"task "with quotes""#.to_string(),
+                ),
+                (
+                    "DIRECTIV_WORKTREE".to_string(),
+                    r"path\with\backslashes".to_string(),
+                ),
             ]),
             layout: super::super::types::TerminalLayout::Focus,
         };
@@ -501,5 +556,14 @@ mod tests {
         assert!((2, 0, 0) >= MIN_VERSION);
         assert!((1, 2, 9) < MIN_VERSION);
         assert!((0, 9, 0) < MIN_VERSION);
+    }
+
+    #[test]
+    fn test_build_list_sessions_script() {
+        let script = build_list_sessions_script();
+        assert!(script.contains(r#"tell application "Ghostty""#));
+        assert!(script.contains("every terminal"));
+        assert!(script.contains("id of t"));
+        assert!(script.contains("title of t"));
     }
 }

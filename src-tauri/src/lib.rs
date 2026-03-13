@@ -32,6 +32,7 @@ pub fn run() {
             commands::tmux::tmux_capture_pane,
             commands::tmux::tmux_wait_for_ready,
             commands::terminal::open_terminal,
+            commands::terminal::query_terminals,
             commands::terminal::open_editor,
             commands::hooks::run_hooks,
             commands::config::load_config,

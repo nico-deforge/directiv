@@ -176,6 +176,14 @@ export interface ClaudeSkillEntry {
   pluginName: string | null;
 }
 
+// --- Terminal Status ---
+
+export interface TerminalStatus {
+  sessionName: string;
+  identifier: string;
+  active: boolean;
+}
+
 // --- Config ---
 
 export const TERMINAL_MODES = {

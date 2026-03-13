@@ -6,6 +6,7 @@ import type {
   ClaudeSkillEntry,
   DiscoveredRepo,
   SkillOverrides,
+  TerminalStatus,
 } from "../types";
 
 // --- Workspace commands ---
@@ -172,6 +173,10 @@ export function openTerminal(
     worktreePath,
     layout,
   });
+}
+
+export function queryTerminals(emulator: string): Promise<TerminalStatus[]> {
+  return invoke<TerminalStatus[]>("query_terminals", { emulator });
 }
 
 // --- Editor commands ---

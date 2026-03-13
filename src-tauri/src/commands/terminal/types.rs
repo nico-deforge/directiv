@@ -30,3 +30,11 @@ pub struct TerminalRef {
     pub identifier: String,
     pub emulator: Emulator,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalStatus {
+    pub session_name: String,
+    pub identifier: String,
+    pub active: bool,
+}
