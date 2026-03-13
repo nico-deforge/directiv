@@ -12,6 +12,7 @@ interface TerminalState {
   openTerminal: (tab: TerminalTab) => void;
   closeTerminal: (sessionName: string) => void;
   focusTab: (tab: "board" | string) => void;
+  registerSession: (tab: TerminalTab) => void;
 }
 
 export const useTerminalStore = create<TerminalState>()((set, get) => ({
@@ -38,4 +39,10 @@ export const useTerminalStore = create<TerminalState>()((set, get) => ({
   },
 
   focusTab: (tab) => set({ activeTab: tab }),
+
+  registerSession: (tab) => {
+    const { tabs } = get();
+    if (tabs.some((t) => t.sessionName === tab.sessionName)) return;
+    set({ tabs: [...tabs, tab] });
+  },
 }));
