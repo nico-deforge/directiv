@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryTerminals } from "../lib/tauri";
 import { useSettingsStore } from "../stores/settingsStore";
@@ -15,12 +16,15 @@ export function useTerminalStatuses() {
     refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
 
-  const statusMap = new Map<string, boolean>();
-  if (query.data) {
-    for (const status of query.data) {
-      statusMap.set(status.sessionName, status.active);
+  const statusMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    if (query.data) {
+      for (const status of query.data) {
+        map.set(status.sessionName, status.active);
+      }
     }
-  }
+    return map;
+  }, [query.data]);
 
   return { statusMap, isExternalMode: terminalMode === "external" };
 }
