@@ -110,13 +110,7 @@ fn build_create_script(config: &TerminalConfig) -> String {
         let mut pairs: Vec<String> = config
             .env_vars
             .iter()
-            .map(|(k, v)| {
-                format!(
-                    "\"{}={}\"",
-                    escape_applescript(k),
-                    escape_applescript(v)
-                )
-            })
+            .map(|(k, v)| format!("\"{}={}\"", escape_applescript(k), escape_applescript(v)))
             .collect();
         pairs.sort();
         format!(
