@@ -10,6 +10,7 @@ import { TabBar } from "../Terminal/TabBar";
 import { TerminalPanel } from "../Terminal/TerminalPanel";
 import { AuthGate } from "../Auth/AuthGate";
 import { OnboardingGate } from "../Onboarding/OnboardingGate";
+import { useSessionRecovery } from "../../hooks/useSessionRecovery";
 
 export function RootLayout() {
   const loadFromDisk = useSettingsStore((s) => s.loadFromDisk);
@@ -62,6 +63,9 @@ export function RootLayout() {
 
   // Initialize workspaces after config is loaded
   useWorkspaceInit();
+
+  // Recover tmux sessions from previous launch
+  useSessionRecovery();
 
   if (!isLoaded) {
     return (
