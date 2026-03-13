@@ -263,7 +263,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       {
         issueId: task.id,
         identifier: task.identifier,
-        title: task.title,
         repoPath,
         terminal,
         terminalLayout,
@@ -325,7 +324,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         {
           issueId: task.id,
           identifier: task.identifier,
-          title: task.title,
           repoPath,
           terminal,
           terminalLayout: existingConfig.terminalLayout,
