@@ -19,6 +19,8 @@ import {
   useLinearProjectIssues,
   useLinearIssuesByBranches,
   useLinearMyActiveIdentifiers,
+  useLinearOtherIssues,
+  useLinearMyProjects,
 } from "../../hooks/useLinear";
 import { useCurrentLinearTeamIds } from "../../hooks/useLinearConfig";
 import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
@@ -31,7 +33,11 @@ import {
 } from "../../hooks/useBlockedByMutations";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorkspaceRepos } from "../../hooks/useWorkspace";
-import { useProjectStore, ORPHAN_PROJECT_ID } from "../../stores/projectStore";
+import {
+  useProjectStore,
+  ORPHAN_PROJECT_ID,
+  OTHER_ISSUES_PROJECT_ID,
+} from "../../stores/projectStore";
 import { UnifiedTaskCard, type UnifiedTaskNodeData } from "./UnifiedTaskCard";
 import { OrphanTaskCard, type OrphanTaskNodeData } from "./OrphanTaskCard";
 import { DragConnectionLine } from "./DragConnectionLine";
@@ -92,7 +98,19 @@ function DependencyGraphInner() {
 
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
 
-  const { data: tasks } = useLinearProjectIssues(selectedProjectId, teamIds);
+  const { data: linearProjects } = useLinearMyProjects();
+  const memberProjectIds = useMemo(
+    () => linearProjects?.map((p) => p.id),
+    [linearProjects],
+  );
+
+  const { data: projectTasks } = useLinearProjectIssues(
+    selectedProjectId,
+    teamIds,
+  );
+  const { data: otherTasks } = useLinearOtherIssues(memberProjectIds);
+  const tasks =
+    selectedProjectId === OTHER_ISSUES_PROJECT_ID ? otherTasks : projectTasks;
   const { data: sessions } = useTmuxSessions();
   const activeSessionNames = useMemo(
     () => (sessions ?? []).map((s) => s.name),
@@ -102,7 +120,7 @@ function DependencyGraphInner() {
   const { data: prs } = useGitHubMyOpenPRs();
   const { data: blockedRepos } = useGitHubRepoAccess(repos);
   const { data: allWorktrees } = useAllWorktrees(repos);
-  const { data: myActiveIdentifiers } = useLinearMyActiveIdentifiers(teamIds);
+  const { data: myActiveIdentifiers } = useLinearMyActiveIdentifiers();
   const { statusMap: terminalStatusMap } = useTerminalStatuses();
 
   const repoNwoById = useMemo(() => {
@@ -427,8 +445,12 @@ function DependencyGraphInner() {
   // Handle card drag start for creating dependencies
   const handleCardDragStart = useCallback(
     (nodeId: string, e: React.MouseEvent) => {
-      // Disable drag in orphan view
-      if (selectedProjectId === ORPHAN_PROJECT_ID) return;
+      // Disable drag in orphan and cross-project views
+      if (
+        selectedProjectId === ORPHAN_PROJECT_ID ||
+        selectedProjectId === OTHER_ISSUES_PROJECT_ID
+      )
+        return;
 
       // Use the actual circle element's center as the source position
       const circleEl = e.currentTarget as HTMLElement;

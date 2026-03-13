@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { toastError } from "../../lib/toast";
 import { Link } from "@tanstack/react-router";
 import {
+  CircleDot,
   Folder,
   FolderOpen,
   GitBranch,
@@ -22,6 +23,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useProjectStore,
   ORPHAN_PROJECT_ID,
+  OTHER_ISSUES_PROJECT_ID,
   type Project,
 } from "../../stores/projectStore";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -54,6 +56,7 @@ import { BranchSelector } from "../shared/BranchSelector";
 export function ProjectSelector() {
   const projects = useProjectStore((s) => s.projects);
   const hasOrphans = useProjectStore((s) => s.hasOrphans);
+  const hasOtherIssues = useProjectStore((s) => s.hasOtherIssues);
   const connectionStatus = useProjectStore((s) => s.connectionStatus);
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
   const selectProject = useProjectStore((s) => s.selectProject);
@@ -145,6 +148,7 @@ export function ProjectSelector() {
         {connectionStatus.status === "connected" &&
           startedProjects.length === 0 &&
           backlogProjects.length === 0 &&
+          !hasOtherIssues &&
           !hasOrphans && (
             <p className="px-4 py-2 text-sm text-[var(--text-muted)]">
               No active projects found
@@ -185,23 +189,34 @@ export function ProjectSelector() {
               ))}
           </>
         )}
+        {(hasOtherIssues || hasOrphans) && projects.length > 0 && (
+          <div className="mx-3 my-2 border-t border-[var(--border-default)]" />
+        )}
+        {hasOtherIssues && (
+          <button
+            onClick={() => selectProject(OTHER_ISSUES_PROJECT_ID)}
+            className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
+              selectedProjectId === OTHER_ISSUES_PROJECT_ID
+                ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <CircleDot className="size-4 shrink-0" />
+            <span className="truncate text-sm">Other issues</span>
+          </button>
+        )}
         {hasOrphans && (
-          <>
-            {projects.length > 0 && (
-              <div className="mx-3 my-2 border-t border-[var(--border-default)]" />
-            )}
-            <button
-              onClick={() => selectProject(ORPHAN_PROJECT_ID)}
-              className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
-                selectedProjectId === ORPHAN_PROJECT_ID
-                  ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                  : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              <GitBranch className="size-4 shrink-0" />
-              <span className="truncate text-sm">Other worktrees</span>
-            </button>
-          </>
+          <button
+            onClick={() => selectProject(ORPHAN_PROJECT_ID)}
+            className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
+              selectedProjectId === ORPHAN_PROJECT_ID
+                ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <GitBranch className="size-4 shrink-0" />
+            <span className="truncate text-sm">Other worktrees</span>
+          </button>
         )}
       </div>
       <ReviewRequestsSection />
