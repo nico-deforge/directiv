@@ -100,7 +100,7 @@ fn build_create_script(config: &TerminalConfig) -> String {
     let session = escape_applescript(&config.session);
     let display_name = escape_applescript(&display_name);
 
-    let tmux_cmd = format!("tmux set-option allow-rename off \\\\; -CC attach -t {session}");
+    let tmux_cmd = format!("tmux -CC set-option allow-rename off \\\\; attach -t {session}");
 
     let command = if config.env_vars.is_empty() {
         tmux_cmd
@@ -344,7 +344,7 @@ mod tests {
         let script = build_create_script(&config);
         assert!(script.contains("create window with default profile"));
         assert!(script.contains(
-            r#"cd /path/to/worktree && tmux set-option allow-rename off \\; -CC attach -t acq-145"#
+            r#"cd /path/to/worktree && tmux -CC set-option allow-rename off \\; attach -t acq-145"#
         ));
         assert!(script.contains(r#"set name to "ACQ-145 — acq-145""#));
         // No env command when env_vars is empty
@@ -369,7 +369,7 @@ mod tests {
         let script = build_create_script(&config);
         assert!(script.contains("create window with default profile"));
         // env vars are shell-quoted and sorted alphabetically
-        assert!(script.contains("env DIRECTIV_SESSION='acq-145' DIRECTIV_TASK='ACQ-145' DIRECTIV_WORKTREE='/path/to/worktree' tmux set-option allow-rename off"));
+        assert!(script.contains("env DIRECTIV_SESSION='acq-145' DIRECTIV_TASK='ACQ-145' DIRECTIV_WORKTREE='/path/to/worktree' tmux -CC set-option allow-rename off"));
         assert!(script.contains(r#"set name to "ACQ-145 — acq-145""#));
         // set name must come AFTER the write text (tmux command)
         let write_pos = script.find("write text").unwrap();
@@ -436,7 +436,7 @@ mod tests {
         let script = build_create_script(&config);
         assert!(script.contains(r#"cd /path/\"inject"#));
         assert!(
-            script.contains(r#"tmux set-option allow-rename off \\; -CC attach -t sess\"inject"#)
+            script.contains(r#"tmux -CC set-option allow-rename off \\; attach -t sess\"inject"#)
         );
         assert!(script.contains(r#"set name to "id\"inject — sess\"inject""#));
     }
