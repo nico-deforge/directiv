@@ -16,7 +16,6 @@ pub fn run() {
     }
 
     builder
-        .manage(commands::pty::PtyState::new())
         .invoke_handler(tauri::generate_handler![
             commands::worktree::worktree_list,
             commands::worktree::worktree_create,
@@ -42,10 +41,6 @@ pub fn run() {
             commands::skills::read_plugin_skill_file,
             commands::skills::list_all_claude_skills,
             commands::workspace::scan_workspace,
-            commands::pty::pty_spawn,
-            commands::pty::pty_write,
-            commands::pty::pty_resize,
-            commands::pty::pty_close,
             commands::oauth::linear_oauth_start,
             commands::oauth::linear_oauth_refresh,
             commands::oauth::linear_get_valid_token,
