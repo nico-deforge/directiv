@@ -15,8 +15,7 @@ import {
   getPluginDir,
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
-import type { SkillOverrides, TerminalLayout, TerminalMode } from "../types";
-import { useTerminalStore } from "../stores/terminalStore";
+import type { SkillOverrides, TerminalLayout } from "../types";
 
 // --- Typed errors for worktree creation ---
 
@@ -176,7 +175,6 @@ export interface StartTaskParams {
   title: string;
   repoPath: string;
   terminal: string;
-  terminalMode?: TerminalMode;
   terminalLayout?: TerminalLayout;
   copyPaths?: string[];
   onStart?: string[];
@@ -286,10 +284,8 @@ export function openTerminalWithToast(
 export async function startTask({
   issueId,
   identifier,
-  title,
   repoPath,
   terminal,
-  terminalMode,
   terminalLayout,
   copyPaths,
   onStart,
@@ -310,21 +306,13 @@ export async function startTask({
   const claudeCmd = await buildClaudeCommand(skill, identifier, usePlugin);
   await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
-  if (terminalMode === "external") {
-    openTerminalWithToast(
-      terminal,
-      sessionName,
-      identifier,
-      worktree.path,
-      terminalLayout,
-    );
-  } else {
-    useTerminalStore.getState().openTerminal({
-      sessionName,
-      identifier,
-      title,
-    });
-  }
+  openTerminalWithToast(
+    terminal,
+    sessionName,
+    identifier,
+    worktree.path,
+    terminalLayout,
+  );
 
   await updateLinearStatusToStarted(issueId).catch((err) => {
     toast.warning(
@@ -337,7 +325,6 @@ interface StartFreeTaskParams {
   branchName: string;
   repoPath: string;
   terminal: string;
-  terminalMode?: TerminalMode;
   terminalLayout?: TerminalLayout;
   copyPaths?: string[];
   onStart?: string[];
@@ -349,7 +336,6 @@ export async function startFreeTask({
   branchName,
   repoPath,
   terminal,
-  terminalMode,
   terminalLayout,
   copyPaths,
   onStart,
@@ -367,21 +353,13 @@ export async function startFreeTask({
   const sessionName = toSessionName(branchName);
   await ensureSession(sessionName, worktree.path, onStart);
 
-  if (terminalMode === "external") {
-    openTerminalWithToast(
-      terminal,
-      sessionName,
-      branchName,
-      worktree.path,
-      terminalLayout,
-    );
-  } else {
-    useTerminalStore.getState().openTerminal({
-      sessionName,
-      identifier: branchName,
-      title: branchName,
-    });
-  }
+  openTerminalWithToast(
+    terminal,
+    sessionName,
+    branchName,
+    worktree.path,
+    terminalLayout,
+  );
 }
 
 async function updateLinearStatusToStarted(issueId: string): Promise<void> {

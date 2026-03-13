@@ -7,12 +7,10 @@ import { LOCAL_REFRESH_INTERVAL } from "../constants/intervals";
 
 export function useTerminalStatuses() {
   const terminal = useSettingsStore((s) => s.config.terminal);
-  const terminalMode = useSettingsStore((s) => s.config.terminalMode);
 
   const query = useQuery<TerminalStatus[]>({
     queryKey: ["terminal-statuses", terminal],
     queryFn: () => queryTerminals(terminal),
-    enabled: terminalMode === "external",
     refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
 
@@ -26,5 +24,5 @@ export function useTerminalStatuses() {
     return map;
   }, [query.data]);
 
-  return { statusMap, isExternalMode: terminalMode === "external" };
+  return { statusMap };
 }
