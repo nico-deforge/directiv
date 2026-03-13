@@ -3,7 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
 import { getLinearClient } from "../lib/linear";
 import { useAuthStore, AUTH_PROVIDER_STATUS } from "../stores/authStore";
-import { ORPHAN_PROJECT_ID } from "../stores/projectStore";
+import {
+  ORPHAN_PROJECT_ID,
+  OTHER_ISSUES_PROJECT_ID,
+} from "../stores/projectStore";
 import type { BlockingIssue, EnrichedTask, LinearStatusType } from "../types";
 
 const UUID_RE =
@@ -27,6 +30,72 @@ async function resolveTeamIds(keys: string[]): Promise<string[]> {
     if (!team) throw new Error(`Team key "${key}" not found in Linear`);
     return team.id;
   });
+}
+
+async function mapIssueToEnrichedTask(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  issue: any,
+  viewerId: string,
+): Promise<EnrichedTask> {
+  const [state, assignee, project, inverseRelations] = await Promise.all([
+    issue.state,
+    issue.assignee,
+    issue.project,
+    issue.inverseRelations(),
+  ]);
+
+  const blockingRelations = inverseRelations.nodes.filter(
+    (r: { type: string }) => r.type === "blocks",
+  );
+
+  const blockedBy: BlockingIssue[] = await Promise.all(
+    blockingRelations.map(
+      async (relation: {
+        issue: Promise<{
+          id: string;
+          identifier: string;
+          title: string;
+          url: string;
+        } | null>;
+        id: string;
+      }) => {
+        const blockingIssue = await relation.issue;
+        if (!blockingIssue) return null;
+        return {
+          id: blockingIssue.id,
+          identifier: blockingIssue.identifier,
+          title: blockingIssue.title,
+          url: blockingIssue.url,
+          relationId: relation.id,
+        };
+      },
+    ),
+  ).then((results) => results.filter((r): r is BlockingIssue => r !== null));
+
+  const isBlocked = blockedBy.length > 0;
+
+  return {
+    id: issue.id,
+    identifier: issue.identifier,
+    title: issue.title,
+    description: issue.description ?? null,
+    priority: issue.priority,
+    status: state?.name ?? "Unknown",
+    linearStatusType: (state?.type as LinearStatusType) ?? null,
+    assigneeId: assignee?.id ?? null,
+    projectId: project?.id ?? null,
+    projectName: project?.name ?? null,
+    labels: [],
+    column: "backlog" as const,
+    session: null,
+    worktree: null,
+    pullRequest: null,
+    url: issue.url,
+    isBlocked,
+    blockedBy,
+    isAssignedToMe: assignee?.id === viewerId,
+    assigneeName: assignee?.displayName ?? assignee?.name ?? null,
+  };
 }
 
 export interface LinearProject {
@@ -114,6 +183,7 @@ export function useLinearProjectIssues(
         !client ||
         !projectId ||
         projectId === ORPHAN_PROJECT_ID ||
+        projectId === OTHER_ISSUES_PROJECT_ID ||
         teamIds.length === 0
       )
         return [];
@@ -131,69 +201,21 @@ export function useLinearProjectIssues(
         first: 250,
       });
 
-      const tasks: EnrichedTask[] = await Promise.all(
-        issues.nodes.map(async (issue) => {
-          const [state, assignee, project, inverseRelations] =
-            await Promise.all([
-              issue.state,
-              issue.assignee,
-              issue.project,
-              issue.inverseRelations(),
-            ]);
-
-          const blockingRelations = inverseRelations.nodes.filter(
-            (r) => r.type === "blocks",
-          );
-
-          const blockedBy: BlockingIssue[] = await Promise.all(
-            blockingRelations.map(async (relation) => {
-              const blockingIssue = await relation.issue;
-              if (!blockingIssue) return null;
-              return {
-                id: blockingIssue.id,
-                identifier: blockingIssue.identifier,
-                title: blockingIssue.title,
-                url: blockingIssue.url,
-                relationId: relation.id,
-              };
-            }),
-          ).then((results) =>
-            results.filter((r): r is BlockingIssue => r !== null),
-          );
-
-          const isBlocked = blockedBy.length > 0;
-
-          return {
-            id: issue.id,
-            identifier: issue.identifier,
-            title: issue.title,
-            description: issue.description ?? null,
-            priority: issue.priority,
-            status: state?.name ?? "Unknown",
-            linearStatusType: (state?.type as LinearStatusType) ?? null,
-            assigneeId: assignee?.id ?? null,
-            projectId: project?.id ?? null,
-            projectName: project?.name ?? null,
-            labels: [],
-            column: "backlog" as const,
-            session: null,
-            worktree: null,
-            pullRequest: null,
-            url: issue.url,
-            isBlocked,
-            blockedBy,
-            isAssignedToMe: assignee?.id === viewerId,
-            assigneeName: assignee?.displayName ?? assignee?.name ?? null,
-          };
-        }),
+      const results = await Promise.allSettled(
+        issues.nodes.map((issue) => mapIssueToEnrichedTask(issue, viewerId)),
       );
-
-      return tasks;
+      return results
+        .filter(
+          (r): r is PromiseFulfilledResult<EnrichedTask> =>
+            r.status === "fulfilled",
+        )
+        .map((r) => r.value);
     },
     enabled:
       isConnected &&
       !!projectId &&
       projectId !== ORPHAN_PROJECT_ID &&
+      projectId !== OTHER_ISSUES_PROJECT_ID &&
       teamIds.length > 0,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
@@ -208,26 +230,67 @@ export interface LinearIssueStub {
   statusType: LinearStatusType | null;
 }
 
-export function useLinearMyActiveIdentifiers(teamIds: string[]) {
+export function useLinearMyActiveIdentifiers() {
   const isConnected = useIsLinearConnected();
 
   return useQuery<Set<string>>({
-    queryKey: ["linear", "my-active-identifiers", teamIds],
+    queryKey: ["linear", "my-active-identifiers"],
     queryFn: async () => {
       const client = getLinearClient();
-      if (!client || teamIds.length === 0) return new Set();
-      const resolvedIds = await resolveTeamIds(teamIds);
+      if (!client) return new Set();
       const issues = await client.issues({
         filter: {
           assignee: { isMe: { eq: true } },
-          team: { id: { in: resolvedIds } },
           state: { type: { in: ["triage", "unstarted", "started"] } },
         },
         first: 500,
       });
       return new Set(issues.nodes.map((i) => i.identifier.toLowerCase()));
     },
-    enabled: isConnected && teamIds.length > 0,
+    enabled: isConnected,
+    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
+  });
+}
+
+export function useLinearOtherIssues(memberProjectIds: string[] | undefined) {
+  const isConnected = useIsLinearConnected();
+  const hasProjects = memberProjectIds !== undefined;
+
+  return useQuery<EnrichedTask[]>({
+    queryKey: ["linear", "other-issues", memberProjectIds ?? []],
+    queryFn: async () => {
+      const client = getLinearClient();
+      if (!client || !memberProjectIds) return [];
+
+      const me = await client.viewer;
+      const viewerId = me.id;
+
+      const issues = await client.issues({
+        filter: {
+          assignee: { isMe: { eq: true } },
+          state: { type: { in: ["triage", "unstarted", "started"] } },
+        },
+        first: 250,
+      });
+
+      // Filter before expensive mapping: keep issues with no project or project not in member list
+      const memberSet = new Set(memberProjectIds);
+      const filtered = issues.nodes.filter((issue) => {
+        const projId = issue.projectId;
+        return !projId || !memberSet.has(projId);
+      });
+
+      const results = await Promise.allSettled(
+        filtered.map((issue) => mapIssueToEnrichedTask(issue, viewerId)),
+      );
+      return results
+        .filter(
+          (r): r is PromiseFulfilledResult<EnrichedTask> =>
+            r.status === "fulfilled",
+        )
+        .map((r) => r.value);
+    },
+    enabled: isConnected && hasProjects,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }

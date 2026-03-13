@@ -186,6 +186,74 @@ export function calculatePositions(tasks: EnrichedTask[]): NodePosition[] {
   return [...positions.values()];
 }
 
+// Grouped layout for cross-project views
+const NO_PROJECT_GROUP_KEY = "no-project";
+const GROUP_LABEL_HEIGHT = 40;
+const GROUP_GAP = 60;
+
+export interface GroupLabelPosition {
+  groupKey: string;
+  label: string;
+  x: number;
+  y: number;
+}
+
+export interface GroupedLayoutResult {
+  nodes: NodePosition[];
+  labels: GroupLabelPosition[];
+}
+
+export function calculateGroupedPositions(
+  tasks: EnrichedTask[],
+): GroupedLayoutResult {
+  // Group tasks by projectId
+  const groups = new Map<string, { label: string; tasks: EnrichedTask[] }>();
+  for (const task of tasks) {
+    const key = task.projectId ?? NO_PROJECT_GROUP_KEY;
+    const label = task.projectName ?? "No project";
+    const group = groups.get(key);
+    if (group) {
+      group.tasks.push(task);
+    } else {
+      groups.set(key, { label, tasks: [task] });
+    }
+  }
+
+  // Sort groups alphabetically, "No project" last
+  const sortedKeys = [...groups.keys()].sort((a, b) => {
+    if (a === NO_PROJECT_GROUP_KEY) return 1;
+    if (b === NO_PROJECT_GROUP_KEY) return -1;
+    return groups.get(a)!.label.localeCompare(groups.get(b)!.label);
+  });
+
+  const nodes: NodePosition[] = [];
+  const labels: GroupLabelPosition[] = [];
+  let currentY = 0;
+
+  for (const key of sortedKeys) {
+    const group = groups.get(key)!;
+
+    labels.push({ groupKey: key, label: group.label, x: 0, y: currentY });
+    currentY += GROUP_LABEL_HEIGHT;
+
+    for (let i = 0; i < group.tasks.length; i++) {
+      const col = i % 3;
+      const row = Math.floor(i / 3);
+      nodes.push({
+        id: group.tasks[i].id,
+        x: col * (CARD_WIDTH + H_GAP),
+        y: currentY + row * (CARD_HEIGHT + V_GAP),
+        depth: 0,
+      });
+    }
+
+    const rowCount = Math.ceil(group.tasks.length / 3);
+    currentY += rowCount * (CARD_HEIGHT + V_GAP) + GROUP_GAP;
+  }
+
+  return { nodes, labels };
+}
+
 export interface EdgeData {
   source: string;
   target: string;

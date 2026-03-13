@@ -10,6 +10,9 @@ export type LinearConnectionStatus =
 // Special project ID for orphan worktrees (worktrees without Linear tasks)
 export const ORPHAN_PROJECT_ID = "__orphan__";
 
+// Virtual project for issues assigned to the user that have no project or belong to a non-member project
+export const OTHER_ISSUES_PROJECT_ID = "__other_issues__";
+
 export interface Project {
   id: string;
   name: string;
@@ -19,14 +22,16 @@ export interface Project {
 interface ProjectState {
   projects: Project[];
   hasOrphans: boolean;
+  hasOtherIssues: boolean;
   connectionStatus: LinearConnectionStatus;
   selectedProjectId: string | null;
   showBacklogProjects: boolean;
-  setProjectsData: (
-    projects: Project[],
-    hasOrphans: boolean,
-    connectionStatus: LinearConnectionStatus,
-  ) => void;
+  setProjectsData: (data: {
+    projects: Project[];
+    hasOrphans: boolean;
+    hasOtherIssues: boolean;
+    connectionStatus: LinearConnectionStatus;
+  }) => void;
   selectProject: (projectId: string | null) => void;
   toggleBacklogProjects: () => void;
 }
@@ -34,19 +39,34 @@ interface ProjectState {
 export const useProjectStore = create<ProjectState>((set, get) => ({
   projects: [],
   hasOrphans: false,
+  hasOtherIssues: false,
   connectionStatus: { status: "loading" },
   selectedProjectId: null,
   showBacklogProjects: false,
 
-  setProjectsData: (projects, hasOrphans, connectionStatus) => {
+  setProjectsData: ({
+    projects,
+    hasOrphans,
+    hasOtherIssues,
+    connectionStatus,
+  }) => {
     const { selectedProjectId } = get();
-    const autoSelect =
-      selectedProjectId === null && projects.length > 0
-        ? projects[0].id
-        : selectedProjectId;
+    let autoSelect = selectedProjectId;
+
+    if (autoSelect === null && projects.length > 0) {
+      autoSelect = projects[0].id;
+    }
+    if (autoSelect === OTHER_ISSUES_PROJECT_ID && !hasOtherIssues) {
+      autoSelect = projects.length > 0 ? projects[0].id : null;
+    }
+    if (autoSelect === ORPHAN_PROJECT_ID && !hasOrphans) {
+      autoSelect = projects.length > 0 ? projects[0].id : null;
+    }
+
     set({
       projects,
       hasOrphans,
+      hasOtherIssues,
       connectionStatus,
       selectedProjectId: autoSelect,
     });
