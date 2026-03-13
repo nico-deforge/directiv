@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { tmuxCapturePane } from "../../lib/tauri";
 
@@ -33,6 +33,12 @@ export function QuickPeek({ sessionName, active, children }: QuickPeekProps) {
   });
 
   const lines = rawOutput ? filterLines(rawOutput) : [];
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleMouseEnter = useCallback(() => {
     timerRef.current = setTimeout(() => setHovering(true), HOVER_DELAY);

@@ -432,7 +432,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     [id, onDragStart],
   );
 
-  const isTerminalActive = terminalActive !== null ? terminalActive : true;
+  const isTerminalActive = terminalActive !== null ? terminalActive : false;
 
   const card = (
     <div
