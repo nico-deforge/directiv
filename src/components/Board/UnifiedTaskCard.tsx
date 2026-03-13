@@ -50,6 +50,7 @@ import {
   worktreeCreateExistingBranch,
 } from "../../lib/tauri";
 import { BranchSelector } from "../shared/BranchSelector";
+import { QuickPeek } from "./QuickPeek";
 
 type WorkflowStatus =
   | "todo"
@@ -431,7 +432,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     [id, onDragStart],
   );
 
-  return (
+  const isTerminalActive = terminalActive !== null ? terminalActive : true;
+
+  const card = (
     <div
       className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative ${
         isBeingTargeted
@@ -849,4 +852,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       )}
     </div>
   );
+
+  if (hasSession) {
+    return (
+      <QuickPeek sessionName={session.name} active={isTerminalActive}>
+        {card}
+      </QuickPeek>
+    );
+  }
+
+  return card;
 }
