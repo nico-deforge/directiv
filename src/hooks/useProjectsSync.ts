@@ -102,7 +102,12 @@ export function useProjectsSync() {
   const hasOtherIssues = (otherIssues ?? []).length > 0;
 
   useEffect(() => {
-    setProjectsData(projectList, hasOrphans, hasOtherIssues, connectionStatus);
+    setProjectsData({
+      projects: projectList,
+      hasOrphans,
+      hasOtherIssues,
+      connectionStatus,
+    });
   }, [
     projectList,
     hasOrphans,

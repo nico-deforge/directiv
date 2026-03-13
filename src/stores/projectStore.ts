@@ -26,12 +26,12 @@ interface ProjectState {
   connectionStatus: LinearConnectionStatus;
   selectedProjectId: string | null;
   showBacklogProjects: boolean;
-  setProjectsData: (
-    projects: Project[],
-    hasOrphans: boolean,
-    hasOtherIssues: boolean,
-    connectionStatus: LinearConnectionStatus,
-  ) => void;
+  setProjectsData: (data: {
+    projects: Project[];
+    hasOrphans: boolean;
+    hasOtherIssues: boolean;
+    connectionStatus: LinearConnectionStatus;
+  }) => void;
   selectProject: (projectId: string | null) => void;
   toggleBacklogProjects: () => void;
 }
@@ -44,12 +44,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectedProjectId: null,
   showBacklogProjects: false,
 
-  setProjectsData: (projects, hasOrphans, hasOtherIssues, connectionStatus) => {
+  setProjectsData: ({
+    projects,
+    hasOrphans,
+    hasOtherIssues,
+    connectionStatus,
+  }) => {
     const { selectedProjectId } = get();
-    const autoSelect =
-      selectedProjectId === null && projects.length > 0
-        ? projects[0].id
-        : selectedProjectId;
+    let autoSelect = selectedProjectId;
+
+    if (autoSelect === null && projects.length > 0) {
+      autoSelect = projects[0].id;
+    }
+    if (autoSelect === OTHER_ISSUES_PROJECT_ID && !hasOtherIssues) {
+      autoSelect = projects.length > 0 ? projects[0].id : null;
+    }
+    if (autoSelect === ORPHAN_PROJECT_ID && !hasOrphans) {
+      autoSelect = projects.length > 0 ? projects[0].id : null;
+    }
+
     set({
       projects,
       hasOrphans,

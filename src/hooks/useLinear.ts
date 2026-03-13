@@ -201,9 +201,15 @@ export function useLinearProjectIssues(
         first: 250,
       });
 
-      return Promise.all(
+      const results = await Promise.allSettled(
         issues.nodes.map((issue) => mapIssueToEnrichedTask(issue, viewerId)),
       );
+      return results
+        .filter(
+          (r): r is PromiseFulfilledResult<EnrichedTask> =>
+            r.status === "fulfilled",
+        )
+        .map((r) => r.value);
     },
     enabled:
       isConnected &&
@@ -237,7 +243,7 @@ export function useLinearMyActiveIdentifiers() {
           assignee: { isMe: { eq: true } },
           state: { type: { in: ["triage", "unstarted", "started"] } },
         },
-        first: 250,
+        first: 500,
       });
       return new Set(issues.nodes.map((i) => i.identifier.toLowerCase()));
     },
@@ -274,9 +280,15 @@ export function useLinearOtherIssues(memberProjectIds: string[] | undefined) {
         return !projId || !memberSet.has(projId);
       });
 
-      return Promise.all(
+      const results = await Promise.allSettled(
         filtered.map((issue) => mapIssueToEnrichedTask(issue, viewerId)),
       );
+      return results
+        .filter(
+          (r): r is PromiseFulfilledResult<EnrichedTask> =>
+            r.status === "fulfilled",
+        )
+        .map((r) => r.value);
     },
     enabled: isConnected && hasProjects,
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
