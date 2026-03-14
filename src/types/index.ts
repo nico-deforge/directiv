@@ -248,4 +248,5 @@ export interface DirectivConfig {
   skills?: SkillOverrides;
   models?: ModelOverrides;
   onboardingCompleted?: boolean;
+  sidebarCollapsed?: boolean;
 }

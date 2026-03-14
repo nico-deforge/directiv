@@ -11,6 +11,7 @@ export const defaultConfig: DirectivConfig = {
   workspaces: [],
   linear: {},
   theme: "system",
+  sidebarCollapsed: false,
 };
 
 export async function loadConfigFromDisk(): Promise<DirectivConfig> {
@@ -72,5 +73,6 @@ export function validateConfig(
     skills: config.skills,
     models: config.models,
     onboardingCompleted: config.onboardingCompleted ?? false,
+    sidebarCollapsed: config.sidebarCollapsed ?? false,
   };
 }

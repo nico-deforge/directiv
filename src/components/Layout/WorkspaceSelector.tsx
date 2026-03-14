@@ -2,7 +2,11 @@ import { ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useWorkspaceSelector } from "../../hooks/useWorkspace";
 
-export function WorkspaceSelector() {
+export function WorkspaceSelector({
+  collapsed = false,
+}: {
+  collapsed?: boolean;
+}) {
   const { workspaces, activeId, setActiveWorkspace, showSelector } =
     useWorkspaceSelector();
   const [isOpen, setIsOpen] = useState(false);
@@ -11,6 +15,7 @@ export function WorkspaceSelector() {
   const activeWorkspace = workspaces.find((ws) => ws.id === activeId);
   const displayName =
     activeWorkspace?.name ?? activeWorkspace?.id ?? "Select workspace";
+  const initial = displayName.charAt(0).toUpperCase();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -28,6 +33,43 @@ export function WorkspaceSelector() {
 
   if (!showSelector) {
     return null;
+  }
+
+  if (collapsed) {
+    return (
+      <div
+        className="relative shrink-0 border-b border-[var(--border-default)] px-2 py-2"
+        ref={dropdownRef}
+      >
+        <button
+          onClick={() => setIsOpen((prev) => !prev)}
+          title={displayName}
+          className="flex w-full items-center justify-center rounded px-1 py-1.5 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
+        >
+          {initial}
+        </button>
+        {isOpen && (
+          <div className="absolute left-full top-0 z-30 ml-1 min-w-40 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+            {workspaces.map((ws) => (
+              <button
+                key={ws.id}
+                onClick={() => {
+                  setActiveWorkspace(ws.id);
+                  setIsOpen(false);
+                }}
+                className={`block w-full px-3 py-1.5 text-left text-sm hover:bg-[var(--bg-elevated)] ${
+                  ws.id === activeId
+                    ? "text-[var(--accent-blue)]"
+                    : "text-[var(--text-primary)]"
+                }`}
+              >
+                {ws.name ?? ws.id}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (

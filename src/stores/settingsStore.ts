@@ -41,18 +41,24 @@ interface SettingsState {
   config: DirectivConfig;
   isLoaded: boolean;
   resolvedTheme: "light" | "dark";
+  sidebarCollapsed: boolean;
   setConfig: (config: DirectivConfig) => void;
   updateTerminal: (terminal: TerminalEmulator) => void;
   loadFromDisk: () => Promise<void>;
+  toggleSidebar: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   config: defaultConfig,
   isLoaded: false,
   resolvedTheme: resolveTheme(defaultConfig.theme),
+  sidebarCollapsed: defaultConfig.sidebarCollapsed ?? false,
 
   setConfig: (config) => {
-    set(applyConfig(config));
+    set({
+      ...applyConfig(config),
+      sidebarCollapsed: config.sidebarCollapsed ?? false,
+    });
     saveConfigToDisk(config).catch(toastError);
   },
 
@@ -61,10 +67,20 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     get().setConfig(updated);
   },
 
+  toggleSidebar: () => {
+    const collapsed = !get().sidebarCollapsed;
+    const updated = { ...get().config, sidebarCollapsed: collapsed };
+    set({ sidebarCollapsed: collapsed, config: updated });
+    saveConfigToDisk(updated).catch(toastError);
+  },
+
   loadFromDisk: async () => {
     try {
       const config = await loadConfigFromDisk();
-      set(applyConfig(config));
+      set({
+        ...applyConfig(config),
+        sidebarCollapsed: config.sidebarCollapsed ?? false,
+      });
 
       // Listen for system theme changes when theme is "system"
       if (config.theme === "system") {
