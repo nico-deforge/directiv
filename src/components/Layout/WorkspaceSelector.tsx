@@ -74,7 +74,7 @@ export function WorkspaceSelector({
 
   return (
     <div
-      className="relative shrink-0 border-b border-[var(--border-default)] px-3 py-2"
+      className="relative shrink-0 border-b border-[var(--border-default)] pl-[68px] pr-3 py-2"
       ref={dropdownRef}
     >
       <button

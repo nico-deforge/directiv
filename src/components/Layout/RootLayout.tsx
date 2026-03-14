@@ -72,6 +72,7 @@ export function RootLayout() {
       <AuthGate>
         <OnboardingGate>
           <div className="flex h-screen flex-col">
+            <div data-tauri-drag-region className="h-7 shrink-0" />
             <div className="min-h-0 flex-1 overflow-hidden">
               <Outlet />
             </div>
