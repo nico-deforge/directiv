@@ -75,7 +75,7 @@ export function IntegrationsSection() {
       return (
         <button
           onClick={startGitHubOAuth}
-          className="flex shrink-0 items-center gap-1.5 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] hover:brightness-110"
+          className="flex shrink-0 items-center gap-1.5 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90"
         >
           Connect
         </button>

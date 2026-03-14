@@ -264,7 +264,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           <button
             onClick={handleLaunchSession}
             disabled={launchingSession}
-            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:brightness-110 disabled:opacity-50"
+            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white transition-[filter] hover:brightness-110 disabled:opacity-50"
           >
             {launchingSession ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -315,7 +315,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             <button
               onClick={() => handleDelete()}
               disabled={isDeleting}
-              className="text-[var(--accent-red)] hover:bg-[var(--bg-elevated)] rounded px-1 transition-colors"
+              className="rounded px-1 text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-elevated)]"
             >
               {isDeleting ? "Deleting..." : "Confirm"}
             </button>
