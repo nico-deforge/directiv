@@ -13,10 +13,10 @@ import {
   Github,
   Circle,
   SquareKanban,
-  ExternalLink,
   Code2,
   AlertTriangle,
   ClipboardList,
+  MoreHorizontal,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -52,6 +52,14 @@ import {
 } from "../../lib/tauri";
 import { BranchSelector } from "../shared/BranchSelector";
 import { QuickPeek } from "./QuickPeek";
+import {
+  DropdownMenuRoot,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "../shared/DropdownMenu";
+import { TooltipProvider, Tooltip } from "../shared/Tooltip";
 
 type WorkflowStatus =
   | "todo"
@@ -427,423 +435,464 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   const isTerminalActive = terminalActive !== null ? terminalActive : false;
 
+  // Whether any meta info is present to show the meta row
+  const hasMetaInfo =
+    worktree || pullRequest || (worktree && !pullRequest && githubRepoBlocked);
+
   const card = (
-    <div
-      className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative ${
-        isBeingTargeted
-          ? "border-[var(--text-muted)] ring-1 ring-[var(--text-muted)]/50"
-          : "border-[var(--border-default)]"
-      } ${isDisabled ? "opacity-50" : ""}`}
-    >
-      {/* Hidden target handle for edge connections */}
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!opacity-0 !pointer-events-none"
-      />
-      {/* Drag handle at bottom center - starts blocked-by edge creation */}
+    <TooltipProvider>
       <div
-        className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[var(--text-muted)] border border-[var(--bg-tertiary)] cursor-crosshair hover:scale-150 hover:bg-[var(--text-secondary)] transition-transform z-10"
-        onMouseDown={handleDragHandleMouseDown}
-      />
-      {/* Hidden source handle for edge connections */}
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        className="!opacity-0 !pointer-events-none"
-      />
+        className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative ${
+          isBeingTargeted
+            ? "border-[var(--text-muted)] ring-1 ring-[var(--text-muted)]/50"
+            : "border-[var(--border-default)]"
+        } ${isDisabled ? "opacity-50" : ""}`}
+      >
+        {/* Hidden target handle for edge connections */}
+        <Handle
+          type="target"
+          position={Position.Top}
+          className="!opacity-0 !pointer-events-none"
+        />
+        {/* Drag handle at bottom center - starts blocked-by edge creation */}
+        <div
+          className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[var(--text-muted)] border border-[var(--bg-tertiary)] cursor-crosshair hover:scale-150 hover:bg-[var(--text-secondary)] transition-transform z-10"
+          onMouseDown={handleDragHandleMouseDown}
+        />
+        {/* Hidden source handle for edge connections */}
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="!opacity-0 !pointer-events-none"
+        />
 
-      {/* Header: Task info with workflow status */}
-      <div className="border-b border-[var(--border-default)] px-3 py-2">
-        <div className="flex items-center gap-2">
-          <span
-            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusLabel.className}`}
-          >
-            {statusLabel.label}
-          </span>
-          <span className="text-xs font-medium text-[var(--text-secondary)]">
-            {task.identifier}
-          </span>
-          {isDisabled && task.assigneeName && (
-            <span className="text-[10px] text-[var(--text-muted)]">
-              {task.assigneeName}
-            </span>
-          )}
-          {claudeWaiting && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenTerminal();
-              }}
-              className="ml-auto flex cursor-pointer items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-orange)]/20 text-[var(--accent-orange)] hover:bg-[var(--accent-orange)]/30 transition-colors"
-            >
-              <AlertTriangle className="size-3" />
-              Needs Claude Input
-            </button>
-          )}
-          {hasSession && terminalActive !== null && (
+        {/* Header: Task info with workflow status */}
+        <div className="border-b border-[var(--border-default)] px-3 py-2.5">
+          <div className="flex items-center gap-2">
             <span
-              className={`${claudeWaiting ? "" : "ml-auto"} flex items-center`}
-              title={terminalActive ? "Terminal open" : "Terminal closed"}
+              className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusLabel.className}`}
             >
-              <Terminal
-                className={`size-3.5 ${
-                  terminalActive
-                    ? "text-[var(--accent-green)]"
-                    : "text-[var(--text-muted)]"
-                }`}
-              />
+              {statusLabel.label}
             </span>
-          )}
-        </div>
-        <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
-          {task.title}
-        </p>
-      </div>
-
-      {/* Linear Section */}
-      <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-        <SquareKanban className="size-4 shrink-0 text-[var(--accent-blue)]" />
-        <a
-          href={task.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 min-w-0 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-        >
-          <span className="truncate">{task.identifier}</span>
-          <ExternalLink className="size-3 shrink-0" />
-        </a>
-        <span className="ml-auto text-xs text-[var(--text-tertiary)]">
-          {task.status}
-        </span>
-      </div>
-
-      {/* PR Section */}
-      {pullRequest && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
-          <a
-            href={pullRequest.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 min-w-0 flex-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          >
-            <span className="truncate">PR #{pullRequest.number}</span>
-            <ExternalLink className="size-3 shrink-0" />
-          </a>
-          <CIStatusIcon status={pullRequest.ciStatus} url={pullRequest.ciUrl} />
-          {!isDisabled &&
-            worktree &&
-            (pullRequest.ciStatus === CI_STATUSES.FAILURE ||
-              pullRequest.ciStatus === CI_STATUSES.ERROR) && (
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
+              {task.identifier}
+            </span>
+            {isDisabled && task.assigneeName && (
+              <span className="text-[10px] text-[var(--text-muted)]">
+                {task.assigneeName}
+              </span>
+            )}
+            {claudeWaiting && (
               <button
-                onClick={handleFixCI}
-                disabled={isLoading}
-                className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenTerminal();
+                }}
+                className="ml-auto flex cursor-pointer items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-orange)]/20 text-[var(--accent-orange)] hover:bg-[var(--accent-orange)]/30 transition-colors"
               >
-                {sendingSkill ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  "Fix CI"
-                )}
+                <AlertTriangle className="size-3" />
+                Needs Claude Input
               </button>
             )}
-        </div>
-      )}
-
-      {/* GitHub repo blocked warning */}
-      {worktree && !pullRequest && githubRepoBlocked && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <Github className="size-4 shrink-0 text-[var(--accent-red)]" />
-          <span className="truncate text-xs text-[var(--accent-red)]">
-            Access blocked by organization
-          </span>
-        </div>
-      )}
-
-      {/* Worktree Section */}
-      {worktree && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <GitBranch className="size-4 shrink-0 text-[var(--accent-green)]" />
-          <span className="truncate text-sm text-[var(--text-secondary)]">
-            {worktree.branch}
-          </span>
-          {worktree.isDirty && (
-            <span title="Uncommitted changes">
-              <Circle className="size-2 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
-            </span>
-          )}
-          {(worktree.ahead > 0 || worktree.behind > 0) && (
-            <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
-              {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
-              {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Actions */}
-      {!isDisabled && (
-        <div
-          className="relative flex items-center gap-2 px-3 py-2"
-          ref={dropdownRef}
-        >
-          {/* Code / Plan buttons with shared dropdown */}
-          {!hasSession && (
-            <>
-              <button
-                onClick={() => openDropdown("CODE")}
-                disabled={isLoading || repos.length === 0}
-                className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white transition-[filter] hover:brightness-110 disabled:opacity-50"
+            {hasSession && terminalActive !== null && (
+              <span
+                className={`${claudeWaiting ? "" : "ml-auto"} flex items-center`}
+                title={terminalActive ? "Terminal open" : "Terminal closed"}
               >
-                {startTask.isPending && pendingSkillKey === "CODE" ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <>
-                    <Play className="size-3.5" />
-                    Code
-                    <ChevronDown className="size-3" />
-                  </>
-                )}
-              </button>
-              <button
-                onClick={() => openDropdown("PLAN")}
-                disabled={isLoading || repos.length === 0}
-                className="flex items-center gap-1 rounded bg-[var(--accent-blue)] px-2 py-1 text-xs font-medium text-white transition-[filter] hover:brightness-110 disabled:opacity-50"
+                <Terminal
+                  className={`size-3.5 ${
+                    terminalActive
+                      ? "text-[var(--accent-green)]"
+                      : "text-[var(--text-muted)]"
+                  }`}
+                />
+              </span>
+            )}
+          </div>
+          <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
+            {task.title}
+          </p>
+        </div>
+
+        {/* Meta row: compact icon links for Linear / GitHub / Branch */}
+        {hasMetaInfo && (
+          <div className="flex items-center gap-3 border-b border-[var(--border-default)] px-3 py-1.5">
+            {/* Linear link */}
+            <Tooltip content={`Linear · ${task.identifier} · ${task.status}`}>
+              <a
+                href={task.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-blue)] transition-colors"
+                onClick={(e) => e.stopPropagation()}
               >
-                {startTask.isPending && pendingSkillKey === "PLAN" ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <>
-                    <ClipboardList className="size-3.5" />
-                    Plan
-                    <ChevronDown className="size-3" />
-                  </>
-                )}
-              </button>
-            </>
-          )}
+                <SquareKanban className="size-3.5 shrink-0" />
+                <span className="text-xs">{task.identifier}</span>
+              </a>
+            </Tooltip>
 
-          {/* Terminal button */}
-          {hasSession && (
-            <button
-              onClick={handleOpenTerminal}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors"
-            >
-              <Terminal className="size-3.5" />
-              Terminal
-            </button>
-          )}
+            {/* PR link */}
+            {pullRequest && (
+              <Tooltip
+                content={`PR #${pullRequest.number} · ${pullRequest.title ?? ""}`}
+              >
+                <a
+                  href={pullRequest.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-purple)] transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Github className="size-3.5 shrink-0" />
+                  <span className="text-xs">#{pullRequest.number}</span>
+                </a>
+              </Tooltip>
+            )}
 
-          {/* Editor button */}
-          {worktree && (
-            <button
-              onClick={handleOpenEditor}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors"
-            >
-              <Code2 className="size-3.5" />
-              Editor
-            </button>
-          )}
+            {/* CI status */}
+            {pullRequest && (
+              <CIStatusIcon
+                status={pullRequest.ciStatus}
+                url={pullRequest.ciUrl}
+              />
+            )}
 
-          {/* Kill Session button */}
-          {hasSession && !confirmingDelete && (
-            <button
-              onClick={handleKillSession}
-              disabled={isLoading}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
-              title="Kill tmux session (keeps worktree)"
-            >
-              {killingSession ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <X className="size-3.5" />
+            {/* Fix CI button */}
+            {!isDisabled &&
+              worktree &&
+              pullRequest &&
+              (pullRequest.ciStatus === CI_STATUSES.FAILURE ||
+                pullRequest.ciStatus === CI_STATUSES.ERROR) && (
+                <button
+                  onClick={handleFixCI}
+                  disabled={isLoading}
+                  className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
+                >
+                  {sendingSkill ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    "Fix CI"
+                  )}
+                </button>
               )}
-            </button>
-          )}
 
-          {/* Delete Worktree button */}
-          {worktree && !confirmingDelete && (
-            <button
-              onClick={() => setConfirmingDelete(true)}
-              disabled={isLoading}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
-              title="Delete worktree and branch"
-            >
-              <Trash2 className="size-3.5" />
-            </button>
-          )}
+            {/* GitHub blocked warning */}
+            {worktree && !pullRequest && githubRepoBlocked && (
+              <Tooltip content="GitHub access blocked by organization">
+                <span className="flex items-center gap-1 text-[var(--accent-red)]">
+                  <Github className="size-3.5 shrink-0" />
+                  <span className="text-xs">Blocked</span>
+                </span>
+              </Tooltip>
+            )}
 
-          {/* Delete confirmation */}
-          {confirmingDelete && (
-            <span className="flex items-center gap-2 text-xs">
-              <span className="text-[var(--text-muted)]">Delete worktree?</span>
-              <button
-                onClick={() => handleDeleteWorktree()}
-                disabled={deletingWorktree}
-                className="rounded px-1 text-[var(--accent-red)] transition-colors hover:bg-[var(--bg-elevated)] disabled:opacity-50"
-              >
-                {deletingWorktree ? "Deleting..." : "Yes"}
-              </button>
-              <span className="text-[var(--text-muted)]">/</span>
-              <button
-                onClick={() => setConfirmingDelete(false)}
-                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              >
-                No
-              </button>
-            </span>
-          )}
+            {/* Branch info */}
+            {worktree && (
+              <Tooltip content={`Branch: ${worktree.branch}`}>
+                <span className="ml-auto flex items-center gap-1 text-[var(--text-muted)]">
+                  <GitBranch className="size-3.5 shrink-0 text-[var(--accent-green)]" />
+                  <span className="max-w-[120px] truncate text-xs">
+                    {worktree.branch}
+                  </span>
+                  {worktree.isDirty && (
+                    <Circle className="size-1.5 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
+                  )}
+                  {(worktree.ahead > 0 || worktree.behind > 0) && (
+                    <span className="flex items-center gap-0.5 text-[10px] text-[var(--text-muted)]">
+                      {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
+                      {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
+                    </span>
+                  )}
+                </span>
+              </Tooltip>
+            )}
+          </div>
+        )}
 
-          {/* Dropdown for repo/branch selection */}
-          {dropdownOpen && (
-            <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
-              {repos.length === 1 ? (
-                <BranchSelector
-                  repoPath={repos[0].path}
-                  configWarning={repos[0].configWarning}
-                  onSelect={(baseBranch) =>
-                    handleStart(repos[0].path, baseBranch)
-                  }
-                />
-              ) : selectedRepo ? (
-                <BranchSelector
-                  repoPath={selectedRepo.path}
-                  repoId={selectedRepo.id}
-                  configWarning={selectedRepo.configWarning}
-                  onSelect={(baseBranch) =>
-                    handleStart(selectedRepo.path, baseBranch)
-                  }
-                  onBack={() => setSelectedRepo(null)}
-                />
-              ) : (
-                <div className="min-w-40">
-                  {repos.map((repo) => (
-                    <button
-                      key={repo.id}
-                      onClick={() => setSelectedRepo(repo)}
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
-                    >
-                      {repo.id}
-                      {repo.configWarning && (
-                        <span title={repo.configWarning}>
-                          <AlertTriangle className="size-3.5 shrink-0 text-[var(--accent-amber)]" />
-                        </span>
+        {/* Actions */}
+        {!isDisabled && (
+          <div
+            className="relative flex items-center gap-2 px-3 py-2.5"
+            ref={dropdownRef}
+          >
+            {/* Code / Plan buttons — full width on todo cards */}
+            {!hasSession && (
+              <>
+                <button
+                  onClick={() => openDropdown("CODE")}
+                  disabled={isLoading || repos.length === 0}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {startTask.isPending && pendingSkillKey === "CODE" ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <>
+                      <Play className="size-3.5" />
+                      Code
+                      <ChevronDown className="size-3" />
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => openDropdown("PLAN")}
+                  disabled={isLoading || repos.length === 0}
+                  className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] border border-[var(--border-default)] px-2 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                >
+                  {startTask.isPending && pendingSkillKey === "PLAN" ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <>
+                      <ClipboardList className="size-3.5" />
+                      Plan
+                      <ChevronDown className="size-3" />
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+
+            {/* In-session: Terminal as primary + "..." overflow menu */}
+            {hasSession && (
+              <>
+                <button
+                  onClick={handleOpenTerminal}
+                  className="flex items-center gap-1.5 rounded bg-[var(--bg-elevated)] px-2 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+                >
+                  <Terminal className="size-3.5" />
+                  Terminal
+                </button>
+
+                {/* Secondary actions in dropdown */}
+                {(worktree || hasSession) && (
+                  <DropdownMenuRoot>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="ml-auto flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
+                        title="More actions"
+                      >
+                        <MoreHorizontal className="size-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" sideOffset={4}>
+                      {worktree && (
+                        <DropdownMenuItem
+                          onSelect={handleOpenEditor}
+                          className="gap-2"
+                        >
+                          <Code2 className="size-3.5 text-[var(--text-muted)]" />
+                          Open in Editor
+                        </DropdownMenuItem>
                       )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+                      {hasSession && (
+                        <DropdownMenuItem
+                          onSelect={handleKillSession}
+                          disabled={isLoading}
+                          className="gap-2"
+                        >
+                          {killingSession ? (
+                            <Loader2 className="size-3.5 animate-spin text-[var(--text-muted)]" />
+                          ) : (
+                            <X className="size-3.5 text-[var(--text-muted)]" />
+                          )}
+                          Kill Session
+                        </DropdownMenuItem>
+                      )}
+                      {worktree && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() => setConfirmingDelete(true)}
+                            disabled={isLoading || confirmingDelete}
+                            className="gap-2 text-[var(--accent-red)] focus:text-[var(--accent-red)]"
+                          >
+                            {deletingWorktree ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-3.5" />
+                            )}
+                            Delete Worktree
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenuRoot>
+                )}
+              </>
+            )}
 
-          {/* Hook error panel */}
-          {hookError && (
-            <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] p-3 shadow-lg">
-              <p className="mb-2 text-xs text-[var(--accent-red)]">
-                {hookError}
-              </p>
-              <div className="flex flex-col gap-1.5">
+            {/* Delete confirmation */}
+            {confirmingDelete && (
+              <span className="flex items-center gap-2 text-xs">
+                <span className="text-[var(--text-muted)]">
+                  Delete worktree?
+                </span>
                 <button
-                  onClick={() => {
-                    setHookError(null);
-                    handleDeleteWorktree(true);
-                  }}
-                  className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
+                  onClick={() => handleDeleteWorktree()}
+                  disabled={deletingWorktree}
+                  className="text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
                 >
-                  Delete anyway
+                  {deletingWorktree ? "Deleting..." : "Yes"}
                 </button>
+                <span className="text-[var(--text-muted)]">/</span>
                 <button
-                  onClick={() => setHookError(null)}
-                  className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                  onClick={() => setConfirmingDelete(false)}
+                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 >
-                  Cancel
+                  No
                 </button>
-              </div>
-            </div>
-          )}
+              </span>
+            )}
 
-          {/* Branch error panel */}
-          {branchError && (
-            <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] p-3 shadow-lg">
-              {branchError.type === "exists" && (
-                <>
-                  <p className="mb-2 text-xs text-[var(--text-secondary)]">
-                    Branch{" "}
-                    <span className="font-medium">{branchError.branch}</span>{" "}
-                    already exists.
-                  </p>
-                  <div className="flex flex-col gap-1.5">
-                    <button
-                      onClick={() => handleExistingBranch(false)}
-                      className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
-                    >
-                      Use existing branch
-                    </button>
-                    <button
-                      onClick={() => handleExistingBranch(true)}
-                      className="rounded bg-[var(--accent-amber)]/20 px-2 py-1 text-xs text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30"
-                    >
-                      Reset to base
-                    </button>
-                    <button
-                      onClick={() => setBranchError(null)}
-                      className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-                    >
-                      Cancel
-                    </button>
+            {/* Dropdown for repo/branch selection */}
+            {dropdownOpen && (
+              <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+                {repos.length === 1 ? (
+                  <BranchSelector
+                    repoPath={repos[0].path}
+                    configWarning={repos[0].configWarning}
+                    onSelect={(baseBranch) =>
+                      handleStart(repos[0].path, baseBranch)
+                    }
+                  />
+                ) : selectedRepo ? (
+                  <BranchSelector
+                    repoPath={selectedRepo.path}
+                    repoId={selectedRepo.id}
+                    configWarning={selectedRepo.configWarning}
+                    onSelect={(baseBranch) =>
+                      handleStart(selectedRepo.path, baseBranch)
+                    }
+                    onBack={() => setSelectedRepo(null)}
+                  />
+                ) : (
+                  <div className="min-w-40">
+                    {repos.map((repo) => (
+                      <button
+                        key={repo.id}
+                        onClick={() => setSelectedRepo(repo)}
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
+                      >
+                        {repo.id}
+                        {repo.configWarning && (
+                          <span title={repo.configWarning}>
+                            <AlertTriangle className="size-3.5 shrink-0 text-[var(--accent-amber)]" />
+                          </span>
+                        )}
+                      </button>
+                    ))}
                   </div>
-                </>
-              )}
-              {branchError.type === "not-found" && (
-                <>
-                  <p className="mb-2 text-xs text-[var(--accent-red)]">
-                    Base branch{" "}
-                    <span className="font-medium">{branchError.branch}</span>{" "}
-                    not found.
-                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Hook error panel */}
+            {hookError && (
+              <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] p-3 shadow-lg">
+                <p className="mb-2 text-xs text-[var(--accent-red)]">
+                  {hookError}
+                </p>
+                <div className="flex flex-col gap-1.5">
                   <button
-                    onClick={() => setBranchError(null)}
+                    onClick={() => {
+                      setHookError(null);
+                      handleDeleteWorktree(true);
+                    }}
+                    className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
+                  >
+                    Delete anyway
+                  </button>
+                  <button
+                    onClick={() => setHookError(null)}
                     className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
                   >
-                    Dismiss
+                    Cancel
                   </button>
-                </>
-              )}
-              {branchError.type === "unpushed" && (
-                <>
-                  <p className="mb-2 text-xs text-[var(--accent-amber)]">
-                    Branch{" "}
-                    <span className="font-medium">{branchError.branch}</span>{" "}
-                    has unpushed commits. Reset anyway?
-                  </p>
-                  <div className="flex flex-col gap-1.5">
-                    <button
-                      onClick={() => handleExistingBranch(true, true)}
-                      className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
-                    >
-                      Force reset
-                    </button>
-                    <button
-                      onClick={() => handleExistingBranch(false)}
-                      className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
-                    >
-                      Use existing branch
-                    </button>
+                </div>
+              </div>
+            )}
+
+            {/* Branch error panel */}
+            {branchError && (
+              <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] p-3 shadow-lg">
+                {branchError.type === "exists" && (
+                  <>
+                    <p className="mb-2 text-xs text-[var(--text-secondary)]">
+                      Branch{" "}
+                      <span className="font-medium">{branchError.branch}</span>{" "}
+                      already exists.
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      <button
+                        onClick={() => handleExistingBranch(false)}
+                        className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
+                      >
+                        Use existing branch
+                      </button>
+                      <button
+                        onClick={() => handleExistingBranch(true)}
+                        className="rounded bg-[var(--accent-amber)]/20 px-2 py-1 text-xs text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30"
+                      >
+                        Reset to base
+                      </button>
+                      <button
+                        onClick={() => setBranchError(null)}
+                        className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                )}
+                {branchError.type === "not-found" && (
+                  <>
+                    <p className="mb-2 text-xs text-[var(--accent-red)]">
+                      Base branch{" "}
+                      <span className="font-medium">{branchError.branch}</span>{" "}
+                      not found.
+                    </p>
                     <button
                       onClick={() => setBranchError(null)}
                       className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
                     >
-                      Cancel
+                      Dismiss
                     </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+                  </>
+                )}
+                {branchError.type === "unpushed" && (
+                  <>
+                    <p className="mb-2 text-xs text-[var(--accent-amber)]">
+                      Branch{" "}
+                      <span className="font-medium">{branchError.branch}</span>{" "}
+                      has unpushed commits. Reset anyway?
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      <button
+                        onClick={() => handleExistingBranch(true, true)}
+                        className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
+                      >
+                        Force reset
+                      </button>
+                      <button
+                        onClick={() => handleExistingBranch(false)}
+                        className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
+                      >
+                        Use existing branch
+                      </button>
+                      <button
+                        onClick={() => setBranchError(null)}
+                        className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </TooltipProvider>
   );
 
   if (hasSession) {
