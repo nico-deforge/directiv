@@ -18,14 +18,14 @@ By modeling your development pipeline as a DAG, Directiv ensures tasks flow thro
 
 ### Technical summary
 
-Directiv is a Tauri 2.0 desktop app that integrates Linear, GitHub, tmux, and git worktrees into a unified pipeline board. It features a built-in terminal (xterm.js + Rust PTY) for seamless tmux session interaction, with an optional fallback to external emulators (Ghostty, iTerm2).
+Directiv is a Tauri 2.0 desktop app that integrates Linear, GitHub, tmux, and git worktrees into a unified pipeline board. Terminal display is delegated to external emulators (Ghostty or iTerm2) via a polymorphic `TerminalController` trait in Rust.
 
 ## Tech Stack
 
 - **App framework:** Tauri 2.0 (Rust backend in `src-tauri/`, React frontend in `src/`)
-- **Frontend:** React + TypeScript, Zustand (state), Tailwind CSS, TanStack Query (data fetching), lucide-react (icons)
-- **Backend:** Rust with `tauri-plugin-shell` for system commands, `portable-pty` for PTY management, `serde` for serialization
-- **Terminal:** xterm.js (frontend) + portable-pty (Rust) connected via Tauri Channels for ordered streaming
+- **Frontend:** React 19 + TypeScript, Zustand 5 (state), Tailwind CSS 4 (styling), TanStack Query 5 (data fetching), TanStack Router (routing), @xyflow/react (DAG visualization), lucide-react (icons)
+- **Backend:** Rust with `tauri-plugin-shell` for system commands, `serde` for serialization, `keyring` for OS credential storage, `reqwest` for HTTP/OAuth
+- **Terminal:** External only — Ghostty or iTerm2 via AppleScript, abstracted behind a `TerminalController` trait
 - **Integrations:** `@linear/sdk`, `@octokit/rest`, tmux CLI, git worktree
 - **Dev tooling:** mise (tool version management + task runner)
 
@@ -65,43 +65,47 @@ mise run build             # Build production Tauri app
 
 ### Frontend patterns
 
-- **Hooks** (`src/hooks/`) wrap SDK clients with TanStack Query for caching/polling: `useLinear`, `useGitHub`, `useTmux`, `useWorktrees`
-- **Stores** (`src/stores/`) use Zustand: `workflowStore` (enriched tasks, filters), `settingsStore` (persisted user config), `terminalStore` (terminal tab lifecycle), `authStore` (OAuth state for Linear + GitHub, cached SDK client factories)
+- **Hooks** (`src/hooks/`) wrap SDK clients with TanStack Query for caching/polling: `useLinear`, `useGitHub`, `useTmux`, `useWorktrees`, `useTerminalStatuses`
+- **Stores** (`src/stores/`) use Zustand: `workflowStore` (enriched tasks, filters), `settingsStore` (persisted user config), `projectStore` (selected project), `workspaceStore` (workspace config), `authStore` (OAuth state for Linear + GitHub, cached SDK client factories)
 - **Lib** (`src/lib/`) contains initialized SDK clients and business logic (`workflows.ts` handles `startTask`, `removeWorktreeFlow`, etc.)
 
 ### Backend commands (`src-tauri/src/commands/`)
 
-- `worktree.rs` — git worktree add/remove/list
-- `tmux.rs` — session create/kill/list/capture-pane
-- `pty.rs` — PTY spawn/write/resize/close for the integrated terminal (xterm.js ↔ Tauri Channel ↔ Rust PTY ↔ tmux attach)
-- `terminal.rs` — open external terminal attached to tmux session (legacy/fallback)
+- `worktree.rs` — git worktree add/remove/list/check-merged/check-synced, git fetch prune
+- `tmux.rs` — session create/kill/list/send-keys/capture-pane/wait-for-ready
+- `terminal/` — external terminal module:
+  - `mod.rs` — `open_terminal`, `query_terminals`, `open_editor` commands
+  - `controller.rs` — `TerminalController` trait (open, query, is_available)
+  - `ghostty.rs` — Ghostty integration via AppleScript
+  - `iterm.rs` — iTerm2 integration via AppleScript
+  - `types.rs` — `TerminalConfig`, `TerminalRef`, `TerminalLayout`
 - `config.rs` — `load_config` / `save_config` commands. Config lives at `~/Library/Application Support/directiv/config.json` (release) or `config.dev.json` (dev), using the same `#[cfg(debug_assertions)]` pattern as `shared.rs`. On first load, auto-migrates from legacy project-root `directiv.config.json` if found.
+- `hooks.rs` — execute `.directiv.json` onStart/beforeRemove scripts
+- `workspace.rs` — scan workspace directories, discover git repos
+- `skills.rs` — `get_plugin_dir`, `list_plugin_skills`, `read_plugin_skill_file`, `list_all_claude_skills`
 - `oauth/` — OAuth module directory:
   - `shared.rs` — `keyring_get/set/delete` helpers with `#[cfg]` dual implementation: file-backed store (`dev-tokens.json`) in dev builds (no keychain prompts), OS keyring in release. Also exports `OAuthStatus` and `now_secs()`.
   - `linear.rs` — Linear OAuth2 Web Flow (PKCE + localhost callback)
   - `github.rs` — GitHub OAuth Device Flow (no `client_secret`, tokens don't expire)
 
-### Integrated terminal
+### External terminal
 
-The app embeds a full terminal emulator using **xterm.js** connected to tmux sessions through a Rust PTY backend:
+Terminal display is fully delegated to external emulators. The `TerminalController` trait abstracts the integration:
 
-- **Architecture:** xterm.js (frontend) ↔ Tauri Channel (ordered streaming) ↔ portable-pty (Rust) ↔ `tmux attach -t <session>`
-- **Tab system:** full-screen tabs in `RootLayout` — Board tab + terminal tabs. All tabs stay mounted (CSS `hidden`) so the Board keeps polling and terminals keep their PTY connection.
-- **Store:** `terminalStore` (Zustand) manages tab lifecycle (open/close/focus)
-- **Components:** `TerminalPanel` (xterm.js wrapper with FitAddon, WebLinksAddon, ResizeObserver), `TabBar` (tab navigation, hidden when no terminals are open)
-- **PTY commands:** `pty_spawn` (creates PTY + reader thread), `pty_write`, `pty_resize`, `pty_close` (detaches tmux cleanly before killing child)
-- **Font:** JetBrains Mono bundled in `src/assets/fonts/`, loaded via `@font-face` in `index.css`
-
-**Retrocompatibility:** set `"terminalMode": "external"` in config to use Ghostty/iTerm2 instead of the built-in terminal. Default is `"internal"`.
+- **Implementations:** `GhosttyController` and `ITermController`, both using AppleScript to open windows/tabs attached to tmux sessions
+- **Commands:** `open_terminal` (spawns emulator attached to tmux session), `query_terminals` (polls emulator for open sessions), `open_editor` (opens code editor at worktree path)
+- **Environment:** terminals receive `DIRECTIV_TASK`, `DIRECTIV_WORKTREE`, `DIRECTIV_SESSION` env vars
+- **Hook:** `useTerminalStatuses()` polls external emulator session statuses via `query_terminals`
 
 ### Core workflow: "Start Task"
 
 Triggered by clicking [Start] on a backlog card:
-1. Create git worktree → `git worktree add ../repo-worktrees/ACQ-145 -b ACQ-145 origin/main`
+1. Create git worktree → `git worktree add ../repo-worktrees/ACQ-145 -b ACQ-145 origin/main` (+ copy paths from `.directiv.json`)
 2. Create tmux session → `tmux new-session -d -s ACQ-145 -c /path/to/worktree`
-3. Launch Claude with context → `tmux send-keys -t ACQ-145 'claude --plugin-dir "<resource>/directiv-plugin" "/directiv:linear-code ACQ-145"' Enter`
-4. Update Linear → status to "In Progress"
-5. Open terminal tab → PTY attaches to tmux session, card moves to "In Dev"
+3. Run onStart hooks (if defined in `.directiv.json`)
+4. Launch Claude with context → `tmux send-keys -t ACQ-145 'claude --plugin-dir "<resource>/directiv-plugin" "/directiv:linear-code ACQ-145"' Enter`
+5. Open external terminal → Ghostty/iTerm2 attaches to tmux session
+6. Update Linear → status to "In Progress", card moves to "In Dev"
 
 Claude Code starts in interactive mode with `/directiv:linear-code <issue_id>` as the initial prompt, executing the skill immediately then remaining available for interaction.
 
@@ -114,6 +118,7 @@ Skills are bundled inside the app as a Claude Code plugin — no user installati
 - **Runtime resolution:** Rust command `get_plugin_dir` resolves the resource path; `list_plugin_skills` scans the `skills/` directory
 - **Launch:** `workflows.ts` passes `--plugin-dir` to the `claude` CLI so skills are available as `/directiv:<skill-name>`
 - **Start button:** hardcoded to `directiv:linear-code` — no config needed
+- **Available skills:** `linear-code`, `linear-plan`, `fix-ci`, `commit`, `create-pr`
 - **Adding a skill:** create a new folder under `skills/` with a `SKILL.md`, rebuild the app
 
 ### Pipeline board columns
@@ -122,7 +127,8 @@ Skills are bundled inside the app as a Claude Code plugin — no user installati
 |--------|--------|----------|
 | Backlog | Linear | Assigned, not started |
 | In Dev | Linear + tmux | Status "started" AND worktree/session exists |
-| In Review | GitHub | PR opened linked to task |
+| Personal Review | GitHub | PR opened, no reviewers assigned |
+| In Review | GitHub | PR opened with reviewers |
 | Approved | GitHub | PR with ≥1 approval, 0 changes requested |
 | Done | Linear | Completed in last 24h |
 
@@ -143,12 +149,30 @@ Both Linear and GitHub use OAuth — no API keys or `.env` variables needed. In 
 
 User config lives at `~/Library/Application Support/directiv/config.json` (release) or `config.dev.json` (dev), using the same `#[cfg(debug_assertions)]` pattern as token storage. This prevents dev and prod builds from overwriting each other's settings. On first launch, the app auto-migrates from the legacy `directiv.config.json` at project root if found. Settings changed in the UI are auto-persisted via the `save_config` Tauri command.
 
-- `terminal`: preferred external emulator — `"ghostty"` or `"iterm2"` (used when `terminalMode` is `"external"`)
-- `terminalMode`: `"internal"` (default, built-in xterm.js) or `"external"` (delegates to Ghostty/iTerm2)
+- `terminal`: external emulator — `"ghostty"` or `"iterm2"`
 - `editor`: code editor — `"zed"`, `"cursor"`, `"vscode"`, `"code"`
 - `workspaces`: list of workspace paths containing git repositories
 - `linear`: org-scoped team config — `Record<orgId, { name, teamIds }>`
 - `theme`: `"dark"`, `"light"`, or `"system"`
+- `skills`: optional skill overrides per action (`code`, `plan`, `fixCi`)
+- `models`: optional model overrides per action (`code`, `plan`, `fixCi`)
+
+**Per-repo config** (`.directiv.json` at repo root):
+- `copyPaths`: files/dirs to copy into worktrees on creation
+- `onStart`: hook commands to run after worktree creation
+- `beforeRemove`: hook commands to run before worktree deletion
+- `baseBranch`: base branch for worktrees (default: `"main"`)
+- `fetchBefore`: whether to `git fetch` before creating worktree
+- `skills` / `models`: per-repo overrides (same shape as global config)
+
+### UI layout
+
+- **RootLayout** → `AuthGate` → `OnboardingGate` → page router
+- **HomePage** — `ProjectSelector` (sidebar) + `DependencyGraph` (main canvas)
+- **DependencyGraph** — ReactFlow DAG with custom nodes: `UnifiedTaskCard` (task cards with actions), `OrphanTaskCard` (worktrees without Linear issues), `GroupLabelNode` (cross-project labels)
+- **Task card actions:** Start, Attach terminal, Logs, Stop, Open editor, Open PR, Merge, Archive
+- **Dependency edges:** drag-to-create blocking relationships, right-click to delete
+- **ConfigPage** — General, Integrations, Linear teams, Workspaces, Skills sections
 
 ## Code Conventions
 
