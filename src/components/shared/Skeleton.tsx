@@ -9,6 +9,7 @@ export function Skeleton({
 }) {
   return (
     <div
+      aria-hidden="true"
       className={`animate-pulse rounded bg-[var(--bg-tertiary)] ${className}`}
       style={{ width, height }}
     />
