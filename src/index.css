@@ -1,5 +1,3 @@
-@import "tailwindcss";
-
 @font-face {
   font-family: "Geist";
   src: url("./assets/fonts/Geist-Variable.woff2") format("woff2");
@@ -16,9 +14,11 @@
   font-display: swap;
 }
 
+@import "tailwindcss";
+
 @theme {
-  --font-sans: "Geist", sans-serif;
-  --font-mono: "Geist Mono", monospace;
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
 }
 
 /* Light theme (default) - soft/muted for eye comfort */
