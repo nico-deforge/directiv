@@ -184,8 +184,8 @@ function SkillMappingSection() {
           Skill Mapping
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Choose which skill to run for each action. Leave empty to use the
-          default Directiv skill.
+          Choose which skill and model to use for each action. Leave empty to
+          use the defaults.
         </p>
       </div>
 

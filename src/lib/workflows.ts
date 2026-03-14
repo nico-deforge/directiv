@@ -170,7 +170,7 @@ export async function buildClaudeCommand(
   const pluginDir = usePlugin ? await getPluginDir() : null;
   const escapedDir = pluginDir ? pluginDir.replace(/'/g, "'\\''") : null;
   const pluginFlag = escapedDir ? ` --plugin-dir '${escapedDir}'` : "";
-  const modelFlag = model ? ` --model ${model}` : "";
+  const modelFlag = model ? ` --model '${model}'` : "";
   if (skill && identifier) {
     if (usePlugin && !pluginDir) {
       console.warn(

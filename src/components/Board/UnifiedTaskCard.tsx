@@ -26,6 +26,7 @@ import type {
   TmuxSession,
   DiscoveredRepo,
   ClaudeSessionStatus,
+  ClaudeModel,
 } from "../../types";
 import { CI_STATUSES } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
@@ -243,7 +244,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   ): {
     skill: string;
     usePlugin: boolean;
-    model: ReturnType<typeof resolveModel>;
+    model: ClaudeModel | undefined;
   } {
     const repo = repos.find((r) => r.path === repoPath);
     return {
