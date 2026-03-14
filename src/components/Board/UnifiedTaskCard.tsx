@@ -436,8 +436,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const isTerminalActive = terminalActive !== null ? terminalActive : false;
 
   // Whether any meta info is present to show the meta row
-  const hasMetaInfo =
-    worktree || pullRequest || (worktree && !pullRequest && githubRepoBlocked);
+  const hasMetaInfo = worktree || pullRequest;
 
   const card = (
     <TooltipProvider>
@@ -663,60 +662,58 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                 </button>
 
                 {/* Secondary actions in dropdown */}
-                {(worktree || hasSession) && (
-                  <DropdownMenuRoot>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        className="ml-auto flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
-                        title="More actions"
+                <DropdownMenuRoot>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="ml-auto flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
+                      title="More actions"
+                    >
+                      <MoreHorizontal className="size-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" sideOffset={4}>
+                    {worktree && (
+                      <DropdownMenuItem
+                        onSelect={handleOpenEditor}
+                        className="gap-2"
                       >
-                        <MoreHorizontal className="size-3.5" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" sideOffset={4}>
-                      {worktree && (
+                        <Code2 className="size-3.5 text-[var(--text-muted)]" />
+                        Open in Editor
+                      </DropdownMenuItem>
+                    )}
+                    {hasSession && (
+                      <DropdownMenuItem
+                        onSelect={handleKillSession}
+                        disabled={isLoading}
+                        className="gap-2"
+                      >
+                        {killingSession ? (
+                          <Loader2 className="size-3.5 animate-spin text-[var(--text-muted)]" />
+                        ) : (
+                          <X className="size-3.5 text-[var(--text-muted)]" />
+                        )}
+                        Kill Session
+                      </DropdownMenuItem>
+                    )}
+                    {worktree && (
+                      <>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onSelect={handleOpenEditor}
-                          className="gap-2"
+                          onSelect={() => setConfirmingDelete(true)}
+                          disabled={isLoading || confirmingDelete}
+                          className="gap-2 text-[var(--accent-red)] focus:text-[var(--accent-red)]"
                         >
-                          <Code2 className="size-3.5 text-[var(--text-muted)]" />
-                          Open in Editor
-                        </DropdownMenuItem>
-                      )}
-                      {hasSession && (
-                        <DropdownMenuItem
-                          onSelect={handleKillSession}
-                          disabled={isLoading}
-                          className="gap-2"
-                        >
-                          {killingSession ? (
-                            <Loader2 className="size-3.5 animate-spin text-[var(--text-muted)]" />
+                          {deletingWorktree ? (
+                            <Loader2 className="size-3.5 animate-spin" />
                           ) : (
-                            <X className="size-3.5 text-[var(--text-muted)]" />
+                            <Trash2 className="size-3.5" />
                           )}
-                          Kill Session
+                          Delete Worktree
                         </DropdownMenuItem>
-                      )}
-                      {worktree && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={() => setConfirmingDelete(true)}
-                            disabled={isLoading || confirmingDelete}
-                            className="gap-2 text-[var(--accent-red)] focus:text-[var(--accent-red)]"
-                          >
-                            {deletingWorktree ? (
-                              <Loader2 className="size-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="size-3.5" />
-                            )}
-                            Delete Worktree
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenuRoot>
-                )}
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenuRoot>
               </>
             )}
 
