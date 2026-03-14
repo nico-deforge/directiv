@@ -110,13 +110,26 @@ function DependencyGraphInner() {
     [linearProjects],
   );
 
-  const { data: projectTasks } = useLinearProjectIssues(
-    selectedProjectId,
-    teamIds,
-  );
-  const { data: otherTasks } = useLinearOtherIssues(memberProjectIds);
+  const {
+    data: projectTasks,
+    isLoading: isProjectTasksLoading,
+    isError: isProjectTasksError,
+  } = useLinearProjectIssues(selectedProjectId, teamIds);
+  const {
+    data: otherTasks,
+    isLoading: isOtherTasksLoading,
+    isError: isOtherTasksError,
+  } = useLinearOtherIssues(memberProjectIds);
   const tasks =
     selectedProjectId === OTHER_ISSUES_PROJECT_ID ? otherTasks : projectTasks;
+  const isTasksLoading =
+    selectedProjectId === OTHER_ISSUES_PROJECT_ID
+      ? isOtherTasksLoading
+      : isProjectTasksLoading;
+  const isTasksError =
+    selectedProjectId === OTHER_ISSUES_PROJECT_ID
+      ? isOtherTasksError
+      : isProjectTasksError;
   const { data: sessions } = useTmuxSessions();
   const activeSessionNames = useMemo(
     () => (sessions ?? []).map((s) => s.name),
@@ -642,6 +655,16 @@ function DependencyGraphInner() {
     });
   }, [nodes, handleCardDragStart, dragState?.targetNodeId]);
 
+  const isRegularProject =
+    selectedProjectId !== ORPHAN_PROJECT_ID &&
+    selectedProjectId !== OTHER_ISSUES_PROJECT_ID &&
+    selectedProjectId !== null;
+  const showEmptyCanvas =
+    !isTasksLoading &&
+    !isTasksError &&
+    (tasks ?? []).length === 0 &&
+    isRegularProject;
+
   return (
     <>
       <ReactFlow
@@ -671,6 +694,30 @@ function DependencyGraphInner() {
           size={1}
           color={resolvedTheme === "dark" ? DOT_COLOR.dark : DOT_COLOR.light}
         />
+        {isTasksError && isRegularProject && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-sm font-medium text-[var(--accent-red)]">
+                Failed to load tasks
+              </p>
+              <p className="mt-1 text-xs text-[var(--text-muted)] opacity-60">
+                Check your Linear connection in Settings
+              </p>
+            </div>
+          </div>
+        )}
+        {showEmptyCanvas && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-sm font-medium text-[var(--text-muted)]">
+                No tasks in this project
+              </p>
+              <p className="mt-1 text-xs text-[var(--text-muted)] opacity-60">
+                Assign issues to this project in Linear to see them here
+              </p>
+            </div>
+          </div>
+        )}
         <div className="absolute bottom-3 right-3 z-10">
           <button
             onClick={() => fitView({ padding: 0.1, duration: 300 })}

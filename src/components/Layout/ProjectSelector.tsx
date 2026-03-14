@@ -54,6 +54,7 @@ import { worktreeCreateExistingBranch } from "../../lib/tauri";
 import { toSessionName } from "../../lib/tmux-utils";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { BranchSelector } from "../shared/BranchSelector";
+import { Skeleton } from "../shared/Skeleton";
 
 export function ProjectSelector() {
   const projects = useProjectStore((s) => s.projects);
@@ -149,17 +150,19 @@ export function ProjectSelector() {
         )}
 
         {!collapsed && connectionStatus.status === "loading" && (
-          <div className="flex items-center gap-2 px-4 py-3">
-            <Loader2 className="size-4 animate-spin text-[var(--text-muted)]" />
-            <p className="text-sm text-[var(--text-muted)]">
-              Loading projects...
-            </p>
+          <div className="flex flex-col gap-2 px-4 py-3">
+            <Skeleton height={16} width="80%" />
+            <Skeleton height={16} width="65%" />
+            <Skeleton height={16} width="75%" />
+            <Skeleton height={16} width="55%" />
           </div>
         )}
 
         {collapsed && connectionStatus.status === "loading" && (
-          <div className="flex justify-center py-3">
-            <Loader2 className="size-4 animate-spin text-[var(--text-muted)]" />
+          <div className="flex flex-col items-center gap-2 py-3">
+            <Skeleton height={16} width={24} />
+            <Skeleton height={16} width={24} />
+            <Skeleton height={16} width={24} />
           </div>
         )}
 
@@ -200,9 +203,20 @@ export function ProjectSelector() {
           backlogProjects.length === 0 &&
           !hasOtherIssues &&
           !hasOrphans && (
-            <p className="px-4 py-2 text-sm text-[var(--text-muted)]">
-              No active projects found
-            </p>
+            <div className="px-4 py-3">
+              <p className="text-sm text-[var(--text-muted)]">
+                No active projects found
+              </p>
+              <p className="mt-1 text-xs text-[var(--text-muted)] opacity-70">
+                Configure your Linear teams in Settings to see your projects
+              </p>
+              <Link
+                to="/config"
+                className="mt-2 block text-xs text-[var(--accent-blue)] hover:underline"
+              >
+                Open Settings →
+              </Link>
+            </div>
           )}
 
         {startedProjects.map((project) => (
