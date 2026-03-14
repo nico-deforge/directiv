@@ -109,6 +109,7 @@ export function ProjectSelector() {
                 disabled={isRefreshing}
                 className="rounded p-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
                 title="Refresh all data"
+                aria-label="Refresh all data"
               >
                 <RefreshCw
                   className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`}
@@ -451,6 +452,7 @@ function NewWorktreeSection() {
             <button
               onClick={() => setShowForm(false)}
               className="rounded p-1.5 hover:bg-[var(--bg-elevated)]"
+              aria-label="Close new worktree form"
             >
               <X className="size-3.5 text-[var(--text-muted)]" />
             </button>
@@ -708,6 +710,7 @@ function OrphanSessionsSection() {
             <button
               onClick={() => setShowCleanup(false)}
               className="rounded p-1.5 hover:bg-[var(--bg-elevated)]"
+              aria-label="Close orphan sessions panel"
             >
               <X className="size-3.5 text-[var(--text-muted)]" />
             </button>
@@ -886,6 +889,7 @@ function CleanupSection() {
             <button
               onClick={() => setShowCleanup(false)}
               className="rounded p-1.5 hover:bg-[var(--bg-elevated)]"
+              aria-label="Close cleanup panel"
             >
               <X className="size-3.5 text-[var(--text-muted)]" />
             </button>

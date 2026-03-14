@@ -46,6 +46,7 @@ export function WorkspaceList({
           </div>
           <button
             onClick={() => handleRemove(ws.path)}
+            aria-label={`Remove workspace ${ws.name ?? ws.id}`}
             className="shrink-0 rounded p-1 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--accent-red)]"
           >
             <X className="size-4" />
