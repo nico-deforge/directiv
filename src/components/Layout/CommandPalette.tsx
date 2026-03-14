@@ -13,10 +13,19 @@ import {
 import { useProjectStore } from "../../stores/projectStore";
 import { useWorkflowStore } from "../../stores/workflowStore";
 
+const COMMAND_CATEGORIES = {
+  NAVIGATION: "navigation",
+  ACTIONS: "actions",
+  TASKS: "tasks",
+} as const;
+
+type CommandCategory =
+  (typeof COMMAND_CATEGORIES)[keyof typeof COMMAND_CATEGORIES];
+
 interface CommandEntry {
   id: string;
   label: string;
-  category: "navigation" | "actions" | "tasks";
+  category: CommandCategory;
   icon: React.ReactNode;
   action: () => void;
 }
@@ -38,7 +47,7 @@ function CommandPaletteDialog({ open, onClose }: CommandPaletteProps) {
     {
       id: "nav-settings",
       label: "Go to Settings",
-      category: "navigation",
+      category: COMMAND_CATEGORIES.NAVIGATION,
       icon: <Settings size={14} />,
       action: () => {
         navigate({ to: "/config" });
@@ -48,7 +57,7 @@ function CommandPaletteDialog({ open, onClose }: CommandPaletteProps) {
     {
       id: "nav-home",
       label: "Go to Home",
-      category: "navigation",
+      category: COMMAND_CATEGORIES.NAVIGATION,
       icon: <FolderKanban size={14} />,
       action: () => {
         navigate({ to: "/" });
@@ -58,7 +67,7 @@ function CommandPaletteDialog({ open, onClose }: CommandPaletteProps) {
     {
       id: "action-refresh",
       label: "Refresh all",
-      category: "actions",
+      category: COMMAND_CATEGORIES.ACTIONS,
       icon: <RefreshCw size={14} />,
       action: () => {
         queryClient.invalidateQueries();
@@ -70,7 +79,7 @@ function CommandPaletteDialog({ open, onClose }: CommandPaletteProps) {
   const projectCommands: CommandEntry[] = projects.map((project) => ({
     id: `nav-project-${project.id}`,
     label: `Go to ${project.name}`,
-    category: "navigation" as const,
+    category: COMMAND_CATEGORIES.NAVIGATION,
     icon: <FolderKanban size={14} />,
     action: () => {
       selectProject(project.id);
@@ -82,18 +91,25 @@ function CommandPaletteDialog({ open, onClose }: CommandPaletteProps) {
   const taskCommands: CommandEntry[] = tasks.map((task) => ({
     id: `task-${task.id}`,
     label: task.title,
-    category: "tasks" as const,
+    category: COMMAND_CATEGORIES.TASKS,
     icon: <Search size={14} />,
     action: () => {
+      // TODO: scroll to / focus the task node on the board
       onClose();
     },
   }));
 
   const allCommands = [...staticCommands, ...projectCommands, ...taskCommands];
 
-  const navCommands = allCommands.filter((c) => c.category === "navigation");
-  const actionCommands = allCommands.filter((c) => c.category === "actions");
-  const taskCommandItems = allCommands.filter((c) => c.category === "tasks");
+  const navCommands = allCommands.filter(
+    (c) => c.category === COMMAND_CATEGORIES.NAVIGATION,
+  );
+  const actionCommands = allCommands.filter(
+    (c) => c.category === COMMAND_CATEGORIES.ACTIONS,
+  );
+  const taskCommandItems = allCommands.filter(
+    (c) => c.category === COMMAND_CATEGORIES.TASKS,
+  );
 
   function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
     if (e.target === overlayRef.current) {
@@ -163,14 +179,11 @@ export function CommandPalette() {
         e.preventDefault();
         setOpen((prev) => !prev);
       }
-      if (e.key === "Escape" && open) {
-        setOpen(false);
-      }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open]);
+  }, []);
 
   return <CommandPaletteDialog open={open} onClose={() => setOpen(false)} />;
 }
