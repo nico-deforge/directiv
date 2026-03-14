@@ -23,7 +23,7 @@ export const DialogContent = forwardRef<
   React.ElementRef<typeof RadixDialog.Content>,
   React.ComponentPropsWithoutRef<typeof RadixDialog.Content>
 >(({ className = "", children, ...props }, ref) => (
-  <RadixDialog.Portal>
+  <DialogPortal>
     <DialogOverlay />
     <RadixDialog.Content
       ref={ref}
@@ -31,12 +31,12 @@ export const DialogContent = forwardRef<
       {...props}
     >
       {children}
-      <RadixDialog.Close className="absolute right-4 top-4 rounded p-1 text-[var(--text-muted)] opacity-70 transition-opacity hover:opacity-100 hover:bg-[var(--bg-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]">
+      <DialogClose className="absolute right-4 top-4 rounded p-1 text-[var(--text-muted)] opacity-70 transition-opacity hover:opacity-100 hover:bg-[var(--bg-tertiary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]">
         <X className="size-4" />
         <span className="sr-only">Close</span>
-      </RadixDialog.Close>
+      </DialogClose>
     </RadixDialog.Content>
-  </RadixDialog.Portal>
+  </DialogPortal>
 ));
 DialogContent.displayName = "DialogContent";
 

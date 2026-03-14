@@ -107,10 +107,12 @@ export const DropdownMenuSubContent = forwardRef<
   React.ElementRef<typeof RadixDropdownMenu.SubContent>,
   React.ComponentPropsWithoutRef<typeof RadixDropdownMenu.SubContent>
 >(({ className = "", ...props }, ref) => (
-  <RadixDropdownMenu.SubContent
-    ref={ref}
-    className={`z-50 min-w-[8rem] overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] p-1 shadow-lg ${className}`}
-    {...props}
-  />
+  <RadixDropdownMenu.Portal>
+    <RadixDropdownMenu.SubContent
+      ref={ref}
+      className={`z-50 min-w-[8rem] overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-elevated)] p-1 shadow-lg animate-in fade-in-0 zoom-in-95 ${className}`}
+      {...props}
+    />
+  </RadixDropdownMenu.Portal>
 ));
 DropdownMenuSubContent.displayName = "DropdownMenuSubContent";
