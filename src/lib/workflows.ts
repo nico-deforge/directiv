@@ -16,6 +16,7 @@ import {
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
 import type {
+  ActionKey,
   ClaudeModel,
   ModelOverrides,
   SkillOverrides,
@@ -119,7 +120,7 @@ export const SKILLS = {
 
 export type SkillKey = keyof typeof SKILLS;
 
-const SKILL_FIELD: Record<SkillKey, keyof SkillOverrides> = {
+const SKILL_FIELD: Record<SkillKey, ActionKey> = {
   CODE: "code",
   PLAN: "plan",
   FIX_CI: "fixCi",

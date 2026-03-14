@@ -204,11 +204,10 @@ export interface WorkspaceConfig {
   path: string;
 }
 
-export interface SkillOverrides {
-  code?: string;
-  plan?: string;
-  fixCi?: string;
-}
+export const ACTION_KEYS = ["code", "plan", "fixCi"] as const;
+export type ActionKey = (typeof ACTION_KEYS)[number];
+
+export type SkillOverrides = Partial<Record<ActionKey, string>>;
 
 export const CLAUDE_MODELS = {
   OPUS: "opus",
@@ -218,11 +217,7 @@ export const CLAUDE_MODELS = {
 
 export type ClaudeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
 
-export interface ModelOverrides {
-  code?: ClaudeModel;
-  plan?: ClaudeModel;
-  fixCi?: ClaudeModel;
-}
+export type ModelOverrides = Partial<Record<ActionKey, ClaudeModel>>;
 
 export interface DiscoveredRepo {
   id: string;

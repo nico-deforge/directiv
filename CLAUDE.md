@@ -101,9 +101,9 @@ Terminal display is fully delegated to external emulators. The `TerminalControll
 
 Triggered by clicking [Start] on a backlog card:
 1. Create git worktree → `git worktree add ../repo-worktrees/ACQ-145 -b ACQ-145 origin/main` (+ copy paths from `.directiv.json`)
-2. Create tmux session → `tmux new-session -d -s ACQ-145 -c /path/to/worktree`
-3. Run onStart hooks (if defined in `.directiv.json`)
-4. Launch Claude with context → `tmux send-keys -t ACQ-145 'claude --plugin-dir "<resource>/directiv-plugin" "/directiv:linear-code ACQ-145"' Enter`
+2. Run onStart hooks (if defined in `.directiv.json`)
+3. Create tmux session → `tmux new-session -d -s ACQ-145 -c /path/to/worktree`
+4. Launch Claude with context → `tmux send-keys -t ACQ-145 "claude '/directiv:linear-code ACQ-145' --plugin-dir '<resource>/directiv-plugin'" Enter`
 5. Open external terminal → Ghostty/iTerm2 attaches to tmux session
 6. Update Linear → status to "In Progress", card moves to "In Dev"
 
@@ -117,7 +117,7 @@ Skills are bundled inside the app as a Claude Code plugin — no user installati
 - **Plugin structure:** `.claude-plugin/plugin.json` + `skills/<skill-name>/SKILL.md`
 - **Runtime resolution:** Rust command `get_plugin_dir` resolves the resource path; `list_plugin_skills` scans the `skills/` directory
 - **Launch:** `workflows.ts` passes `--plugin-dir` to the `claude` CLI so skills are available as `/directiv:<skill-name>`
-- **Start button:** hardcoded to `directiv:linear-code` — no config needed
+- **Start button:** defaults to `directiv:linear-code`, overridable via `skills` config
 - **Available skills:** `linear-code`, `linear-plan`, `fix-ci`, `commit`, `create-pr`
 - **Adding a skill:** create a new folder under `skills/` with a `SKILL.md`, rebuild the app
 

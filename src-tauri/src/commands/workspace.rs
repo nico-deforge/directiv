@@ -10,12 +10,20 @@ pub struct SkillOverrides {
     pub fix_ci: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ClaudeModel {
+    Opus,
+    Sonnet,
+    Haiku,
+}
+
 #[derive(Debug, Deserialize, Serialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelOverrides {
-    pub code: Option<String>,
-    pub plan: Option<String>,
-    pub fix_ci: Option<String>,
+    pub code: Option<ClaudeModel>,
+    pub plan: Option<ClaudeModel>,
+    pub fix_ci: Option<ClaudeModel>,
 }
 
 #[derive(Debug, Serialize)]
