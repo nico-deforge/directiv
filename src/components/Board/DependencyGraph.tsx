@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
+import { clampToViewport } from "../../lib/menu-position";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -158,6 +166,24 @@ function DependencyGraphInner() {
     y: number;
     edges: EdgeWithRelation[];
   } | null>(null);
+  const deleteMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // After the menu renders, clamp it so it stays fully inside the viewport.
+  useLayoutEffect(() => {
+    if (!deleteMenu || !deleteMenuRef.current) return;
+    const { offsetWidth: width, offsetHeight: height } = deleteMenuRef.current;
+    if (width === 0 && height === 0) return;
+    const clamped = clampToViewport({
+      x: deleteMenu.x,
+      y: deleteMenu.y,
+      width,
+      height,
+    });
+    if (clamped.x !== deleteMenu.x || clamped.y !== deleteMenu.y) {
+      setDeleteMenu((prev) => prev && { ...prev, x: clamped.x, y: clamped.y });
+    }
+  }, [deleteMenu]);
+
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
 
@@ -752,6 +778,7 @@ function DependencyGraphInner() {
           />
           {/* Dropdown menu */}
           <div
+            ref={deleteMenuRef}
             className="fixed z-50 overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-xl"
             style={{ left: deleteMenu.x, top: deleteMenu.y }}
           >
