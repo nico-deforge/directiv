@@ -1,6 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { toastError } from "../../lib/toast";
+import { useMenuKeyboard } from "../../hooks/useMenuKeyboard";
 import { Link } from "@tanstack/react-router";
 import {
   Folder,
@@ -332,6 +333,8 @@ function NewWorktreeSection() {
   const [selectedRepoIndex, setSelectedRepoIndex] = useState(0);
   const [baseBranch, setBaseBranch] = useState<string | undefined>(undefined);
   const [showBranchSelector, setShowBranchSelector] = useState(false);
+  const branchSelectorMenuRef = useRef<HTMLDivElement>(null);
+  const branchSelectorTriggerRef = useRef<HTMLButtonElement>(null);
   const [branchExistsPrompt, setBranchExistsPrompt] = useState<{
     branch: string;
     repoPath: string;
@@ -425,6 +428,13 @@ function NewWorktreeSection() {
   const isScanning = useWorkspaceStore((s) => s.isScanning);
   const wsError = useWorkspaceStore((s) => s.error);
 
+  useMenuKeyboard({
+    isOpen: showBranchSelector,
+    onClose: () => setShowBranchSelector(false),
+    menuRef: branchSelectorMenuRef,
+    triggerRef: branchSelectorTriggerRef,
+  });
+
   if (repos.length === 0) {
     return (
       <div className="shrink-0 border-t border-[var(--border-default)] px-4 py-2">
@@ -486,7 +496,10 @@ function NewWorktreeSection() {
           {/* Base branch selector */}
           <div className="relative mb-2">
             <button
+              ref={branchSelectorTriggerRef}
               onClick={() => setShowBranchSelector((prev) => !prev)}
+              aria-expanded={showBranchSelector}
+              aria-haspopup="menu"
               className="flex w-full items-center gap-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-primary)] px-2 py-1 text-xs text-[var(--text-secondary)]"
             >
               <GitBranch className="size-3 text-[var(--text-muted)]" />
@@ -496,7 +509,11 @@ function NewWorktreeSection() {
               </span>
             </button>
             {showBranchSelector && (
-              <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+              <div
+                ref={branchSelectorMenuRef}
+                role="menu"
+                className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg"
+              >
                 <BranchSelector
                   repoPath={repos[selectedRepoIndex].path}
                   onSelect={(branch) => {

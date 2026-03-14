@@ -31,6 +31,7 @@ import type {
 import { CI_STATUSES } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
 import { useStartTask } from "../../hooks/useStartTask";
+import { useMenuKeyboard } from "../../hooks/useMenuKeyboard";
 import {
   type SkillKey,
   resolveSkill,
@@ -166,6 +167,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
   const [pendingSkillKey, setPendingSkillKey] = useState<SkillKey>("CODE");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownMenuRef = useRef<HTMLDivElement>(null);
+  const dropdownTriggerRef = useRef<HTMLButtonElement>(null);
   const [branchError, setBranchError] = useState<{
     type: "exists" | "not-found" | "unpushed";
     branch: string;
@@ -203,6 +206,16 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownOpen]);
+
+  useMenuKeyboard({
+    isOpen: dropdownOpen,
+    onClose: () => {
+      setDropdownOpen(false);
+      setSelectedRepo(null);
+    },
+    menuRef: dropdownMenuRef,
+    triggerRef: dropdownTriggerRef,
+  });
 
   async function handleKillSession() {
     if (!session) return;
@@ -629,8 +642,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             {!hasSession && (
               <>
                 <button
+                  ref={dropdownTriggerRef}
                   onClick={() => openDropdown("CODE")}
                   disabled={isLoading || repos.length === 0}
+                  aria-haspopup="menu"
+                  aria-expanded={dropdownOpen && pendingSkillKey === "CODE"}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
                 >
                   {startTask.isPending && pendingSkillKey === "CODE" ? (
@@ -754,7 +770,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
             {/* Dropdown for repo/branch selection */}
             {dropdownOpen && (
-              <div className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+              <div
+                ref={dropdownMenuRef}
+                role="menu"
+                className="absolute left-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg"
+              >
                 {repos.length === 1 ? (
                   <BranchSelector
                     repoPath={repos[0].path}
@@ -778,6 +798,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                     {repos.map((repo) => (
                       <button
                         key={repo.id}
+                        role="menuitem"
                         onClick={() => setSelectedRepo(repo)}
                         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                       >
