@@ -72,5 +72,6 @@ export function validateConfig(
     skills: config.skills,
     models: config.models,
     onboardingCompleted: config.onboardingCompleted ?? false,
+    sidebarCollapsed: config.sidebarCollapsed ?? false,
   };
 }

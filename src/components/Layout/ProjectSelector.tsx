@@ -18,6 +18,7 @@ import {
   Settings,
   AlertCircle,
   ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -65,6 +66,9 @@ export function ProjectSelector() {
   const toggleBacklogProjects = useProjectStore((s) => s.toggleBacklogProjects);
   const queryClient = useQueryClient();
 
+  const collapsed = useSettingsStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useSettingsStore((s) => s.toggleSidebar);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const startedProjects = projects.filter((p) => p.statusType === "started");
@@ -82,27 +86,50 @@ export function ProjectSelector() {
   }
 
   return (
-    <aside className="flex w-[200px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-secondary)]">
-      <WorkspaceSelector />
-      <div className="shrink-0 border-b border-[var(--border-default)] px-4 py-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-            Projects
-          </h2>
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="rounded p-0.5 text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
-            title="Refresh all data"
+    <aside
+      className={`flex shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-secondary)] transition-all duration-200 ${
+        collapsed ? "w-[52px]" : "w-[200px]"
+      }`}
+    >
+      <WorkspaceSelector collapsed={collapsed} />
+      <div className="shrink-0 border-b border-[var(--border-default)] px-2 py-3">
+        <div className="flex items-center justify-between gap-1">
+          {!collapsed && (
+            <h2 className="px-2 text-sm font-semibold text-[var(--text-primary)]">
+              Projects
+            </h2>
+          )}
+          <div
+            className={`flex items-center gap-1 ${collapsed ? "w-full justify-center" : ""}`}
           >
-            <RefreshCw
-              className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-            />
-          </button>
+            {!collapsed && (
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="rounded p-0.5 text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                title="Refresh all data"
+              >
+                <RefreshCw
+                  className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+                />
+              </button>
+            )}
+            <button
+              onClick={toggleSidebar}
+              className="rounded p-0.5 text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {collapsed ? (
+                <ChevronRight className="size-3.5" />
+              ) : (
+                <ChevronLeft className="size-3.5" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto py-2">
-        {connectionStatus.status === "no-teams" && (
+        {!collapsed && connectionStatus.status === "no-teams" && (
           <div className="px-4 py-3">
             <div className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 size-4 shrink-0 text-[var(--accent-amber)]" />
@@ -121,7 +148,7 @@ export function ProjectSelector() {
           </div>
         )}
 
-        {connectionStatus.status === "loading" && (
+        {!collapsed && connectionStatus.status === "loading" && (
           <div className="flex items-center gap-2 px-4 py-3">
             <Loader2 className="size-4 animate-spin text-[var(--text-muted)]" />
             <p className="text-sm text-[var(--text-muted)]">
@@ -130,7 +157,13 @@ export function ProjectSelector() {
           </div>
         )}
 
-        {connectionStatus.status === "error" && (
+        {collapsed && connectionStatus.status === "loading" && (
+          <div className="flex justify-center py-3">
+            <Loader2 className="size-4 animate-spin text-[var(--text-muted)]" />
+          </div>
+        )}
+
+        {!collapsed && connectionStatus.status === "error" && (
           <div className="px-4 py-3">
             <div className="flex items-start gap-2">
               <AlertCircle className="mt-0.5 size-4 shrink-0 text-[var(--accent-red)]" />
@@ -146,7 +179,8 @@ export function ProjectSelector() {
           </div>
         )}
 
-        {connectionStatus.status === "connected" &&
+        {!collapsed &&
+          connectionStatus.status === "connected" &&
           startedProjects.length === 0 &&
           backlogProjects.length === 0 &&
           !hasOtherIssues &&
@@ -162,10 +196,11 @@ export function ProjectSelector() {
             project={project}
             isSelected={selectedProjectId === project.id}
             onSelect={() => selectProject(project.id)}
+            collapsed={collapsed}
           />
         ))}
 
-        {backlogProjects.length > 0 && (
+        {!collapsed && backlogProjects.length > 0 && (
           <>
             <button
               onClick={toggleBacklogProjects}
@@ -186,51 +221,80 @@ export function ProjectSelector() {
                   project={project}
                   isSelected={selectedProjectId === project.id}
                   onSelect={() => selectProject(project.id)}
+                  collapsed={collapsed}
                 />
               ))}
           </>
         )}
-        {(hasOtherIssues || hasOrphans) && projects.length > 0 && (
-          <div className="mx-3 my-2 border-t border-[var(--border-default)]" />
-        )}
+
+        {collapsed &&
+          backlogProjects.length > 0 &&
+          backlogProjects.map((project) => (
+            <ProjectItem
+              key={project.id}
+              project={project}
+              isSelected={selectedProjectId === project.id}
+              onSelect={() => selectProject(project.id)}
+              collapsed={collapsed}
+            />
+          ))}
+
+        {!collapsed &&
+          (hasOtherIssues || hasOrphans) &&
+          projects.length > 0 && (
+            <div className="mx-3 my-2 border-t border-[var(--border-default)]" />
+          )}
         {hasOtherIssues && (
           <button
             onClick={() => selectProject(OTHER_ISSUES_PROJECT_ID)}
-            className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
+            title={collapsed ? "Other issues" : undefined}
+            className={`flex w-full items-center gap-2 py-2 text-left transition-colors ${
+              collapsed ? "justify-center px-0" : "px-4"
+            } ${
               selectedProjectId === OTHER_ISSUES_PROJECT_ID
                 ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
                 : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
             }`}
           >
             <Kanban className="size-4 shrink-0" />
-            <span className="truncate text-sm">Other issues</span>
+            {!collapsed && (
+              <span className="truncate text-sm">Other issues</span>
+            )}
           </button>
         )}
         {hasOrphans && (
           <button
             onClick={() => selectProject(ORPHAN_PROJECT_ID)}
-            className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
+            title={collapsed ? "Other worktrees" : undefined}
+            className={`flex w-full items-center gap-2 py-2 text-left transition-colors ${
+              collapsed ? "justify-center px-0" : "px-4"
+            } ${
               selectedProjectId === ORPHAN_PROJECT_ID
                 ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
                 : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
             }`}
           >
             <GitBranch className="size-4 shrink-0" />
-            <span className="truncate text-sm">Other worktrees</span>
+            {!collapsed && (
+              <span className="truncate text-sm">Other worktrees</span>
+            )}
           </button>
         )}
       </div>
-      <ReviewRequestsSection />
-      <NewWorktreeSection />
-      <CleanupSection />
-      <OrphanSessionsSection />
+      {!collapsed && <ReviewRequestsSection />}
+      {!collapsed && <NewWorktreeSection />}
+      {!collapsed && <CleanupSection />}
+      {!collapsed && <OrphanSessionsSection />}
       <div className="shrink-0 border-t border-[var(--border-default)]">
         <Link
           to="/config"
-          className="flex w-full items-center justify-center gap-1.5 px-4 py-2 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+          title={collapsed ? "Settings" : undefined}
+          className={`flex w-full items-center gap-1.5 py-2 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] ${
+            collapsed ? "justify-center px-0" : "justify-center px-4"
+          }`}
         >
           <Settings className="size-3" />
-          Settings
+          {!collapsed && "Settings"}
         </Link>
       </div>
     </aside>
@@ -860,10 +924,12 @@ function ProjectItem({
   project,
   isSelected,
   onSelect,
+  collapsed = false,
 }: {
   project: Project;
   isSelected: boolean;
   onSelect: () => void;
+  collapsed?: boolean;
 }) {
   const Icon = isSelected ? FolderOpen : Folder;
   const isBacklog = project.statusType === "backlog";
@@ -871,14 +937,19 @@ function ProjectItem({
   return (
     <button
       onClick={onSelect}
-      className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
+      title={collapsed ? project.name : undefined}
+      className={`flex w-full items-center gap-2 py-2 text-left transition-colors ${
+        collapsed ? "justify-center px-0" : "px-4"
+      } ${
         isSelected
           ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
           : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
       }`}
     >
       <Icon className={`size-4 shrink-0 ${isBacklog ? "opacity-50" : ""}`} />
-      <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
+      {!collapsed && (
+        <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
+      )}
     </button>
   );
 }
