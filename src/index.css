@@ -72,3 +72,14 @@ html {
   background-color: var(--bg-primary);
   color: var(--text-primary);
 }
+
+/* Global focus indicators — WCAG 2.4.7 Level AA */
+*:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* Suppress focus ring inside ReactFlow canvas to avoid visual noise on nodes/edges */
+.react-flow *:focus-visible {
+  outline: none;
+}
