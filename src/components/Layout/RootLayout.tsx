@@ -7,6 +7,7 @@ import { useAuthStore, AUTH_PROVIDER_STATUS } from "../../stores/authStore";
 import { useWorkspaceInit } from "../../hooks/useWorkspace";
 import { AuthGate } from "../Auth/AuthGate";
 import { OnboardingGate } from "../Onboarding/OnboardingGate";
+import { CommandPalette } from "./CommandPalette";
 
 export function RootLayout() {
   const loadFromDisk = useSettingsStore((s) => s.loadFromDisk);
@@ -69,6 +70,7 @@ export function RootLayout() {
   return (
     <>
       <Toaster theme={resolvedTheme} richColors position="bottom-right" />
+      <CommandPalette />
       <AuthGate>
         <OnboardingGate>
           <div className="flex h-screen flex-col">
