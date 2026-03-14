@@ -113,7 +113,7 @@ export function SkillsSection() {
 
       {/* Bundled Plugin Skills (read-only viewer) */}
       <div>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">
+        <h1 className="text-2xl font-semibold text-[var(--text-primary)]">
           Directiv Skills
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
@@ -180,7 +180,7 @@ function SkillMappingSection() {
   return (
     <>
       <div>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">
+        <h1 className="text-2xl font-semibold text-[var(--text-primary)]">
           Skill Mapping
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">

@@ -134,7 +134,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen flex-col items-center justify-center bg-[var(--bg-primary)]">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="text-center">
-          <h1 className="text-xl font-semibold text-[var(--text-primary)]">
+          <h1 className="text-2xl font-semibold text-[var(--text-primary)]">
             Connect your accounts
           </h1>
           <p className="mt-2 text-sm text-[var(--text-muted)]">
