@@ -60,18 +60,33 @@ export function RootLayout() {
 
   if (!isLoaded) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[var(--bg-primary)] text-[var(--text-muted)]">
-        Loading...
-      </div>
+      <>
+        {/* Window drag region — replaces native title bar (titleBarStyle: overlay).
+            Removing this makes the window undraggable. */}
+        <div
+          data-tauri-drag-region
+          className="fixed left-0 right-0 top-0 z-50 h-7"
+        />
+        <div className="flex h-screen items-center justify-center bg-[var(--bg-primary)] text-[var(--text-muted)]">
+          Loading...
+        </div>
+      </>
     );
   }
 
   return (
     <>
+      {/* Window drag region — replaces native title bar (titleBarStyle: overlay).
+          Removing this makes the window undraggable. */}
+      <div
+        data-tauri-drag-region
+        className="fixed left-0 right-0 top-0 z-50 h-7"
+      />
       <Toaster theme={resolvedTheme} richColors position="bottom-right" />
       <AuthGate>
         <OnboardingGate>
           <div className="flex h-screen flex-col">
+            <div className="h-7 shrink-0" />
             <div className="min-h-0 flex-1 overflow-hidden">
               <Outlet />
             </div>
