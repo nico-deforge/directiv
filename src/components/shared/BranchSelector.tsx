@@ -31,6 +31,7 @@ export function BranchSelector({
       )}
       {onBack && (
         <button
+          role="menuitem"
           onClick={onBack}
           className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
         >
@@ -39,6 +40,7 @@ export function BranchSelector({
         </button>
       )}
       <button
+        role="menuitem"
         onClick={() => onSelect(undefined)}
         className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
       >
@@ -54,6 +56,7 @@ export function BranchSelector({
           {availableBranches.map((branch) => (
             <button
               key={branch}
+              role="menuitem"
               onClick={() => onSelect(branch)}
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
             >

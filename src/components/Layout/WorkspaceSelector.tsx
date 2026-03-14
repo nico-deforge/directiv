@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useWorkspaceSelector } from "../../hooks/useWorkspace";
+import { useMenuKeyboard } from "../../hooks/useMenuKeyboard";
 
 export function WorkspaceSelector({
   collapsed = false,
@@ -11,6 +12,8 @@ export function WorkspaceSelector({
     useWorkspaceSelector();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const activeWorkspace = workspaces.find((ws) => ws.id === activeId);
   const displayName =
@@ -31,6 +34,13 @@ export function WorkspaceSelector({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
+  useMenuKeyboard({
+    isOpen,
+    onClose: () => setIsOpen(false),
+    menuRef,
+    triggerRef,
+  });
+
   if (!showSelector) {
     return null;
   }
@@ -42,19 +52,26 @@ export function WorkspaceSelector({
         ref={dropdownRef}
       >
         <button
+          ref={triggerRef}
           onClick={() => setIsOpen((prev) => !prev)}
           title={displayName}
           aria-label={`Select workspace: ${displayName}`}
           aria-expanded={isOpen}
+          aria-haspopup="menu"
           className="flex w-full items-center justify-center rounded px-1 py-1.5 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
         >
           {initial}
         </button>
         {isOpen && (
-          <div className="absolute left-full top-0 z-30 ml-1 min-w-40 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+          <div
+            ref={menuRef}
+            role="menu"
+            className="absolute left-full top-0 z-30 ml-1 min-w-40 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg"
+          >
             {workspaces.map((ws) => (
               <button
                 key={ws.id}
+                role="menuitem"
                 onClick={() => {
                   setActiveWorkspace(ws.id);
                   setIsOpen(false);
@@ -81,19 +98,26 @@ export function WorkspaceSelector({
       ref={dropdownRef}
     >
       <button
+        ref={triggerRef}
         onClick={() => setIsOpen((prev) => !prev)}
         aria-label={`Select workspace: ${displayName}`}
         aria-expanded={isOpen}
+        aria-haspopup="menu"
         className="flex w-full items-center justify-between gap-1 rounded px-2 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
       >
         {displayName}
         <ChevronDown className="size-3 text-[var(--text-muted)]" />
       </button>
       {isOpen && (
-        <div className="absolute left-0 top-full z-30 mt-1 min-w-40 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg">
+        <div
+          ref={menuRef}
+          role="menu"
+          className="absolute left-0 top-full z-30 mt-1 min-w-40 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg"
+        >
           {workspaces.map((ws) => (
             <button
               key={ws.id}
+              role="menuitem"
               onClick={() => {
                 setActiveWorkspace(ws.id);
                 setIsOpen(false);

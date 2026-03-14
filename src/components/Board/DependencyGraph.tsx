@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useMenuKeyboard } from "../../hooks/useMenuKeyboard";
 import { toast } from "sonner";
 import { clampToViewport } from "../../lib/menu-position";
 import {
@@ -201,6 +202,15 @@ function DependencyGraphInner() {
     }, 100);
     return () => clearTimeout(timer);
   }, [selectedProjectId, fitView]);
+
+  useMenuKeyboard({
+    isOpen: deleteMenu !== null,
+    onClose: () => {
+      setDeleteMenu(null);
+      setHoveredEdgeId(null);
+    },
+    menuRef: deleteMenuRef,
+  });
 
   // Build lookup maps
   const sessionByName = useMemo(() => {
@@ -785,6 +795,7 @@ function DependencyGraphInner() {
           {/* Dropdown menu */}
           <div
             ref={deleteMenuRef}
+            role="menu"
             className="fixed z-50 overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-xl"
             style={{ left: deleteMenu.x, top: deleteMenu.y }}
           >
@@ -797,6 +808,7 @@ function DependencyGraphInner() {
               {deleteMenu.edges.map((edge) => (
                 <button
                   key={edge.id}
+                  role="menuitem"
                   onClick={() => handleDeleteEdge(edge)}
                   onMouseEnter={() => setHoveredEdgeId(edge.id)}
                   onMouseLeave={() => setHoveredEdgeId(null)}
