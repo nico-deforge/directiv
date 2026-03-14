@@ -179,6 +179,21 @@ export function ProjectSelector() {
           </div>
         )}
 
+        {collapsed && connectionStatus.status === "error" && (
+          <div
+            className="flex justify-center py-3"
+            title={connectionStatus.message ?? "Linear API error"}
+          >
+            <AlertCircle className="size-4 text-[var(--accent-red)]" />
+          </div>
+        )}
+
+        {collapsed && connectionStatus.status === "no-teams" && (
+          <div className="flex justify-center py-3" title="No teams configured">
+            <AlertCircle className="size-4 text-[var(--accent-amber)]" />
+          </div>
+        )}
+
         {!collapsed &&
           connectionStatus.status === "connected" &&
           startedProjects.length === 0 &&
@@ -200,20 +215,22 @@ export function ProjectSelector() {
           />
         ))}
 
-        {!collapsed && backlogProjects.length > 0 && (
+        {backlogProjects.length > 0 && (
           <>
-            <button
-              onClick={toggleBacklogProjects}
-              className="flex w-full items-center gap-1.5 px-4 py-2 text-left text-xs font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-            >
-              <ChevronRight
-                className={`size-3 shrink-0 transition-transform ${showBacklogProjects ? "rotate-90" : ""}`}
-              />
-              <span>Backlog</span>
-              <span className="ml-auto text-[10px] tabular-nums opacity-60">
-                {backlogProjects.length}
-              </span>
-            </button>
+            {!collapsed && (
+              <button
+                onClick={toggleBacklogProjects}
+                className="flex w-full items-center gap-1.5 px-4 py-2 text-left text-xs font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+              >
+                <ChevronRight
+                  className={`size-3 shrink-0 transition-transform ${showBacklogProjects ? "rotate-90" : ""}`}
+                />
+                <span>Backlog</span>
+                <span className="ml-auto text-[10px] tabular-nums opacity-60">
+                  {backlogProjects.length}
+                </span>
+              </button>
+            )}
             {showBacklogProjects &&
               backlogProjects.map((project) => (
                 <ProjectItem
@@ -226,19 +243,6 @@ export function ProjectSelector() {
               ))}
           </>
         )}
-
-        {collapsed &&
-          backlogProjects.length > 0 &&
-          showBacklogProjects &&
-          backlogProjects.map((project) => (
-            <ProjectItem
-              key={project.id}
-              project={project}
-              isSelected={selectedProjectId === project.id}
-              onSelect={() => selectProject(project.id)}
-              collapsed={collapsed}
-            />
-          ))}
 
         {!collapsed &&
           (hasOtherIssues || hasOrphans) &&
