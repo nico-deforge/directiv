@@ -210,6 +210,20 @@ export interface SkillOverrides {
   fixCi?: string;
 }
 
+export const CLAUDE_MODELS = {
+  OPUS: "opus",
+  SONNET: "sonnet",
+  HAIKU: "haiku",
+} as const;
+
+export type ClaudeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
+
+export interface ModelOverrides {
+  code?: ClaudeModel;
+  plan?: ClaudeModel;
+  fixCi?: ClaudeModel;
+}
+
 export interface DiscoveredRepo {
   id: string;
   path: string;
@@ -220,6 +234,7 @@ export interface DiscoveredRepo {
   fetchBefore: boolean;
   configWarning?: string;
   skills?: SkillOverrides;
+  models?: ModelOverrides;
   githubNwo?: string;
 }
 
@@ -236,5 +251,6 @@ export interface DirectivConfig {
   linear: Record<string, LinearOrgConfig>;
   theme: Theme;
   skills?: SkillOverrides;
+  models?: ModelOverrides;
   onboardingCompleted?: boolean;
 }

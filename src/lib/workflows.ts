@@ -15,7 +15,12 @@ import {
   getPluginDir,
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
-import type { SkillOverrides, TerminalLayout } from "../types";
+import type {
+  ClaudeModel,
+  ModelOverrides,
+  SkillOverrides,
+  TerminalLayout,
+} from "../types";
 
 // --- Typed errors for worktree creation ---
 
@@ -129,6 +134,15 @@ export function resolveSkill(
   return repoOverrides?.[field] ?? globalOverrides?.[field] ?? SKILLS[key];
 }
 
+export function resolveModel(
+  key: SkillKey,
+  repoOverrides?: ModelOverrides,
+  globalOverrides?: ModelOverrides,
+): ClaudeModel | undefined {
+  const field = SKILL_FIELD[key];
+  return repoOverrides?.[field] ?? globalOverrides?.[field];
+}
+
 export function isOverriddenSkill(
   key: SkillKey,
   repoOverrides?: SkillOverrides,
@@ -151,22 +165,24 @@ export async function buildClaudeCommand(
   skill?: string,
   identifier?: string,
   usePlugin = true,
+  model?: ClaudeModel,
 ): Promise<string> {
   const pluginDir = usePlugin ? await getPluginDir() : null;
   const escapedDir = pluginDir ? pluginDir.replace(/'/g, "'\\''") : null;
   const pluginFlag = escapedDir ? ` --plugin-dir '${escapedDir}'` : "";
+  const modelFlag = model ? ` --model ${model}` : "";
   if (skill && identifier) {
     if (usePlugin && !pluginDir) {
       console.warn(
         "Plugin directory not found — launching Claude without skill",
       );
-      return `claude${pluginFlag}`;
+      return `claude${pluginFlag}${modelFlag}`;
     }
     // Single-quote prevents all shell interpretation ($, backtick, \, !)
     const safeArg = `/${skill} ${identifier}`.replace(/'/g, "'\\''");
-    return `claude '${safeArg}'${pluginFlag}`;
+    return `claude '${safeArg}'${pluginFlag}${modelFlag}`;
   }
-  return `claude${pluginFlag}`;
+  return `claude${pluginFlag}${modelFlag}`;
 }
 
 export interface StartTaskParams {
@@ -181,6 +197,7 @@ export interface StartTaskParams {
   fetchBefore?: boolean;
   skill?: string;
   usePlugin?: boolean;
+  model?: ClaudeModel;
 }
 
 async function ensureWorktree(
@@ -292,6 +309,7 @@ export async function startTask({
   fetchBefore,
   skill,
   usePlugin,
+  model,
 }: StartTaskParams): Promise<void> {
   const worktree = await ensureWorktree(
     repoPath,
@@ -302,7 +320,12 @@ export async function startTask({
   );
 
   const sessionName = toSessionName(identifier);
-  const claudeCmd = await buildClaudeCommand(skill, identifier, usePlugin);
+  const claudeCmd = await buildClaudeCommand(
+    skill,
+    identifier,
+    usePlugin,
+    model,
+  );
   await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
   openTerminalWithToast(

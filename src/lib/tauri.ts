@@ -6,6 +6,7 @@ import type {
   ClaudeSkillEntry,
   DiscoveredRepo,
   SkillOverrides,
+  ModelOverrides,
   TerminalStatus,
 } from "../types";
 
@@ -20,6 +21,7 @@ interface RawDiscoveredRepo {
   fetchBefore: boolean;
   configWarning?: string;
   skills?: SkillOverrides;
+  models?: ModelOverrides;
   githubNwo?: string;
 }
 

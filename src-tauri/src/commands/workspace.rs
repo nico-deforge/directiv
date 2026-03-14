@@ -10,6 +10,14 @@ pub struct SkillOverrides {
     pub fix_ci: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Default, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelOverrides {
+    pub code: Option<String>,
+    pub plan: Option<String>,
+    pub fix_ci: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredRepo {
@@ -21,6 +29,7 @@ pub struct DiscoveredRepo {
     pub fetch_before: bool,
     pub config_warning: Option<String>,
     pub skills: Option<SkillOverrides>,
+    pub models: Option<ModelOverrides>,
     pub github_nwo: Option<String>,
 }
 
@@ -37,6 +46,8 @@ struct RepoConfig {
     fetch_before: bool,
     #[serde(default)]
     skills: Option<SkillOverrides>,
+    #[serde(default)]
+    models: Option<ModelOverrides>,
 }
 
 fn default_fetch_before() -> bool {
@@ -138,6 +149,7 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
             fetch_before: config.fetch_before,
             config_warning,
             skills: config.skills,
+            models: config.models,
             github_nwo,
         });
     }
