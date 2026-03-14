@@ -435,6 +435,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   const isTerminalActive = terminalActive !== null ? terminalActive : false;
 
+  // Priority: drag-target hides accent > Claude-waiting (orange) > workflow status
   const lifecycleBorderClass = (() => {
     if (isBeingTargeted) return "border-l-transparent";
     if (claudeWaiting) return "border-l-[var(--accent-orange)]";
@@ -443,7 +444,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         return "border-l-[var(--accent-blue)]";
       case "to-deploy":
         return "border-l-[var(--accent-green)]";
-      default:
+      case "todo":
+      case "personal-review":
+      case "in-review":
         return "border-l-transparent";
     }
   })();
