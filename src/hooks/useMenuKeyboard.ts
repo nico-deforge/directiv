@@ -2,15 +2,18 @@ import { useEffect, useRef, useCallback } from "react";
 
 /**
  * Keyboard navigation hook for custom dropdown menus.
- * Handles Escape (close), ArrowUp/Down (navigate items), Enter/Space (select).
- * Returns focus to the trigger element when the menu closes.
+ * Handles Escape (close), ArrowUp/Down (navigate items with circular wrapping),
+ * Home/End (jump to first/last), Tab (close). Enter/Space selection is
+ * delegated to native button behavior.
+ * Returns focus to the trigger element when the menu closes via Escape or Tab.
  *
  * Usage:
  *   const menuRef = useRef<HTMLDivElement>(null);
  *   const triggerRef = useRef<HTMLButtonElement>(null);
  *   useMenuKeyboard({ isOpen, onClose, menuRef, triggerRef });
  *
- * Requires menu items to be focusable elements (button, a, [tabindex]).
+ * Menu items must be focusable: enabled buttons, anchors with href,
+ * or elements with a non-negative tabindex.
  */
 export function useMenuKeyboard({
   isOpen,
@@ -23,6 +26,7 @@ export function useMenuKeyboard({
   menuRef: React.RefObject<HTMLElement | null>;
   triggerRef?: React.RefObject<HTMLElement | null>;
 }) {
+  // Ref avoids stale closure: onClose can change without recreating the keydown handler
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -37,16 +41,25 @@ export function useMenuKeyboard({
     (e: KeyboardEvent) => {
       if (!isOpen || !menuRef.current) return;
 
+      // Only handle keys when focus is inside the menu or on the trigger
+      const active = document.activeElement;
+      const isInMenu = menuRef.current.contains(active);
+      const isOnTrigger = triggerRef?.current === active;
+      if (!isInMenu && !isOnTrigger) return;
+
       const items = getFocusableItems(menuRef.current);
-      const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+      const currentIndex = active ? items.indexOf(active as HTMLElement) : -1;
 
       switch (e.key) {
-        case "Escape":
+        case "Escape": {
           e.preventDefault();
+          // stopPropagation prevents parent Escape handlers (e.g., modals, ReactFlow) from also firing
           e.stopPropagation();
+          const trigger = triggerRef?.current;
           onCloseRef.current();
-          triggerRef?.current?.focus();
+          trigger?.focus();
           break;
+        }
         case "ArrowDown":
           e.preventDefault();
           if (items.length === 0) break;
@@ -67,16 +80,21 @@ export function useMenuKeyboard({
           break;
         case "Home":
           e.preventDefault();
-          items[0]?.focus();
+          if (items.length === 0) break;
+          items[0].focus();
           break;
         case "End":
           e.preventDefault();
-          items[items.length - 1]?.focus();
+          if (items.length === 0) break;
+          items[items.length - 1].focus();
           break;
-        case "Tab":
-          // Close menu on Tab to avoid focus escaping without closing
+        case "Tab": {
+          e.preventDefault();
+          const trigger = triggerRef?.current;
           onCloseRef.current();
+          trigger?.focus();
           break;
+        }
       }
     },
     [isOpen, menuRef, triggerRef],

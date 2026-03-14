@@ -642,7 +642,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             {!hasSession && (
               <>
                 <button
-                  ref={dropdownTriggerRef}
+                  ref={
+                    pendingSkillKey === "CODE" ? dropdownTriggerRef : undefined
+                  }
                   onClick={() => openDropdown("CODE")}
                   disabled={isLoading || repos.length === 0}
                   aria-haspopup="menu"
@@ -660,8 +662,13 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                   )}
                 </button>
                 <button
+                  ref={
+                    pendingSkillKey === "PLAN" ? dropdownTriggerRef : undefined
+                  }
                   onClick={() => openDropdown("PLAN")}
                   disabled={isLoading || repos.length === 0}
+                  aria-haspopup="menu"
+                  aria-expanded={dropdownOpen && pendingSkillKey === "PLAN"}
                   className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] border border-[var(--border-default)] px-2 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-50"
                 >
                   {startTask.isPending && pendingSkillKey === "PLAN" ? (
