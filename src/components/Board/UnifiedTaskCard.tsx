@@ -737,14 +737,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                 <button
                   onClick={() => handleDeleteWorktree()}
                   disabled={deletingWorktree}
-                  className="text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
+                  className="rounded px-2 py-1 text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
                 >
                   {deletingWorktree ? "Deleting..." : "Yes"}
                 </button>
                 <span className="text-[var(--text-muted)]">/</span>
                 <button
                   onClick={() => setConfirmingDelete(false)}
-                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  className="rounded px-2 py-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 >
                   No
                 </button>

@@ -354,7 +354,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
               <button
                 onClick={() => handleDelete()}
                 disabled={isDeleting}
-                className="text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
+                className="rounded px-2 py-1 text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
               >
                 {isDeleting ? "Deleting..." : "Yes"}
               </button>
@@ -364,7 +364,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
                   setConfirmingDelete(false);
                   setHasUnpushed(false);
                 }}
-                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                className="rounded px-2 py-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               >
                 No
               </button>
