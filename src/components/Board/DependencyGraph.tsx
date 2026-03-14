@@ -7,6 +7,8 @@ import {
   useEdgesState,
   useReactFlow,
   ConnectionMode,
+  Background,
+  BackgroundVariant,
   type Node,
   type Edge,
   type EdgeMouseHandler,
@@ -83,6 +85,7 @@ const nodeTypes = {
 };
 
 const EDGE_COLOR = { dark: "#737373", light: "#8a8a84" } as const;
+const DOT_COLOR = { dark: "#262626", light: "#d8d8d2" } as const;
 const EDGE_HIGHLIGHT_COLOR = "#ef4444";
 const NullConnectionLine = () => null;
 
@@ -662,6 +665,12 @@ function DependencyGraphInner() {
         minZoom={0.3}
         maxZoom={1.5}
       >
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={20}
+          size={1}
+          color={resolvedTheme === "dark" ? DOT_COLOR.dark : DOT_COLOR.light}
+        />
         <div className="absolute bottom-3 right-3 z-10">
           <button
             onClick={() => fitView({ padding: 0.1, duration: 300 })}
