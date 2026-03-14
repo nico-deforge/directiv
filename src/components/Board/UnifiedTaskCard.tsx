@@ -594,7 +594,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <button
                 onClick={() => openDropdown("CODE")}
                 disabled={isLoading || repos.length === 0}
-                className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:brightness-110 disabled:opacity-50"
               >
                 {startTask.isPending && pendingSkillKey === "CODE" ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -609,7 +609,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <button
                 onClick={() => openDropdown("PLAN")}
                 disabled={isLoading || repos.length === 0}
-                className="flex items-center gap-1 rounded bg-[var(--accent-blue)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="flex items-center gap-1 rounded bg-[var(--accent-blue)] px-2 py-1 text-xs font-medium text-white hover:brightness-110 disabled:opacity-50"
               >
                 {startTask.isPending && pendingSkillKey === "PLAN" ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -628,7 +628,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           {hasSession && (
             <button
               onClick={handleOpenTerminal}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors"
             >
               <Terminal className="size-3.5" />
               Terminal
@@ -639,7 +639,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           {worktree && (
             <button
               onClick={handleOpenEditor}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors"
             >
               <Code2 className="size-3.5" />
               Editor
@@ -681,7 +681,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <button
                 onClick={() => handleDeleteWorktree()}
                 disabled={deletingWorktree}
-                className="text-[var(--accent-red)] hover:opacity-80 disabled:opacity-50"
+                className="text-[var(--accent-red)] hover:bg-[var(--bg-elevated)] rounded px-1 transition-colors disabled:opacity-50"
               >
                 {deletingWorktree ? "Deleting..." : "Yes"}
               </button>

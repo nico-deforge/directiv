@@ -104,7 +104,7 @@ export function OnboardingWizard() {
             </button>
             <button
               onClick={handleNext}
-              className="rounded-md bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90"
+              className="rounded-md bg-[var(--text-primary)] px-4 py-2 text-sm font-medium text-[var(--bg-primary)] hover:brightness-110"
             >
               {step === STEP_COUNT - 1 ? "Finish" : "Next"}
             </button>

@@ -42,7 +42,7 @@ export function CIStatusIcon({
         target="_blank"
         rel="noopener noreferrer"
         title={tooltip}
-        className="shrink-0 hover:opacity-80"
+        className="shrink-0 hover:brightness-110"
       >
         {icon}
       </a>
