@@ -28,6 +28,7 @@ import {
 } from "../../stores/projectStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorkspaceRepos } from "../../hooks/useWorkspace";
+import { useWorkspaceStore } from "../../stores/workspaceStore";
 import {
   worktreeList,
   worktreeCheckMerged,
@@ -336,7 +337,25 @@ function NewWorktreeSection() {
     }
   }
 
-  if (repos.length === 0) return null;
+  const allRepos = useWorkspaceStore((s) => s.repos);
+  const isScanning = useWorkspaceStore((s) => s.isScanning);
+  const wsError = useWorkspaceStore((s) => s.error);
+
+  if (repos.length === 0) {
+    return (
+      <div className="shrink-0 border-t border-[var(--border-default)] px-4 py-2">
+        <p
+          className={`text-xs font-medium ${isScanning ? "text-[var(--text-muted)]" : "text-[var(--accent-red)]"}`}
+        >
+          {isScanning
+            ? "Scanning workspaces…"
+            : wsError
+              ? `Scan error: ${wsError}`
+              : `No repos (total: ${allRepos.length})`}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="shrink-0 border-t border-[var(--border-default)]">

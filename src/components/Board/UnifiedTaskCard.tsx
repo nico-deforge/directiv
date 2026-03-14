@@ -26,6 +26,7 @@ import type {
   TmuxSession,
   DiscoveredRepo,
   ClaudeSessionStatus,
+  ClaudeModel,
 } from "../../types";
 import { CI_STATUSES } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
@@ -33,6 +34,7 @@ import { useStartTask } from "../../hooks/useStartTask";
 import {
   type SkillKey,
   resolveSkill,
+  resolveModel,
   isOverriddenSkill,
   sendSkillToSession,
   BranchExistsError,
@@ -145,6 +147,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
   const globalSkills = useSettingsStore((s) => s.config.skills);
+  const globalModels = useSettingsStore((s) => s.config.models);
   const queryClient = useQueryClient();
   const startTask = useStartTask();
 
@@ -241,11 +244,13 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   ): {
     skill: string;
     usePlugin: boolean;
+    model: ClaudeModel | undefined;
   } {
     const repo = repos.find((r) => r.path === repoPath);
     return {
       skill: resolveSkill(key, repo?.skills, globalSkills),
       usePlugin: !isOverriddenSkill(key, repo?.skills, globalSkills),
+      model: resolveModel(key, repo?.models, globalModels),
     };
   }
 
@@ -254,7 +259,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setSelectedRepo(null);
     setBranchError(null);
     const repo = repos.find((r) => r.path === repoPath);
-    const { skill, usePlugin } = getRepoSkillParams(
+    const { skill, usePlugin, model } = getRepoSkillParams(
       repoPath,
       key ?? pendingSkillKey,
     );
@@ -272,6 +277,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         fetchBefore: repo?.fetchBefore,
         skill,
         usePlugin,
+        model,
       },
       {
         onError: (err) => {
@@ -309,7 +315,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     const { repoPath, baseBranch } = branchError;
     setBranchError(null);
     const repo = repos.find((r) => r.path === repoPath);
-    const { skill, usePlugin } = getRepoSkillParams(repoPath, pendingSkillKey);
+    const { skill, usePlugin, model } = getRepoSkillParams(
+      repoPath,
+      pendingSkillKey,
+    );
     try {
       await worktreeCreateExistingBranch(
         repoPath,
@@ -333,6 +342,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           fetchBefore: false,
           skill,
           usePlugin,
+          model,
         },
         { onError: (err) => toastError(err) },
       );

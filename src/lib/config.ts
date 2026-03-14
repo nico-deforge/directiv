@@ -70,6 +70,7 @@ export function validateConfig(
     linear: isValidLinearRecord(config.linear) ? config.linear : {},
     theme: config.theme ?? defaultConfig.theme,
     skills: config.skills,
+    models: config.models,
     onboardingCompleted: config.onboardingCompleted ?? false,
   };
 }

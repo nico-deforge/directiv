@@ -13,7 +13,12 @@ import {
   usePluginSkillFile,
 } from "../../hooks/useSkills";
 import { useSettingsStore } from "../../stores/settingsStore";
-import type { PluginSkillInfo, ClaudeSkillEntry } from "../../types";
+import { CLAUDE_MODELS } from "../../types";
+import type {
+  PluginSkillInfo,
+  ClaudeSkillEntry,
+  ClaudeModel,
+} from "../../types";
 
 const SKILL_ACTIONS = [
   {
@@ -162,6 +167,16 @@ function SkillMappingSection() {
     });
   }
 
+  function handleModelChange(actionKey: SkillActionKey, value: string) {
+    setConfig({
+      ...config,
+      models: {
+        ...config.models,
+        [actionKey]: (value || undefined) as ClaudeModel | undefined,
+      },
+    });
+  }
+
   return (
     <>
       <div>
@@ -169,8 +184,8 @@ function SkillMappingSection() {
           Skill Mapping
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Choose which skill to run for each action. Leave empty to use the
-          default Directiv skill.
+          Choose which skill and model to use for each action. Leave empty to
+          use the defaults.
         </p>
       </div>
 
@@ -195,10 +210,12 @@ function SkillMappingSection() {
               key={action.key}
               action={action}
               currentValue={config.skills?.[action.key] ?? ""}
+              currentModel={config.models?.[action.key] ?? ""}
               grouped={grouped}
               allSkills={allSkills ?? []}
               isLoading={isLoading}
               onChange={(value) => handleSkillChange(action.key, value)}
+              onModelChange={(value) => handleModelChange(action.key, value)}
             />
           ))}
         </div>
@@ -210,17 +227,21 @@ function SkillMappingSection() {
 function SkillMappingRow({
   action,
   currentValue,
+  currentModel,
   grouped,
   allSkills,
   isLoading,
   onChange,
+  onModelChange,
 }: {
   action: (typeof SKILL_ACTIONS)[number];
   currentValue: string;
+  currentModel: string;
   grouped: ReturnType<typeof groupSkillsBySource>;
   allSkills: ClaudeSkillEntry[];
   isLoading: boolean;
   onChange: (value: string) => void;
+  onModelChange: (value: string) => void;
 }) {
   const isKnownSkill =
     !currentValue || allSkills.some((s) => s.id === currentValue);
@@ -256,7 +277,7 @@ function SkillMappingRow({
           value={selectValue}
           onChange={(e) => handleSelectChange(e.target.value)}
           disabled={isLoading}
-          className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
+          className="min-w-0 flex-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
         >
           <option value="">Default — {action.defaultSkill}</option>
           {grouped.map((group) => (
@@ -270,6 +291,16 @@ function SkillMappingRow({
             </optgroup>
           ))}
           <option value="__custom__">Custom...</option>
+        </select>
+        <select
+          value={currentModel}
+          onChange={(e) => onModelChange(e.target.value)}
+          className="w-36 rounded-md border border-[var(--border-default)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
+        >
+          <option value="">Default</option>
+          <option value={CLAUDE_MODELS.OPUS}>Opus</option>
+          <option value={CLAUDE_MODELS.SONNET}>Sonnet</option>
+          <option value={CLAUDE_MODELS.HAIKU}>Haiku</option>
         </select>
       </div>
       {showCustomInput && (
