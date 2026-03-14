@@ -42,6 +42,7 @@ export function CIStatusIcon({
         target="_blank"
         rel="noopener noreferrer"
         title={tooltip}
+        aria-label={tooltip}
         className="shrink-0 rounded p-1.5 transition-colors hover:bg-[var(--bg-elevated)]"
       >
         {icon}
