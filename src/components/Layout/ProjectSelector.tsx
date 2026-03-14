@@ -107,7 +107,7 @@ export function ProjectSelector() {
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="rounded p-0.5 text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                className="rounded p-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)] disabled:opacity-50"
                 title="Refresh all data"
               >
                 <RefreshCw
@@ -117,7 +117,7 @@ export function ProjectSelector() {
             )}
             <button
               onClick={toggleSidebar}
-              className="rounded p-0.5 text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
+              className="rounded p-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {collapsed ? (
@@ -450,9 +450,9 @@ function NewWorktreeSection() {
             </span>
             <button
               onClick={() => setShowForm(false)}
-              className="rounded p-0.5 hover:bg-[var(--bg-elevated)]"
+              className="rounded p-1.5 hover:bg-[var(--bg-elevated)]"
             >
-              <X className="size-3 text-[var(--text-muted)]" />
+              <X className="size-3.5 text-[var(--text-muted)]" />
             </button>
           </div>
           {repos.length > 1 && (
@@ -707,9 +707,9 @@ function OrphanSessionsSection() {
             </span>
             <button
               onClick={() => setShowCleanup(false)}
-              className="rounded p-0.5 hover:bg-[var(--bg-elevated)]"
+              className="rounded p-1.5 hover:bg-[var(--bg-elevated)]"
             >
-              <X className="size-3 text-[var(--text-muted)]" />
+              <X className="size-3.5 text-[var(--text-muted)]" />
             </button>
           </div>
           {orphanSessions.length > 0 && (
@@ -885,9 +885,9 @@ function CleanupSection() {
             </span>
             <button
               onClick={() => setShowCleanup(false)}
-              className="p-0.5 rounded hover:bg-[var(--bg-elevated)]"
+              className="rounded p-1.5 hover:bg-[var(--bg-elevated)]"
             >
-              <X className="size-3 text-[var(--text-muted)]" />
+              <X className="size-3.5 text-[var(--text-muted)]" />
             </button>
           </div>
           {staleWorktrees.length > 0 && (
