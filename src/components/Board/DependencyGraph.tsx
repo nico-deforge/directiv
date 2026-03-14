@@ -167,10 +167,13 @@ function DependencyGraphInner() {
     edges: EdgeWithRelation[];
   } | null>(null);
   const deleteMenuRef = useRef<HTMLDivElement | null>(null);
+  const deleteMenuClampedRef = useRef(false);
 
-  // After the menu renders, clamp it so it stays fully inside the viewport.
+  // Clamp menu position so it stays fully inside the viewport (useLayoutEffect
+  // runs before paint, avoiding a visible position jump).
   useLayoutEffect(() => {
     if (!deleteMenu || !deleteMenuRef.current) return;
+    if (deleteMenuClampedRef.current) return;
     const { offsetWidth: width, offsetHeight: height } = deleteMenuRef.current;
     if (width === 0 && height === 0) return;
     const clamped = clampToViewport({
@@ -180,6 +183,7 @@ function DependencyGraphInner() {
       height,
     });
     if (clamped.x !== deleteMenu.x || clamped.y !== deleteMenu.y) {
+      deleteMenuClampedRef.current = true;
       setDeleteMenu((prev) => prev && { ...prev, x: clamped.x, y: clamped.y });
     }
   }, [deleteMenu]);
@@ -514,6 +518,7 @@ function DependencyGraphInner() {
         edgeIdsAtPoint.has(e.id),
       ) as EdgeWithRelation[];
 
+      deleteMenuClampedRef.current = false;
       setDeleteMenu({
         x: event.clientX,
         y: event.clientY,
