@@ -8,6 +8,7 @@ import { useWorkspaceInit } from "../../hooks/useWorkspace";
 import { AuthGate } from "../Auth/AuthGate";
 import { OnboardingGate } from "../Onboarding/OnboardingGate";
 import { CommandPalette } from "./CommandPalette";
+import { Skeleton } from "../shared/Skeleton";
 
 export function RootLayout() {
   const loadFromDisk = useSettingsStore((s) => s.loadFromDisk);
@@ -68,8 +69,27 @@ export function RootLayout() {
           data-tauri-drag-region
           className="fixed left-0 right-0 top-0 z-50 h-7"
         />
-        <div className="flex h-screen items-center justify-center bg-[var(--bg-primary)] text-[var(--text-muted)]">
-          Loading...
+        <div className="flex h-screen bg-[var(--bg-primary)]">
+          {/* Sidebar skeleton */}
+          <div className="flex w-[200px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-secondary)] px-3 py-4 gap-2">
+            <Skeleton height={28} className="mb-2" />
+            <Skeleton height={16} width="60%" />
+            <Skeleton height={16} width="80%" />
+            <Skeleton height={16} width="70%" />
+            <Skeleton height={16} width="50%" />
+          </div>
+          {/* Canvas skeleton */}
+          <div className="flex flex-1 flex-col gap-4 p-8">
+            <div className="flex gap-4">
+              <Skeleton width={220} height={100} />
+              <Skeleton width={220} height={100} />
+              <Skeleton width={220} height={100} />
+            </div>
+            <div className="flex gap-4 pl-16">
+              <Skeleton width={220} height={100} />
+              <Skeleton width={220} height={100} />
+            </div>
+          </div>
         </div>
       </>
     );
