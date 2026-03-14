@@ -435,10 +435,23 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   const isTerminalActive = terminalActive !== null ? terminalActive : false;
 
+  const lifecycleBorderClass = (() => {
+    if (isBeingTargeted) return "border-l-transparent";
+    if (claudeWaiting) return "border-l-[var(--accent-orange)]";
+    switch (workflowStatus) {
+      case "in-dev":
+        return "border-l-[var(--accent-blue)]";
+      case "to-deploy":
+        return "border-l-[var(--accent-green)]";
+      default:
+        return "border-l-transparent";
+    }
+  })();
+
   const card = (
     <TooltipProvider>
       <div
-        className={`nodrag nopan w-[380px] rounded-lg border bg-[var(--bg-tertiary)] shadow-lg relative ${
+        className={`nodrag nopan w-[380px] rounded-lg border border-l-2 bg-[var(--bg-tertiary)] shadow-lg relative ${lifecycleBorderClass} ${
           isBeingTargeted
             ? "border-[var(--text-muted)] ring-1 ring-[var(--text-muted)]/50"
             : "border-[var(--border-default)]"
