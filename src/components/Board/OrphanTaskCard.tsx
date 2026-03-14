@@ -300,7 +300,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             <DropdownMenuTrigger asChild>
               <button
                 className="ml-auto flex items-center rounded bg-[var(--bg-elevated)] px-2 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
-                title="More actions"
+                aria-label="More actions"
               >
                 <MoreHorizontal className="size-3.5" />
               </button>

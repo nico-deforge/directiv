@@ -50,7 +50,7 @@ export function CIStatusIcon({
   }
 
   return (
-    <span title={tooltip} className="shrink-0">
+    <span role="img" aria-label={tooltip} className="shrink-0">
       {icon}
     </span>
   );

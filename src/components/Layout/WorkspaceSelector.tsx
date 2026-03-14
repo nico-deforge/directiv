@@ -43,7 +43,8 @@ export function WorkspaceSelector({
       >
         <button
           onClick={() => setIsOpen((prev) => !prev)}
-          title={displayName}
+          aria-label={`Select workspace: ${displayName}`}
+          aria-expanded={isOpen}
           className="flex w-full items-center justify-center rounded px-1 py-1.5 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
         >
           {initial}
@@ -80,6 +81,8 @@ export function WorkspaceSelector({
     >
       <button
         onClick={() => setIsOpen((prev) => !prev)}
+        aria-label={`Select workspace: ${displayName}`}
+        aria-expanded={isOpen}
         className="flex w-full items-center justify-between gap-1 rounded px-2 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
       >
         {displayName}

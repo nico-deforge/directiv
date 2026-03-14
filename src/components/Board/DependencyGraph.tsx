@@ -722,7 +722,7 @@ function DependencyGraphInner() {
           <button
             onClick={() => fitView({ padding: 0.1, duration: 300 })}
             className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] p-2 text-[var(--text-muted)] shadow-sm transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
-            title="Fit all cards"
+            aria-label="Fit all cards"
           >
             <Maximize2 size={16} />
           </button>
