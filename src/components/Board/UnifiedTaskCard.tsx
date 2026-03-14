@@ -435,9 +435,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   const isTerminalActive = terminalActive !== null ? terminalActive : false;
 
-  // Whether any meta info is present to show the meta row
-  const hasMetaInfo = worktree || pullRequest;
-
   const card = (
     <TooltipProvider>
       <div
@@ -514,99 +511,97 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         </div>
 
         {/* Meta row: compact icon links for Linear / GitHub / Branch */}
-        {hasMetaInfo && (
-          <div className="flex items-center gap-3 border-b border-[var(--border-default)] px-3 py-1.5">
-            {/* Linear link */}
-            <Tooltip content={`Linear · ${task.identifier} · ${task.status}`}>
+        <div className="flex items-center gap-3 border-b border-[var(--border-default)] px-3 py-1.5">
+          {/* Linear link */}
+          <Tooltip content={`Linear · ${task.identifier} · ${task.status}`}>
+            <a
+              href={task.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-blue)] transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <SquareKanban className="size-3.5 shrink-0" />
+              <span className="text-xs">{task.identifier}</span>
+            </a>
+          </Tooltip>
+
+          {/* PR link */}
+          {pullRequest && (
+            <Tooltip
+              content={`PR #${pullRequest.number} · ${pullRequest.title ?? ""}`}
+            >
               <a
-                href={task.url}
+                href={pullRequest.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-blue)] transition-colors"
+                className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-purple)] transition-colors"
                 onClick={(e) => e.stopPropagation()}
               >
-                <SquareKanban className="size-3.5 shrink-0" />
-                <span className="text-xs">{task.identifier}</span>
+                <Github className="size-3.5 shrink-0" />
+                <span className="text-xs">#{pullRequest.number}</span>
               </a>
             </Tooltip>
+          )}
 
-            {/* PR link */}
-            {pullRequest && (
-              <Tooltip
-                content={`PR #${pullRequest.number} · ${pullRequest.title ?? ""}`}
+          {/* CI status */}
+          {pullRequest && (
+            <CIStatusIcon
+              status={pullRequest.ciStatus}
+              url={pullRequest.ciUrl}
+            />
+          )}
+
+          {/* Fix CI button */}
+          {!isDisabled &&
+            worktree &&
+            pullRequest &&
+            (pullRequest.ciStatus === CI_STATUSES.FAILURE ||
+              pullRequest.ciStatus === CI_STATUSES.ERROR) && (
+              <button
+                onClick={handleFixCI}
+                disabled={isLoading}
+                className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
               >
-                <a
-                  href={pullRequest.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent-purple)] transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Github className="size-3.5 shrink-0" />
-                  <span className="text-xs">#{pullRequest.number}</span>
-                </a>
-              </Tooltip>
+                {sendingSkill ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  "Fix CI"
+                )}
+              </button>
             )}
 
-            {/* CI status */}
-            {pullRequest && (
-              <CIStatusIcon
-                status={pullRequest.ciStatus}
-                url={pullRequest.ciUrl}
-              />
-            )}
+          {/* GitHub blocked warning */}
+          {worktree && !pullRequest && githubRepoBlocked && (
+            <Tooltip content="GitHub access blocked by organization">
+              <span className="flex items-center gap-1 text-[var(--accent-red)]">
+                <Github className="size-3.5 shrink-0" />
+                <span className="text-xs">Blocked</span>
+              </span>
+            </Tooltip>
+          )}
 
-            {/* Fix CI button */}
-            {!isDisabled &&
-              worktree &&
-              pullRequest &&
-              (pullRequest.ciStatus === CI_STATUSES.FAILURE ||
-                pullRequest.ciStatus === CI_STATUSES.ERROR) && (
-                <button
-                  onClick={handleFixCI}
-                  disabled={isLoading}
-                  className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
-                >
-                  {sendingSkill ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    "Fix CI"
-                  )}
-                </button>
-              )}
-
-            {/* GitHub blocked warning */}
-            {worktree && !pullRequest && githubRepoBlocked && (
-              <Tooltip content="GitHub access blocked by organization">
-                <span className="flex items-center gap-1 text-[var(--accent-red)]">
-                  <Github className="size-3.5 shrink-0" />
-                  <span className="text-xs">Blocked</span>
+          {/* Branch info */}
+          {worktree && (
+            <Tooltip content={`Branch: ${worktree.branch}`}>
+              <span className="ml-auto flex items-center gap-1 text-[var(--text-muted)]">
+                <GitBranch className="size-3.5 shrink-0 text-[var(--accent-green)]" />
+                <span className="max-w-[120px] truncate text-xs">
+                  {worktree.branch}
                 </span>
-              </Tooltip>
-            )}
-
-            {/* Branch info */}
-            {worktree && (
-              <Tooltip content={`Branch: ${worktree.branch}`}>
-                <span className="ml-auto flex items-center gap-1 text-[var(--text-muted)]">
-                  <GitBranch className="size-3.5 shrink-0 text-[var(--accent-green)]" />
-                  <span className="max-w-[120px] truncate text-xs">
-                    {worktree.branch}
+                {worktree.isDirty && (
+                  <Circle className="size-1.5 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
+                )}
+                {(worktree.ahead > 0 || worktree.behind > 0) && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-[var(--text-muted)]">
+                    {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
+                    {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
                   </span>
-                  {worktree.isDirty && (
-                    <Circle className="size-1.5 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
-                  )}
-                  {(worktree.ahead > 0 || worktree.behind > 0) && (
-                    <span className="flex items-center gap-0.5 text-[10px] text-[var(--text-muted)]">
-                      {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
-                      {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
-                    </span>
-                  )}
-                </span>
-              </Tooltip>
-            )}
-          </div>
-        )}
+                )}
+              </span>
+            </Tooltip>
+          )}
+        </div>
 
         {/* Actions */}
         {!isDisabled && (
