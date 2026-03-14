@@ -229,6 +229,7 @@ export function ProjectSelector() {
 
         {collapsed &&
           backlogProjects.length > 0 &&
+          showBacklogProjects &&
           backlogProjects.map((project) => (
             <ProjectItem
               key={project.id}

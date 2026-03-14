@@ -70,7 +70,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   toggleSidebar: () => {
     const collapsed = !get().sidebarCollapsed;
     const updated = { ...get().config, sidebarCollapsed: collapsed };
-    set({ sidebarCollapsed: collapsed });
+    set({ sidebarCollapsed: collapsed, config: updated });
     saveConfigToDisk(updated).catch(toastError);
   },
 

@@ -11,6 +11,7 @@ export const defaultConfig: DirectivConfig = {
   workspaces: [],
   linear: {},
   theme: "system",
+  sidebarCollapsed: false,
 };
 
 export async function loadConfigFromDisk(): Promise<DirectivConfig> {
