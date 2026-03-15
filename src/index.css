@@ -30,6 +30,7 @@
 
   --text-primary: #1a1a18;
   --text-secondary: #52524e;
+  --text-tertiary: #6e6e68;
   --text-muted: #8a8a84;
 
   --border-default: #d8d8d2;
@@ -58,6 +59,7 @@
 
   --text-primary: #fafafa;
   --text-secondary: #a3a3a3;
+  --text-tertiary: #8a8a8a;
   --text-muted: #737373;
 
   --border-default: #262624;
