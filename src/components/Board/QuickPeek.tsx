@@ -61,8 +61,8 @@ export function QuickPeek({ sessionName, active, children }: QuickPeekProps) {
     >
       {children}
       {enabled && lines.length > 0 && (
-        <div className="absolute left-0 bottom-full z-30 mb-2 w-[420px] max-h-[300px] overflow-auto rounded-lg border border-[var(--border-default)] bg-[#1a1a2e] p-3 shadow-xl pointer-events-none">
-          <pre className="text-[11px] leading-relaxed font-mono text-[#e0e0e0] whitespace-pre-wrap break-all">
+        <div className="absolute left-0 bottom-full z-30 mb-2 w-[420px] max-h-[300px] overflow-auto rounded-lg border border-[var(--border-default)] bg-[var(--terminal-bg)] p-3 shadow-xl pointer-events-none">
+          <pre className="text-[11px] leading-relaxed font-mono text-[var(--terminal-text)] whitespace-pre-wrap break-all">
             {lines.join("\n")}
           </pre>
         </div>
