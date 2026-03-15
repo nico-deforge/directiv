@@ -23,6 +23,7 @@
 
 /* Light theme (default) - soft/muted for eye comfort */
 :root {
+  color-scheme: light; /* Tells browser-native controls (select, scrollbars) to match theme */
   --bg-primary: #f8f8f6;
   --bg-secondary: #f0f0ed;
   --bg-tertiary: #e8e8e4;
@@ -51,6 +52,7 @@
 
 /* Dark theme */
 .dark {
+  color-scheme: dark; /* Tells browser-native controls (select, scrollbars) to match theme */
   --bg-primary: #0c0c0b;
   --bg-secondary: #141413;
   --bg-tertiary: #1c1c1a;
