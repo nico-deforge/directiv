@@ -94,9 +94,15 @@ const nodeTypes = {
 };
 
 function getCSSToken(name: string): string {
-  return getComputedStyle(document.documentElement)
+  const value = getComputedStyle(document.documentElement)
     .getPropertyValue(name)
     .trim();
+  if (!value) {
+    console.warn(
+      `[DependencyGraph] CSS token "${name}" resolved to empty string`,
+    );
+  }
+  return value;
 }
 const EDGE_HIGHLIGHT_COLOR = "#ef4444";
 const NullConnectionLine = () => null;
@@ -428,6 +434,7 @@ function DependencyGraphInner() {
     }));
 
     return { nextNodes: taskNodes, nextEdges: taskEdges };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resolvedTheme triggers recompute so getCSSToken re-reads computed CSS on theme switch
   }, [
     selectedProjectId,
     tasks,
@@ -437,6 +444,7 @@ function DependencyGraphInner() {
     sessionByName,
     claudeStates,
     repos,
+    resolvedTheme,
     repoNwoById,
     blockedRepos,
     linearIssuesByBranch,
