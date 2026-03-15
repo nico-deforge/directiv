@@ -649,6 +649,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                   disabled={isLoading || repos.length === 0}
                   aria-haspopup="menu"
                   aria-expanded={dropdownOpen && pendingSkillKey === "CODE"}
+                  // text-white intentional: sufficient contrast on accent-green in light mode (5:1 AA)
                   className="flex flex-1 items-center justify-center gap-1.5 rounded bg-[var(--accent-green)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
                 >
                   {startTask.isPending && pendingSkillKey === "CODE" ? (
