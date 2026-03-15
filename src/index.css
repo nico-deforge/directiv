@@ -45,16 +45,12 @@
   --accent-orange: #c2410c;
 
   /* Terminal preview — dark by convention in both themes */
-  --terminal-bg: #0a0a0a;
+  --terminal-bg: #1a1a2e;
   --terminal-text: #e0e0e0;
 }
 
 /* Dark theme */
 .dark {
-  /* Terminal preview — dark by convention in both themes */
-  --terminal-bg: #0a0a0a;
-  --terminal-text: #e0e0e0;
-
   --bg-primary: #0c0c0b;
   --bg-secondary: #141413;
   --bg-tertiary: #1c1c1a;
@@ -74,6 +70,10 @@
   --accent-amber: #f59e0b;
   --accent-yellow: #eab308;
   --accent-orange: #f97316;
+
+  /* Terminal preview — dark by convention in both themes */
+  --terminal-bg: #1a1a2e;
+  --terminal-text: #e0e0e0;
 }
 
 html {
