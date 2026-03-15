@@ -93,8 +93,11 @@ const nodeTypes = {
   groupLabel: GroupLabelNode,
 };
 
-const EDGE_COLOR = { dark: "#737373", light: "#8a8a84" } as const;
-const DOT_COLOR = { dark: "#262626", light: "#d8d8d2" } as const;
+function getCSSToken(name: string): string {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+}
 const EDGE_HIGHLIGHT_COLOR = "#ef4444";
 const NullConnectionLine = () => null;
 
@@ -402,8 +405,7 @@ function DependencyGraphInner() {
     const identifierById = new Map(
       activeTasks.map((t) => [t.id, t.identifier]),
     );
-    const edgeColor =
-      resolvedTheme === "dark" ? EDGE_COLOR.dark : EDGE_COLOR.light;
+    const edgeColor = getCSSToken("--text-muted");
     const taskEdges: EdgeWithRelation[] = edgeData.map((e) => ({
       id: e.relationId,
       source: e.source,
@@ -435,7 +437,6 @@ function DependencyGraphInner() {
     sessionByName,
     claudeStates,
     repos,
-    resolvedTheme,
     repoNwoById,
     blockedRepos,
     linearIssuesByBranch,
@@ -733,7 +734,7 @@ function DependencyGraphInner() {
           variant={BackgroundVariant.Dots}
           gap={20}
           size={1}
-          color={resolvedTheme === "dark" ? DOT_COLOR.dark : DOT_COLOR.light}
+          color={getCSSToken("--bg-elevated")}
         />
         {isTasksError && isRegularProject && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -776,9 +777,7 @@ function DependencyGraphInner() {
             toX={dragState.currentPosition.x}
             toY={dragState.currentPosition.y}
             hasValidTarget={dragState.targetNodeId !== null}
-            color={
-              resolvedTheme === "dark" ? EDGE_COLOR.dark : EDGE_COLOR.light
-            }
+            color={getCSSToken("--text-muted")}
           />
         )}
       </ReactFlow>

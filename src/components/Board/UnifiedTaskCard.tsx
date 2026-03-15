@@ -75,7 +75,7 @@ const WORKFLOW_LABELS: Record<
 > = {
   todo: {
     label: "To Do",
-    className: "bg-neutral-500/20 text-[var(--text-muted)]",
+    className: "bg-[var(--text-muted)]/20 text-[var(--text-muted)]",
   },
   "in-dev": {
     label: "In Dev",
