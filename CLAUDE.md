@@ -26,7 +26,7 @@ Directiv is a Tauri 2.0 desktop app that integrates Linear, GitHub, tmux, and gi
 - **Frontend:** React 19 + TypeScript, Zustand 5 (state), Tailwind CSS 4 (styling), TanStack Query 5 (data fetching), TanStack Router (routing), @xyflow/react (DAG visualization), lucide-react (icons)
 - **Backend:** Rust with `tauri-plugin-shell` for system commands, `serde` for serialization, `keyring` for OS credential storage, `reqwest` for HTTP/OAuth
 - **Terminal:** External only — Ghostty or iTerm2 via AppleScript, abstracted behind a `TerminalController` trait
-- **Integrations:** `@linear/sdk`, `@octokit/rest`, tmux CLI, git worktree
+- **Integrations:** `@linear/sdk`, `gh` CLI (GitHub), tmux CLI, git worktree
 - **Dev tooling:** mise (tool version management + task runner)
 
 ## Build & Dev Commands
@@ -66,8 +66,8 @@ mise run build             # Build production Tauri app
 ### Frontend patterns
 
 - **Hooks** (`src/hooks/`) wrap SDK clients with TanStack Query for caching/polling: `useLinear`, `useGitHub`, `useTmux`, `useWorktrees`, `useTerminalStatuses`
-- **Stores** (`src/stores/`) use Zustand: `workflowStore` (enriched tasks, filters), `settingsStore` (persisted user config), `projectStore` (selected project), `workspaceStore` (workspace config), `authStore` (OAuth state for Linear + GitHub, cached SDK client factories)
-- **Lib** (`src/lib/`) contains initialized SDK clients and business logic (`workflows.ts` handles `startTask`, `removeWorktreeFlow`, etc.)
+- **Stores** (`src/stores/`) use Zustand: `workflowStore` (enriched tasks, filters), `settingsStore` (persisted user config), `projectStore` (selected project), `workspaceStore` (workspace config), `authStore` (OAuth state for Linear, gh CLI status for GitHub, cached Linear client factory)
+- **Lib** (`src/lib/`) contains SDK clients, Tauri invoke wrappers (`tauriOAuth.ts` for Linear, `tauriGitHub.ts` for GitHub), and business logic (`workflows.ts` handles `startTask`, `removeWorktreeFlow`, etc.)
 
 ### Backend commands (`src-tauri/src/commands/`)
 
@@ -83,10 +83,10 @@ mise run build             # Build production Tauri app
 - `hooks.rs` — execute `.directiv.json` onStart/beforeRemove scripts
 - `workspace.rs` — scan workspace directories, discover git repos
 - `skills.rs` — `get_plugin_dir`, `list_plugin_skills`, `read_plugin_skill_file`, `list_all_claude_skills`
-- `oauth/` — OAuth module directory:
+- `github.rs` — GitHub integration via `gh` CLI: `gh_auth_status`, `gh_list_my_open_prs`, `gh_list_review_requests`, `gh_check_repo_access`
+- `oauth/` — OAuth module directory (Linear only):
   - `shared.rs` — `keyring_get/set/delete` helpers with `#[cfg]` dual implementation: file-backed store (`dev-tokens.json`) in dev builds (no keychain prompts), OS keyring in release. Also exports `OAuthStatus` and `now_secs()`.
   - `linear.rs` — Linear OAuth2 Web Flow (PKCE + localhost callback)
-  - `github.rs` — GitHub OAuth Device Flow (no `client_secret`, tokens don't expire)
 
 ### External terminal
 
@@ -134,16 +134,17 @@ Skills are bundled inside the app as a Claude Code plugin — no user installati
 
 ## Authentication
 
-Both Linear and GitHub use OAuth — no API keys or `.env` variables needed. In release builds, tokens are stored in the OS keyring (`com.directiv.app`). In dev builds, tokens are file-backed at `~/Library/Application Support/directiv/dev-tokens.json` to avoid keychain prompt loops.
+Linear uses in-app OAuth. GitHub delegates authentication to the `gh` CLI (must be installed and authenticated externally). No API keys or `.env` variables needed. In release builds, Linear tokens are stored in the OS keyring (`com.directiv.app`). In dev builds, tokens are file-backed at `~/Library/Application Support/directiv/dev-tokens.json` to avoid keychain prompt loops.
 
 - **Linear** — OAuth2 Web Flow (PKCE + localhost callback on port 19823). Tokens expire and are auto-refreshed.
-- **GitHub** — OAuth Device Flow (same pattern as `gh` CLI). Uses an OAuth App (`client_id` only, no `client_secret`). Tokens don't expire — no refresh logic needed.
+- **GitHub** — Delegates to the `gh` CLI. Users must run `gh auth login` externally. The app checks auth status via `gh api user` and uses `gh api graphql` for all GitHub data. No token storage in the app.
 
 **Auth flow:**
 - `authStore.ts` manages state for both providers (`initializeLinearAuth`, `initializeGitHubAuth` on app mount)
-- `AuthGate.tsx` blocks the app until both providers are connected
-- `tauriOAuth.ts` wraps Tauri `invoke()` calls to Rust OAuth commands
-- Cached SDK client factories: `getLinearClient()` and `getOctokitClient()` (in `authStore.ts`, re-exported via `lib/linear.ts` and `lib/github.ts`)
+- `AuthGate.tsx` blocks the app until both providers are connected. Shows setup instructions for `gh` CLI when GitHub is not connected.
+- `tauriOAuth.ts` wraps Tauri `invoke()` calls for Linear OAuth commands
+- `tauriGitHub.ts` wraps Tauri `invoke()` calls for `gh` CLI commands
+- Cached Linear client factory: `getLinearClient()` (in `authStore.ts`, re-exported via `lib/linear.ts`)
 
 ## Configuration
 

@@ -1,44 +1,17 @@
-import { useState } from "react";
 import {
   Loader2,
   AlertCircle,
   CheckCircle2,
   KanbanSquare,
   Github,
-  Copy,
-  Check,
+  RefreshCw,
+  Terminal,
 } from "lucide-react";
 import {
   useAuthStore,
   AUTH_PROVIDER_STATUS,
   type AuthProviderStatus,
 } from "../../stores/authStore";
-
-function CopyableCode({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <button
-      onClick={handleCopy}
-      className="flex shrink-0 items-center gap-1.5 rounded bg-[var(--bg-elevated)] px-2 py-1 transition-colors hover:bg-[var(--bg-elevated)]/80"
-    >
-      <code className="font-mono text-sm font-semibold text-[var(--text-primary)]">
-        {value}
-      </code>
-      {copied ? (
-        <Check className="size-3 text-[var(--accent-green)]" />
-      ) : (
-        <Copy className="size-3 text-[var(--text-muted)]" />
-      )}
-    </button>
-  );
-}
 
 function ProviderRow({
   name,
@@ -88,6 +61,35 @@ function ProviderRow({
   );
 }
 
+function GitHubSetupInstructions() {
+  return (
+    <div className="mt-3 space-y-2 rounded-md border border-[var(--border-default)] bg-[var(--bg-elevated)] p-3">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)]">
+        <Terminal className="size-3" />
+        Setup in your terminal
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--text-muted)]/20 text-[9px] font-medium text-[var(--text-muted)]">
+            1
+          </span>
+          <code className="text-xs text-[var(--text-secondary)]">
+            brew install gh
+          </code>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--text-muted)]/20 text-[9px] font-medium text-[var(--text-muted)]">
+            2
+          </span>
+          <code className="text-xs text-[var(--text-secondary)]">
+            gh auth login
+          </code>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const linearStatus = useAuthStore((s) => s.linearStatus);
   const linearError = useAuthStore((s) => s.linearError);
@@ -95,8 +97,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   const githubStatus = useAuthStore((s) => s.githubStatus);
   const githubError = useAuthStore((s) => s.githubError);
-  const githubUserCode = useAuthStore((s) => s.githubUserCode);
-  const startGitHubOAuth = useAuthStore((s) => s.startGitHubOAuth);
+  const recheckGitHubAuth = useAuthStore((s) => s.recheckGitHubAuth);
 
   const bothConnected =
     linearStatus === AUTH_PROVIDER_STATUS.CONNECTED &&
@@ -108,6 +109,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   const isLinearConnecting = linearStatus === AUTH_PROVIDER_STATUS.CONNECTING;
   const isGitHubConnecting = githubStatus === AUTH_PROVIDER_STATUS.CONNECTING;
+  const isGitHubDisconnected =
+    githubStatus === AUTH_PROVIDER_STATUS.DISCONNECTED ||
+    githubStatus === AUTH_PROVIDER_STATUS.ERROR;
 
   return (
     <div className="flex h-screen flex-col items-center justify-center bg-[var(--bg-primary)]">
@@ -144,34 +148,30 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             </button>
           </ProviderRow>
 
-          {/* GitHub */}
-          <ProviderRow
-            name="GitHub"
-            icon={<Github className="size-4 text-[var(--text-primary)]" />}
-            status={githubStatus}
-            error={githubError}
-          >
-            {isGitHubConnecting && githubUserCode && (
-              <CopyableCode value={githubUserCode} />
-            )}
-            <button
-              onClick={startGitHubOAuth}
-              disabled={isGitHubConnecting}
-              className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-50"
+          {/* GitHub — via gh CLI */}
+          <div>
+            <ProviderRow
+              name="GitHub"
+              icon={<Github className="size-4 text-[var(--text-primary)]" />}
+              status={githubStatus}
+              error={githubError}
             >
-              {isGitHubConnecting && (
-                <Loader2 className="size-3 animate-spin" />
-              )}
-              Connect
-            </button>
-          </ProviderRow>
+              <button
+                onClick={recheckGitHubAuth}
+                disabled={isGitHubConnecting}
+                className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {isGitHubConnecting ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-3" />
+                )}
+                Check again
+              </button>
+            </ProviderRow>
+            {isGitHubDisconnected && <GitHubSetupInstructions />}
+          </div>
         </div>
-
-        {isGitHubConnecting && githubUserCode && (
-          <p className="text-center text-xs text-[var(--text-muted)]">
-            Enter the code above on github.com/login/device
-          </p>
-        )}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 pub mod config;
+pub mod github;
 pub mod hooks;
 pub mod oauth;
 pub mod skills;
