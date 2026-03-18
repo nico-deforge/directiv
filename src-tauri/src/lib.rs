@@ -46,10 +46,10 @@ pub fn run() {
             commands::oauth::linear_get_valid_token,
             commands::oauth::linear_oauth_status,
             commands::oauth::linear_oauth_disconnect,
-            commands::oauth::github_oauth_start,
-            commands::oauth::github_oauth_poll,
-            commands::oauth::github_get_token,
-            commands::oauth::github_oauth_disconnect,
+            commands::github::gh_auth_status,
+            commands::github::gh_list_my_open_prs,
+            commands::github::gh_list_review_requests,
+            commands::github::gh_check_repo_access,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

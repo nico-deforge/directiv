@@ -1,15 +1,11 @@
 import { LinearClient } from "@linear/sdk";
-import { Octokit } from "@octokit/rest";
 import { create } from "zustand";
 import {
   linearGetValidToken,
   linearOAuthStart,
   linearOAuthDisconnect,
-  githubGetToken,
-  githubOAuthStart,
-  githubOAuthPoll,
-  githubOAuthDisconnect,
 } from "../lib/tauriOAuth";
+import { ghAuthStatus } from "../lib/tauriGitHub";
 
 // Module-level guard: prevents StrictMode double-fire from triggering
 // concurrent duplicate init calls (two component instances = two refs,
@@ -38,13 +34,12 @@ interface AuthState {
   disconnectLinear: () => Promise<void>;
   refreshLinearTokenIfNeeded: () => Promise<void>;
 
-  // GitHub
-  githubAccessToken: string | null;
+  // GitHub (via gh CLI)
   githubStatus: AuthProviderStatus;
   githubError: string | null;
-  githubUserCode: string | null;
+  githubUsername: string | null;
   initializeGitHubAuth: () => Promise<void>;
-  startGitHubOAuth: () => Promise<void>;
+  recheckGitHubAuth: () => Promise<void>;
   disconnectGitHub: (error?: string) => Promise<void>;
 }
 
@@ -57,10 +52,9 @@ const LINEAR_DISCONNECTED = {
 } as const;
 
 const GITHUB_DISCONNECTED = {
-  githubAccessToken: null,
   githubStatus: AUTH_PROVIDER_STATUS.DISCONNECTED,
   githubError: null,
-  githubUserCode: null,
+  githubUsername: null,
 } as const;
 
 function toErrorMessage(err: unknown): string {
@@ -78,7 +72,7 @@ async function fetchLinearOrg(
 
 function createCachedClientFactory<T>(
   getToken: () => string | null,
-  create: (token: string) => T,
+  factory: (token: string) => T,
 ): () => T | null {
   let cached: T | null = null;
   let cachedToken: string | null = null;
@@ -91,7 +85,7 @@ function createCachedClientFactory<T>(
       return null;
     }
     if (token !== cachedToken) {
-      cached = create(token);
+      cached = factory(token);
       cachedToken = token;
     }
     return cached;
@@ -101,11 +95,6 @@ function createCachedClientFactory<T>(
 export const getLinearClient = createCachedClientFactory(
   () => useAuthStore.getState().linearAccessToken,
   (token) => new LinearClient({ accessToken: token }),
-);
-
-export const getOctokitClient = createCachedClientFactory(
-  () => useAuthStore.getState().githubAccessToken,
-  (token) => new Octokit({ auth: token }),
 );
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -196,83 +185,52 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  // --- GitHub ---
-  githubAccessToken: null,
+  // --- GitHub (via gh CLI) ---
   githubStatus: AUTH_PROVIDER_STATUS.DISCONNECTED,
   githubError: null,
-  githubUserCode: null,
+  githubUsername: null,
 
   initializeGitHubAuth: async () => {
     if (_initInFlight.has("github")) return;
     _initInFlight.add("github");
     try {
-      const token = await githubGetToken();
-      if (!token) {
-        set(GITHUB_DISCONNECTED);
-        return;
-      }
-      // Validate the token actually works (catches org-blocked, revoked, etc.)
-      const octokit = new Octokit({ auth: token });
-      await octokit.rest.users.getAuthenticated();
+      const info = await ghAuthStatus();
       set({
-        githubAccessToken: token,
         githubStatus: AUTH_PROVIDER_STATUS.CONNECTED,
         githubError: null,
-        githubUserCode: null,
+        githubUsername: info.username,
       });
-    } catch {
-      // Token exists but doesn't work — clear it and show error
-      try {
-        await githubOAuthDisconnect();
-      } catch {
-        // Best effort keyring cleanup
-      }
+    } catch (err) {
       set({
         ...GITHUB_DISCONNECTED,
-        githubError:
-          "GitHub access was revoked or blocked by your organization. Please reconnect.",
+        githubError: toErrorMessage(err),
       });
     } finally {
       _initInFlight.delete("github");
     }
   },
 
-  startGitHubOAuth: async () => {
+  recheckGitHubAuth: async () => {
     set({
       githubStatus: AUTH_PROVIDER_STATUS.CONNECTING,
       githubError: null,
-      githubUserCode: null,
     });
     try {
-      const deviceResp = await githubOAuthStart();
-      set({ githubUserCode: deviceResp.user_code });
-
-      const token = await githubOAuthPoll(
-        deviceResp.device_code,
-        deviceResp.interval,
-        deviceResp.expires_in,
-      );
+      const info = await ghAuthStatus();
       set({
-        githubAccessToken: token,
         githubStatus: AUTH_PROVIDER_STATUS.CONNECTED,
         githubError: null,
-        githubUserCode: null,
+        githubUsername: info.username,
       });
     } catch (err) {
       set({
-        githubStatus: AUTH_PROVIDER_STATUS.ERROR,
+        ...GITHUB_DISCONNECTED,
         githubError: toErrorMessage(err),
-        githubUserCode: null,
       });
     }
   },
 
   disconnectGitHub: async (error?: string) => {
-    try {
-      await githubOAuthDisconnect();
-    } catch {
-      // Best effort
-    }
     set({ ...GITHUB_DISCONNECTED, githubError: error ?? null });
   },
 }));

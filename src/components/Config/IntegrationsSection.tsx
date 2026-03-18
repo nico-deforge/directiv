@@ -4,6 +4,7 @@ import {
   Loader2,
   LogOut,
   Plug,
+  RefreshCw,
 } from "lucide-react";
 import { useAuthStore, AUTH_PROVIDER_STATUS } from "../../stores/authStore";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,20 +14,14 @@ export function IntegrationsSection() {
   const disconnectLinear = useAuthStore((s) => s.disconnectLinear);
 
   const githubStatus = useAuthStore((s) => s.githubStatus);
-  const githubUserCode = useAuthStore((s) => s.githubUserCode);
-  const startGitHubOAuth = useAuthStore((s) => s.startGitHubOAuth);
-  const disconnectGitHub = useAuthStore((s) => s.disconnectGitHub);
+  const githubUsername = useAuthStore((s) => s.githubUsername);
+  const recheckGitHubAuth = useAuthStore((s) => s.recheckGitHubAuth);
 
   const queryClient = useQueryClient();
 
   async function handleDisconnectLinear() {
     await disconnectLinear();
     queryClient.invalidateQueries({ queryKey: ["linear"] });
-  }
-
-  async function handleDisconnectGitHub() {
-    await disconnectGitHub();
-    queryClient.invalidateQueries({ queryKey: ["github"] });
   }
 
   const isLinearConnected = linearStatus === AUTH_PROVIDER_STATUS.CONNECTED;
@@ -39,20 +34,22 @@ export function IntegrationsSection() {
         <span className="flex items-center gap-1.5">
           <CheckCircle2 className="size-3 text-[var(--accent-green)]" />
           <span className="text-[var(--accent-green)]">
-            Connected via OAuth
+            Connected via gh CLI
+            {githubUsername && (
+              <span className="text-[var(--text-muted)]">
+                {" "}
+                ({githubUsername})
+              </span>
+            )}
           </span>
         </span>
       );
     }
-    if (isGitHubConnecting && githubUserCode) {
+    if (isGitHubConnecting) {
       return (
         <span className="flex items-center gap-1.5">
           <Loader2 className="size-3 animate-spin" />
-          Enter code{" "}
-          <code className="rounded bg-[var(--bg-elevated)] px-1 font-mono text-xs font-semibold text-[var(--text-primary)]">
-            {githubUserCode}
-          </code>{" "}
-          on github.com
+          Checking...
         </span>
       );
     }
@@ -60,28 +57,20 @@ export function IntegrationsSection() {
   }
 
   function renderGitHubAction(): React.ReactNode {
-    if (isGitHubConnected) {
-      return (
-        <button
-          onClick={handleDisconnectGitHub}
-          className="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/10"
-        >
-          <LogOut className="size-3" />
-          Disconnect
-        </button>
-      );
-    }
-    if (!isGitHubConnecting) {
-      return (
-        <button
-          onClick={startGitHubOAuth}
-          className="flex shrink-0 items-center gap-1.5 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90"
-        >
-          Connect
-        </button>
-      );
-    }
-    return null;
+    return (
+      <button
+        onClick={recheckGitHubAuth}
+        disabled={isGitHubConnecting}
+        className="flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]"
+      >
+        {isGitHubConnecting ? (
+          <Loader2 className="size-3 animate-spin" />
+        ) : (
+          <RefreshCw className="size-3" />
+        )}
+        Check status
+      </button>
+    );
   }
 
   return (
