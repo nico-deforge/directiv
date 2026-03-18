@@ -17,14 +17,14 @@ function useIsGitHubConnected() {
   return useAuthStore((s) => s.githubStatus === AUTH_PROVIDER_STATUS.CONNECTED);
 }
 
-function handleGhError(err: unknown): never {
+async function handleGhError(err: unknown): Promise<never> {
   const msg = err instanceof Error ? err.message : String(err);
   if (
     msg.includes("auth login") ||
     msg.includes("not logged") ||
     msg.includes("not authenticated")
   ) {
-    useAuthStore
+    await useAuthStore
       .getState()
       .disconnectGitHub(
         "GitHub CLI authentication lost. Run `gh auth login` in your terminal.",
@@ -66,12 +66,21 @@ export function useGitHubRepoAccess(repos: DiscoveredRepo[]) {
   return useQuery<Set<string>>({
     queryKey: ["github", "repo-access", ...nwos],
     queryFn: async () => {
-      const blocked = new Set<string>();
-      for (const nwo of nwos) {
-        const accessible = await ghCheckRepoAccess(nwo);
-        if (!accessible) blocked.add(nwo);
+      try {
+        const results = await Promise.all(
+          nwos.map(async (nwo) => ({
+            nwo,
+            accessible: await ghCheckRepoAccess(nwo),
+          })),
+        );
+        const blocked = new Set<string>();
+        for (const { nwo, accessible } of results) {
+          if (!accessible) blocked.add(nwo);
+        }
+        return blocked;
+      } catch (err) {
+        return handleGhError(err);
       }
-      return blocked;
     },
     enabled: isConnected && nwos.length > 0,
     staleTime: 5 * 60 * 1000,

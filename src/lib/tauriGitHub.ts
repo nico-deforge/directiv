@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import type { PullRequestInfo, ReviewRequestedPR } from "../types";
 
 export interface GhAuthInfo {
-  loggedIn: boolean;
   username: string;
 }
 

@@ -1,12 +1,10 @@
 use serde::{Deserialize, Serialize};
 use tauri_plugin_shell::ShellExt;
 
-// --- Output types (match frontend TypeScript interfaces) ---
+// --- Output types (serialized as camelCase to match frontend PullRequestInfo / ReviewRequestedPR) ---
 
 #[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GhAuthInfo {
-    pub logged_in: bool,
     pub username: String,
 }
 
@@ -150,6 +148,8 @@ struct SearchConnection {
     nodes: Vec<SearchPRNode>,
 }
 
+// Fields are all Option because the GraphQL search returns a union type —
+// non-PullRequest nodes will have null PR-specific fields, filtered via filter_map.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SearchPRNode {
@@ -171,9 +171,56 @@ struct RepoHolder {
 
 // --- GraphQL queries ---
 
-const VIEWER_PRS_QUERY: &str = "query { viewer { pullRequests(states: OPEN, first: 50) { nodes { number title isDraft url headRefName createdAt updatedAt reviewDecision reviewRequests { totalCount } latestReviews(first: 10) { nodes { author { login } state submittedAt } } commits(last: 1) { nodes { commit { statusCheckRollup { state } } } } } } }";
+const VIEWER_PRS_QUERY: &str = "\
+query { \
+  viewer { \
+    pullRequests(states: OPEN, first: 50) { \
+      nodes { \
+        number title isDraft url headRefName createdAt updatedAt \
+        reviewDecision \
+        reviewRequests { totalCount } \
+        latestReviews(first: 10) { \
+          nodes { author { login } state submittedAt } \
+        } \
+        commits(last: 1) { \
+          nodes { commit { statusCheckRollup { state } } } \
+        } \
+      } \
+    } \
+  } \
+}";
 
-const REVIEW_REQUESTS_QUERY: &str = r#"query { search(query: "is:open is:pr review-requested:@me", type: ISSUE, first: 25) { nodes { ... on PullRequest { number title url isDraft createdAt updatedAt repository { nameWithOwner } author { login } } } } }"#;
+const REVIEW_REQUESTS_QUERY: &str = "\
+query { \
+  search(query: \"is:open is:pr review-requested:@me\", type: ISSUE, first: 25) { \
+    nodes { \
+      ... on PullRequest { \
+        number title url isDraft createdAt updatedAt \
+        repository { nameWithOwner } \
+        author { login } \
+      } \
+    } \
+  } \
+}";
+
+// --- Helpers ---
+
+/// Check for GraphQL-level errors in a successful (exit 0) gh response.
+/// GitHub's GraphQL API can return 200 OK with `{ "errors": [...] }`.
+fn check_graphql_errors(stdout: &[u8]) -> Result<(), String> {
+    if let Ok(val) = serde_json::from_slice::<serde_json::Value>(stdout) {
+        if let Some(errors) = val.get("errors").and_then(|e| e.as_array()) {
+            let messages: Vec<&str> = errors
+                .iter()
+                .filter_map(|e| e.get("message").and_then(|m| m.as_str()))
+                .collect();
+            if !messages.is_empty() {
+                return Err(format!("GitHub API error: {}", messages.join("; ")));
+            }
+        }
+    }
+    Ok(())
+}
 
 // --- Commands ---
 
@@ -185,8 +232,11 @@ pub async fn gh_auth_status(app: tauri::AppHandle) -> Result<GhAuthInfo, String>
         .args(["api", "user", "--jq", ".login"])
         .output()
         .await
-        .map_err(|_| {
-            "GitHub CLI (gh) is not installed. Install it with `brew install gh` then run `gh auth login`.".to_string()
+        .map_err(|e| {
+            format!(
+                "Failed to run GitHub CLI (gh): {e}. \
+                 Make sure gh is installed (`brew install gh`) and available on your PATH."
+            )
         })?;
 
     if !output.status.success() {
@@ -200,10 +250,12 @@ pub async fn gh_auth_status(app: tauri::AppHandle) -> Result<GhAuthInfo, String>
     }
 
     let username = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    Ok(GhAuthInfo {
-        logged_in: true,
-        username,
-    })
+    if username.is_empty() {
+        return Err(
+            "gh returned an empty username. Verify your auth with `gh auth status`.".to_string(),
+        );
+    }
+    Ok(GhAuthInfo { username })
 }
 
 #[tauri::command]
@@ -220,6 +272,8 @@ pub async fn gh_list_my_open_prs(app: tauri::AppHandle) -> Result<Vec<GhPullRequ
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!("gh api graphql failed: {stderr}"));
     }
+
+    check_graphql_errors(&output.stdout)?;
 
     let resp: ViewerPRsResponse = serde_json::from_slice(&output.stdout)
         .map_err(|e| format!("Failed to parse response: {e}"))?;
@@ -298,6 +352,8 @@ pub async fn gh_list_review_requests(
         return Err(format!("gh api graphql failed: {stderr}"));
     }
 
+    check_graphql_errors(&output.stdout)?;
+
     let resp: SearchResponse = serde_json::from_slice(&output.stdout)
         .map_err(|e| format!("Failed to parse response: {e}"))?;
 
@@ -344,6 +400,10 @@ pub async fn gh_check_repo_access(app: tauri::AppHandle, nwo: String) -> Result<
     if stderr.contains("auth login") || stderr.contains("not logged") {
         return Err("gh CLI is not authenticated".to_string());
     }
-
-    Ok(false)
+    // 404 / "not found" → confirmed no access
+    if stderr.contains("not found") || stderr.contains("Could not resolve") {
+        return Ok(false);
+    }
+    // Any other error (network, rate limit, etc.) → surface it
+    Err(format!("Failed to check repo access for {nwo}: {stderr}"))
 }
