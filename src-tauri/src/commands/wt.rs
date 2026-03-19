@@ -98,7 +98,7 @@ pub async fn wt_list(app: tauri::AppHandle, repo_path: String) -> Result<Vec<WtW
             let is_dirty = entry
                 .working_tree
                 .and_then(|wt| wt.is_dirty)
-                .unwrap_or(false);
+                .unwrap_or(true);
             let (ahead, behind, main_state) = entry
                 .main
                 .map(|m| (m.ahead.unwrap_or(0), m.behind.unwrap_or(0), m.state))
