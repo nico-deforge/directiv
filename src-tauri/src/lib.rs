@@ -50,6 +50,8 @@ pub fn run() {
             commands::github::gh_list_my_open_prs,
             commands::github::gh_list_review_requests,
             commands::github::gh_check_repo_access,
+            commands::wt::wt_version,
+            commands::wt::wt_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
