@@ -102,6 +102,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const recheckGitHubAuth = useAuthStore((s) => s.recheckGitHubAuth);
 
   const wtAvailable = useAuthStore((s) => s.wtAvailable);
+  const wtError = useAuthStore((s) => s.wtError);
   const recheckWt = useAuthStore((s) => s.recheckWt);
 
   const allReady =
@@ -137,8 +138,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             Connect your accounts
           </h1>
           <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Directiv needs access to Linear and GitHub to manage your
-            development workflow.
+            Directiv needs access to Linear, GitHub, and Worktrunk to manage
+            your development workflow.
           </p>
         </div>
 
@@ -194,7 +195,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               name="Worktrunk (wt)"
               icon={<GitBranch className="size-4 text-[var(--text-primary)]" />}
               status={wtStatus}
-              error={isWtMissing ? "wt CLI not found" : null}
+              error={isWtMissing ? (wtError ?? "wt CLI not found") : null}
             >
               <button
                 onClick={recheckWt}

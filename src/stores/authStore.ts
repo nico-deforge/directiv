@@ -45,6 +45,7 @@ interface AuthState {
 
   // wt (Worktrunk CLI)
   wtAvailable: boolean | null;
+  wtError: string | null;
   initializeWtCheck: () => Promise<void>;
   recheckWt: () => Promise<void>;
 }
@@ -242,27 +243,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // --- wt (Worktrunk CLI) ---
   wtAvailable: null,
+  wtError: null,
 
   initializeWtCheck: async () => {
     if (_initInFlight.has("wt")) return;
     _initInFlight.add("wt");
     try {
       await wtVersion();
-      set({ wtAvailable: true });
-    } catch {
-      set({ wtAvailable: false });
+      set({ wtAvailable: true, wtError: null });
+    } catch (err) {
+      set({ wtAvailable: false, wtError: toErrorMessage(err) });
     } finally {
       _initInFlight.delete("wt");
     }
   },
 
   recheckWt: async () => {
-    set({ wtAvailable: null });
+    set({ wtAvailable: null, wtError: null });
     try {
       await wtVersion();
-      set({ wtAvailable: true });
-    } catch {
-      set({ wtAvailable: false });
+      set({ wtAvailable: true, wtError: null });
+    } catch (err) {
+      set({ wtAvailable: false, wtError: toErrorMessage(err) });
     }
   },
 }));
