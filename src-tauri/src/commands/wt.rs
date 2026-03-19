@@ -85,7 +85,7 @@ pub struct WtWorktreeInfo {
 
 #[tauri::command]
 pub async fn wt_list(app: tauri::AppHandle, repo_path: String) -> Result<Vec<WtWorktreeInfo>, String> {
-    let stdout = run_wt(&app, &["list", "--format=json", "-C", &repo_path]).await?;
+    let stdout = run_wt(&app, &["list", "--format=json", "-C", "--", &repo_path]).await?;
 
     let entries: Vec<WtListEntry> = serde_json::from_slice(&stdout)
         .map_err(|e| format!("Failed to parse wt list output: {e}"))?;
