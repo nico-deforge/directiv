@@ -44,6 +44,35 @@ export function worktreeList(repoPath: string): Promise<WorktreeInfo[]> {
   return invoke<WorktreeInfo[]>("worktree_list", { repoPath });
 }
 
+// --- wt (Worktrunk) commands ---
+
+interface WtWorktreeInfoRaw {
+  branch: string;
+  path: string;
+  isDirty: boolean;
+  ahead: number;
+  behind: number;
+  mainState: string | null;
+}
+
+export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
+  const raw = await invoke<WtWorktreeInfoRaw[]>("wt_list", { repoPath });
+  return raw.map((entry) => ({
+    branch: entry.branch,
+    path: entry.path,
+    // Derive issueId from branch name (same convention as Directiv)
+    issueId: entry.branch.match(/^[A-Z]+-\d+(\.\d+)?$/i)
+      ? entry.branch.toUpperCase()
+      : null,
+    isDirty: entry.isDirty,
+    ahead: entry.ahead,
+    behind: entry.behind,
+    baseBranch: null,
+    mainState: entry.mainState,
+    remoteAhead: 0,
+  }));
+}
+
 export function worktreeCreate(
   repoPath: string,
   issueId: string,

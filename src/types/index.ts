@@ -86,6 +86,8 @@ export interface WorktreeInfo {
   ahead: number;
   behind: number;
   baseBranch: string | null;
+  mainState?: string | null;
+  remoteAhead?: number;
 }
 
 // --- GitHub ---
