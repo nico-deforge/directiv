@@ -38,8 +38,27 @@ async fn run_wt(app: &tauri::AppHandle, args: &[&str]) -> Result<Vec<u8>, String
 
 #[tauri::command]
 pub async fn wt_version(app: tauri::AppHandle) -> Result<WtVersionInfo, String> {
-    let stdout = run_wt(&app, &["--version"]).await?;
-    let version = String::from_utf8_lossy(&stdout).trim().to_string();
+    let output = app
+        .shell()
+        .command("wt")
+        .args(["--version"])
+        .output()
+        .await
+        .map_err(|e| {
+            format!(
+                "Failed to run wt: {e}. \
+                 Make sure wt (Worktrunk) is installed and available on your PATH."
+            )
+        })?;
+
+    // wt --version writes to stderr (common for clap-based CLIs)
+    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let version = if version.is_empty() {
+        String::from_utf8_lossy(&output.stderr).trim().to_string()
+    } else {
+        version
+    };
+
     if version.is_empty() {
         return Err("wt returned an empty version string.".to_string());
     }
@@ -84,7 +103,10 @@ pub struct WtWorktreeInfo {
 // --- wt_list command ---
 
 #[tauri::command]
-pub async fn wt_list(app: tauri::AppHandle, repo_path: String) -> Result<Vec<WtWorktreeInfo>, String> {
+pub async fn wt_list(
+    app: tauri::AppHandle,
+    repo_path: String,
+) -> Result<Vec<WtWorktreeInfo>, String> {
     let stdout = run_wt(&app, &["list", "--format=json", "-C", &repo_path]).await?;
 
     let entries: Vec<WtListEntry> = serde_json::from_slice(&stdout)
