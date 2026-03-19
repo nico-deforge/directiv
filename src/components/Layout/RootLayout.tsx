@@ -14,13 +14,20 @@ export function RootLayout() {
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
   const initializeLinearAuth = useAuthStore((s) => s.initializeLinearAuth);
   const initializeGitHubAuth = useAuthStore((s) => s.initializeGitHubAuth);
+  const initializeWtCheck = useAuthStore((s) => s.initializeWtCheck);
   const queryClient = useQueryClient();
 
   useEffect(() => {
     loadFromDisk();
     initializeLinearAuth();
     initializeGitHubAuth();
-  }, [loadFromDisk, initializeLinearAuth, initializeGitHubAuth]);
+    initializeWtCheck();
+  }, [
+    loadFromDisk,
+    initializeLinearAuth,
+    initializeGitHubAuth,
+    initializeWtCheck,
+  ]);
 
   // Invalidate queries when auth status transitions to connected or disconnected
   useEffect(() => {
