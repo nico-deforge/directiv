@@ -6,6 +6,7 @@ import {
   linearOAuthDisconnect,
 } from "../lib/tauriOAuth";
 import { ghAuthStatus } from "../lib/tauriGitHub";
+import { wtVersion } from "../lib/tauriWt";
 
 // Module-level guard: prevents StrictMode double-fire from triggering
 // concurrent duplicate init calls (two component instances = two refs,
@@ -41,6 +42,11 @@ interface AuthState {
   initializeGitHubAuth: () => Promise<void>;
   recheckGitHubAuth: () => Promise<void>;
   disconnectGitHub: (error?: string) => Promise<void>;
+
+  // wt (Worktrunk CLI)
+  wtAvailable: boolean | null;
+  initializeWtCheck: () => Promise<void>;
+  recheckWt: () => Promise<void>;
 }
 
 const LINEAR_DISCONNECTED = {
@@ -232,5 +238,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   disconnectGitHub: async (error?: string) => {
     set({ ...GITHUB_DISCONNECTED, githubError: error ?? null });
+  },
+
+  // --- wt (Worktrunk CLI) ---
+  wtAvailable: null,
+
+  initializeWtCheck: async () => {
+    if (_initInFlight.has("wt")) return;
+    _initInFlight.add("wt");
+    try {
+      await wtVersion();
+      set({ wtAvailable: true });
+    } catch {
+      set({ wtAvailable: false });
+    } finally {
+      _initInFlight.delete("wt");
+    }
+  },
+
+  recheckWt: async () => {
+    set({ wtAvailable: null });
+    try {
+      await wtVersion();
+      set({ wtAvailable: true });
+    } catch {
+      set({ wtAvailable: false });
+    }
   },
 }));

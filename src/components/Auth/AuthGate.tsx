@@ -6,12 +6,14 @@ import {
   Github,
   RefreshCw,
   Terminal,
+  GitBranch,
 } from "lucide-react";
 import {
   useAuthStore,
   AUTH_PROVIDER_STATUS,
   type AuthProviderStatus,
 } from "../../stores/authStore";
+import { WtSetupInstructions } from "./WtSetupInstructions";
 
 function ProviderRow({
   name,
@@ -99,19 +101,33 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const githubError = useAuthStore((s) => s.githubError);
   const recheckGitHubAuth = useAuthStore((s) => s.recheckGitHubAuth);
 
-  const bothConnected =
-    linearStatus === AUTH_PROVIDER_STATUS.CONNECTED &&
-    githubStatus === AUTH_PROVIDER_STATUS.CONNECTED;
+  const wtAvailable = useAuthStore((s) => s.wtAvailable);
+  const recheckWt = useAuthStore((s) => s.recheckWt);
 
-  if (bothConnected) {
+  const allReady =
+    linearStatus === AUTH_PROVIDER_STATUS.CONNECTED &&
+    githubStatus === AUTH_PROVIDER_STATUS.CONNECTED &&
+    wtAvailable === true;
+
+  if (allReady) {
     return children;
   }
+
+  // Still initializing wt (null = not yet checked)
+  const isWtChecking = wtAvailable === null;
+  const isWtMissing = wtAvailable === false;
 
   const isLinearConnecting = linearStatus === AUTH_PROVIDER_STATUS.CONNECTING;
   const isGitHubConnecting = githubStatus === AUTH_PROVIDER_STATUS.CONNECTING;
   const isGitHubDisconnected =
     githubStatus === AUTH_PROVIDER_STATUS.DISCONNECTED ||
     githubStatus === AUTH_PROVIDER_STATUS.ERROR;
+
+  const wtStatus: AuthProviderStatus = isWtChecking
+    ? AUTH_PROVIDER_STATUS.CONNECTING
+    : isWtMissing
+      ? AUTH_PROVIDER_STATUS.ERROR
+      : AUTH_PROVIDER_STATUS.CONNECTED;
 
   return (
     <div className="flex h-screen flex-col items-center justify-center bg-[var(--bg-primary)]">
@@ -170,6 +186,30 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               </button>
             </ProviderRow>
             {isGitHubDisconnected && <GitHubSetupInstructions />}
+          </div>
+
+          {/* wt (Worktrunk CLI) */}
+          <div>
+            <ProviderRow
+              name="Worktrunk (wt)"
+              icon={<GitBranch className="size-4 text-[var(--text-primary)]" />}
+              status={wtStatus}
+              error={isWtMissing ? "wt CLI not found" : null}
+            >
+              <button
+                onClick={recheckWt}
+                disabled={isWtChecking}
+                className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {isWtChecking ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-3" />
+                )}
+                Check again
+              </button>
+            </ProviderRow>
+            {isWtMissing && <WtSetupInstructions />}
           </div>
         </div>
       </div>
