@@ -47,7 +47,10 @@ import type {
   ReviewRequestedPR,
   TmuxSession,
 } from "../../types";
-import { useGitHubReviewRequests } from "../../hooks/useGitHub";
+import {
+  useGitHubReviewRequests,
+  useIsGitHubConnected,
+} from "../../hooks/useGitHub";
 import { useStartFreeTask } from "../../hooks/useStartTask";
 import { worktreeCreateExistingBranch } from "../../lib/tauri";
 import { toSessionName } from "../../lib/tmux-utils";
@@ -480,10 +483,68 @@ function NewWorktreeSection() {
   );
 }
 
-function ReviewRequestsSection() {
-  const { data: reviewRequests = [] } = useGitHubReviewRequests();
+function ReviewRequestsBody({
+  reviewRequests,
+  isLoading,
+  isError,
+  error,
+}: {
+  reviewRequests: ReviewRequestedPR[];
+  isLoading: boolean;
+  isError: boolean;
+  error: Error | null;
+}) {
+  if (isLoading && reviewRequests.length === 0) {
+    return (
+      <div className="flex items-center gap-2 px-4 pb-2">
+        <Loader2 className="size-3 animate-spin text-[var(--text-muted)]" />
+        <span className="text-xs text-[var(--text-muted)]">Loading...</span>
+      </div>
+    );
+  }
 
-  if (reviewRequests.length === 0) return null;
+  if (isError && reviewRequests.length === 0) {
+    return (
+      <div className="px-4 pb-2">
+        <div className="flex items-start gap-2">
+          <AlertCircle className="mt-0.5 size-3 shrink-0 text-[var(--accent-red)]" />
+          <p className="text-xs text-[var(--accent-red)]">
+            {error instanceof Error
+              ? error.message
+              : "Failed to load review requests"}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (reviewRequests.length === 0) {
+    return (
+      <p className="px-4 pb-2 text-xs text-[var(--text-muted)]">
+        No review requests
+      </p>
+    );
+  }
+
+  return (
+    <div className="max-h-48 overflow-y-auto px-2 pb-2">
+      {reviewRequests.map((pr) => (
+        <ReviewRequestItem key={`${pr.repoName}-${pr.number}`} pr={pr} />
+      ))}
+    </div>
+  );
+}
+
+function ReviewRequestsSection() {
+  const {
+    data: reviewRequests = [],
+    isLoading,
+    isError,
+    error,
+  } = useGitHubReviewRequests();
+  const isGitHubConnected = useIsGitHubConnected();
+
+  if (!isGitHubConnected) return null;
 
   return (
     <div className="shrink-0 border-t border-[var(--border-default)]">
@@ -494,15 +555,18 @@ function ReviewRequestsSection() {
             Review Requests
           </span>
         </div>
-        <span className="shrink-0 rounded-full bg-[var(--accent-purple)]/20 px-1.5 py-0.5 text-xs text-[var(--accent-purple)]">
-          {reviewRequests.length}
-        </span>
+        {reviewRequests.length > 0 && (
+          <span className="shrink-0 rounded-full bg-[var(--accent-purple)]/20 px-1.5 py-0.5 text-xs text-[var(--accent-purple)]">
+            {reviewRequests.length}
+          </span>
+        )}
       </div>
-      <div className="max-h-48 overflow-y-auto px-2 pb-2">
-        {reviewRequests.map((pr) => (
-          <ReviewRequestItem key={`${pr.repoName}-${pr.number}`} pr={pr} />
-        ))}
-      </div>
+      <ReviewRequestsBody
+        reviewRequests={reviewRequests}
+        isLoading={isLoading}
+        isError={isError}
+        error={error}
+      />
     </div>
   );
 }

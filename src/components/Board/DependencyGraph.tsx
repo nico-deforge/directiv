@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { Maximize2 } from "lucide-react";
+import { AlertCircle, Maximize2 } from "lucide-react";
 import {
   useLinearProjectIssues,
   useLinearIssuesByBranches,
@@ -120,7 +120,11 @@ function DependencyGraphInner() {
     [sessions],
   );
   const { data: claudeStates } = useClaudeSessionStates(activeSessionNames);
-  const { data: prs } = useGitHubMyOpenPRs();
+  const {
+    data: prs,
+    isError: isPRsError,
+    error: prsError,
+  } = useGitHubMyOpenPRs();
   const { data: blockedRepos } = useGitHubRepoAccess(repos);
   const { data: allWorktrees } = useAllWorktrees(repos);
   const { data: myActiveIdentifiers } = useLinearMyActiveIdentifiers();
@@ -662,7 +666,20 @@ function DependencyGraphInner() {
         minZoom={0.3}
         maxZoom={1.5}
       >
-        <div className="absolute bottom-3 right-3 z-10">
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
+          {isPRsError && (
+            <div
+              className="flex cursor-help items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] px-2.5 py-2 text-xs text-[var(--accent-red)] shadow-sm transition-colors hover:bg-[var(--bg-tertiary)]"
+              title={
+                prsError instanceof Error
+                  ? `GitHub PR data unavailable: ${prsError.message}`
+                  : "GitHub PR data unavailable — card statuses may be inaccurate"
+              }
+            >
+              <AlertCircle size={14} />
+              <span>GitHub error</span>
+            </div>
+          )}
           <button
             onClick={() => fitView({ padding: 0.1, duration: 300 })}
             className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-secondary)] p-2 text-[var(--text-muted)] shadow-sm transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"

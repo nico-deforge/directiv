@@ -13,12 +13,13 @@ import {
   ghCheckRepoAccess,
 } from "../lib/tauriGitHub";
 
-function useIsGitHubConnected() {
+export function useIsGitHubConnected() {
   return useAuthStore((s) => s.githubStatus === AUTH_PROVIDER_STATUS.CONNECTED);
 }
 
 async function handleGhError(err: unknown): Promise<never> {
   const msg = err instanceof Error ? err.message : String(err);
+  console.error("[GitHub]", msg);
   if (
     msg.includes("auth login") ||
     msg.includes("not logged") ||
