@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { worktreeList, worktreeCreate } from "../lib/tauri";
+import { wtList, worktreeCreate } from "../lib/tauri";
 import {
   removeWorktreeFlow,
   type RemoveWorktreeFlowParams,
@@ -20,7 +20,7 @@ export function useAllWorktrees(repos: DiscoveredRepo[]) {
       const results: RepoWorktrees[] = [];
       for (const repo of repos) {
         try {
-          const worktrees = await worktreeList(repo.path);
+          const worktrees = await wtList(repo.path);
           results.push({
             repoId: repo.id,
             repoPath: repo.path,
@@ -40,7 +40,7 @@ export function useAllWorktrees(repos: DiscoveredRepo[]) {
 export function useWorktrees(repoPath: string) {
   return useQuery<WorktreeInfo[]>({
     queryKey: ["worktrees", repoPath],
-    queryFn: () => worktreeList(repoPath),
+    queryFn: () => wtList(repoPath),
     enabled: !!repoPath,
     refetchInterval: LOCAL_REFRESH_INTERVAL_SLOW,
   });
