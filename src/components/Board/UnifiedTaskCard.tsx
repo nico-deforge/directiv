@@ -254,11 +254,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     };
   }
 
-  function handleStart(repoPath: string, baseBranch?: string, key?: SkillKey) {
+  function handleStart(repoPath: string, _baseBranch?: string, key?: SkillKey) {
     setDropdownOpen(false);
     setSelectedRepo(null);
     setBranchError(null);
-    const repo = repos.find((r) => r.path === repoPath);
     const { skill, usePlugin, model } = getRepoSkillParams(
       repoPath,
       key ?? pendingSkillKey,
@@ -271,10 +270,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         repoPath,
         terminal,
         terminalLayout,
-        copyPaths: repo?.copyPaths,
-        onStart: repo?.onStart,
-        baseBranch,
-        fetchBefore: repo?.fetchBefore,
         skill,
         usePlugin,
         model,
@@ -299,7 +294,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             setBranchError({
               type: "unpushed",
               branch: err.branchName,
-              baseBranch,
+              baseBranch: undefined,
               repoPath,
             });
           } else {
@@ -336,10 +331,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           repoPath,
           terminal,
           terminalLayout: existingConfig.terminalLayout,
-          copyPaths: repo?.copyPaths,
-          onStart: repo?.onStart,
-          baseBranch,
-          fetchBefore: false,
           skill,
           usePlugin,
           model,
