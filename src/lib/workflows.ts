@@ -10,7 +10,6 @@ import {
   tmuxSendKeys,
   tmuxWaitForReady,
   openTerminal,
-  runHooks,
   getPluginDir,
 } from "./tauri";
 import { wtRemove } from "./tauriWt";
@@ -42,15 +41,6 @@ export class BranchExistsError extends Error {
   }
 }
 
-export class BaseNotFoundError extends Error {
-  baseName: string;
-  constructor(baseName: string) {
-    super(`Base branch '${baseName}' not found`);
-    this.name = "BaseNotFoundError";
-    this.baseName = baseName;
-  }
-}
-
 export class BranchCheckedOutError extends Error {
   branchName: string;
   worktreePath: string;
@@ -62,16 +52,6 @@ export class BranchCheckedOutError extends Error {
   }
 }
 
-export class BranchHasUnpushedError extends Error {
-  branchName: string;
-  constructor(branchName: string) {
-    super(`Branch '${branchName}' has unpushed commits`);
-    this.name = "BranchHasUnpushedError";
-    this.branchName = branchName;
-  }
-}
-
-<<<<<<< HEAD
 function parseWorktreeError(err: unknown, repoPath: string): Error {
   const msg = err instanceof Error ? err.message : String(err);
   // wt switch --create emits "already exists" when the branch is present
