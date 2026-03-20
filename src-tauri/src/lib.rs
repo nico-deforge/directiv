@@ -34,6 +34,7 @@ pub fn run() {
             commands::terminal::query_terminals,
             commands::terminal::cmux_close_workspace,
             commands::terminal::cmux_ping,
+            commands::terminal::cmux_list_notifications,
             commands::terminal::open_editor,
             commands::hooks::run_hooks,
             commands::config::load_config,

@@ -4,7 +4,7 @@ pub mod ghostty;
 pub mod iterm;
 pub mod types;
 
-use cmux::CmuxController;
+use cmux::{CmuxController, CmuxNotification};
 use controller::TerminalController;
 use ghostty::GhosttyController;
 use iterm::ITermController;
@@ -215,6 +215,19 @@ pub async fn query_terminals(
 #[tauri::command]
 pub async fn cmux_close_workspace(app: tauri::AppHandle, name: String) -> Result<(), String> {
     cmux::close_workspace(&app, &name).await
+}
+
+/// List all pending cmux notifications returned by `cmux list-notifications --json`.
+///
+/// Each notification includes title, subtitle, body, workspace_id, and a parsed category.
+/// If no notifications exist or cmux is not running, returns an empty array.
+/// The category is parsed structurally from the JSON; if absent, it is derived via keyword
+/// matching on title/body (mirrors cmux's internal classification logic).
+#[tauri::command]
+pub async fn cmux_list_notifications(
+    app: tauri::AppHandle,
+) -> Result<Vec<CmuxNotification>, String> {
+    cmux::list_notifications(&app).await
 }
 
 /// Check whether cmux is installed and running via `cmux ping`.
