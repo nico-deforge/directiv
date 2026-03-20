@@ -17,6 +17,10 @@ import {
   Code2,
   AlertTriangle,
   ClipboardList,
+  CheckCircle,
+  HelpCircle,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -49,6 +53,8 @@ import {
   openEditor,
   tmuxKillSession,
   worktreeCreateExistingBranch,
+  type CmuxNotification,
+  NOTIFICATION_CATEGORIES,
 } from "../../lib/tauri";
 import { BranchSelector } from "../shared/BranchSelector";
 import { QuickPeek } from "./QuickPeek";
@@ -113,6 +119,54 @@ function getWorkflowStatus(
   return "personal-review";
 }
 
+/** Map a cmux notification to a badge style, label, and icon for display on the card. */
+function getCmuxBadgeConfig(n: CmuxNotification): {
+  className: string;
+  label: string;
+  Icon: React.ElementType;
+} {
+  const label = n.body ?? n.title;
+  switch (n.category) {
+    case NOTIFICATION_CATEGORIES.PERMISSION:
+      return {
+        className:
+          "animate-pulse bg-[var(--accent-orange)]/20 text-[var(--accent-orange)] hover:bg-[var(--accent-orange)]/30",
+        label,
+        Icon: AlertTriangle,
+      };
+    case NOTIFICATION_CATEGORIES.ERROR:
+      return {
+        className:
+          "bg-[var(--accent-red)]/20 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30",
+        label,
+        Icon: XCircle,
+      };
+    case NOTIFICATION_CATEGORIES.COMPLETED:
+      return {
+        className:
+          "bg-[var(--accent-green)]/20 text-[var(--accent-green)] hover:bg-[var(--accent-green)]/30",
+        label: "Completed",
+        Icon: CheckCircle,
+      };
+    case NOTIFICATION_CATEGORIES.QUESTION:
+    case NOTIFICATION_CATEGORIES.WAITING:
+      return {
+        className:
+          "bg-[var(--accent-blue)]/20 text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30",
+        label,
+        Icon: HelpCircle,
+      };
+    case NOTIFICATION_CATEGORIES.ATTENTION:
+    default:
+      return {
+        className:
+          "bg-[var(--accent-amber)]/20 text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30",
+        label,
+        Icon: Clock,
+      };
+  }
+}
+
 export type UnifiedTaskNodeData = {
   task: EnrichedTask;
   worktree: WorktreeInfo | null;
@@ -121,6 +175,8 @@ export type UnifiedTaskNodeData = {
   pullRequest: PullRequestInfo | null;
   repos: DiscoveredRepo[];
   claudeStatus: ClaudeSessionStatus | null;
+  /** Enriched agent state from cmux — only present when cmux is the terminal backend. */
+  cmuxNotification: CmuxNotification | null;
   githubRepoBlocked: boolean;
   terminalActive: boolean | null;
   onDragStart?: (nodeId: string, e: React.MouseEvent) => void;
@@ -138,6 +194,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     pullRequest,
     repos,
     claudeStatus,
+    cmuxNotification,
     githubRepoBlocked,
     terminalActive,
     onDragStart,
@@ -174,6 +231,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
+
+  // Enriched badge config when cmux is the backend
+  const cmuxBadge = cmuxNotification
+    ? getCmuxBadgeConfig(cmuxNotification)
+    : null;
 
   useEffect(() => {
     if (!confirmingDelete) return;
@@ -470,7 +532,22 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               {task.assigneeName}
             </span>
           )}
-          {claudeWaiting && (
+          {/* cmux enriched badge — shown when cmux is the backend */}
+          {cmuxBadge && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenTerminal();
+              }}
+              title={cmuxNotification?.body ?? cmuxNotification?.title}
+              className={`ml-auto flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${cmuxBadge.className}`}
+            >
+              <cmuxBadge.Icon className="size-3 shrink-0" />
+              <span className="max-w-[120px] truncate">{cmuxBadge.label}</span>
+            </button>
+          )}
+          {/* Fallback badge for Ghostty/iTerm2 — shown when no cmux notification */}
+          {!cmuxBadge && claudeWaiting && (
             <button
               onClick={(e) => {
                 e.stopPropagation();

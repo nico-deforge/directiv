@@ -24,6 +24,7 @@ import {
 } from "../../hooks/useLinear";
 import { useCurrentLinearTeamIds } from "../../hooks/useLinearConfig";
 import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
+import { useCmuxNotifications } from "../../hooks/useCmuxNotifications";
 import { useTerminalStatuses } from "../../hooks/useTerminalStatuses";
 import { useGitHubMyOpenPRs, useGitHubRepoAccess } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
@@ -120,6 +121,7 @@ function DependencyGraphInner() {
     [sessions],
   );
   const { data: claudeStates } = useClaudeSessionStates(activeSessionNames);
+  const cmuxNotifications = useCmuxNotifications();
   const {
     data: prs,
     isError: isPRsError,
@@ -294,6 +296,7 @@ function DependencyGraphInner() {
             pullRequest: pr ?? null,
             repos,
             claudeStatus: claudeStates?.get(sessionName) ?? null,
+            cmuxNotification: cmuxNotifications.get(sessionName) ?? null,
             githubRepoBlocked,
             terminalActive,
           },
@@ -337,6 +340,7 @@ function DependencyGraphInner() {
           pullRequest: pr ?? null,
           repos,
           claudeStatus: claudeStates?.get(sessionName) ?? null,
+          cmuxNotification: cmuxNotifications.get(sessionName) ?? null,
           githubRepoBlocked,
           terminalActive,
         },
@@ -382,6 +386,7 @@ function DependencyGraphInner() {
     prByBranch,
     sessionByName,
     claudeStates,
+    cmuxNotifications,
     repos,
     resolvedTheme,
     repoNwoById,
