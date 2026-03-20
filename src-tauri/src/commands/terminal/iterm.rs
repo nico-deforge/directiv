@@ -338,6 +338,7 @@ mod tests {
         let config = TerminalConfig {
             identifier: "ACQ-145".to_string(),
             session: "acq-145".to_string(),
+            command: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::new(),
         };
@@ -363,6 +364,7 @@ mod tests {
         let config = TerminalConfig {
             identifier: "ACQ-145".to_string(),
             session: "acq-145".to_string(),
+            command: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars,
         };
@@ -387,6 +389,7 @@ mod tests {
         let config = TerminalConfig {
             identifier: "ACQ-145".to_string(),
             session: "acq-145".to_string(),
+            command: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars,
         };
@@ -430,6 +433,7 @@ mod tests {
         let config = TerminalConfig {
             identifier: r#"id"inject"#.to_string(),
             session: r#"sess"inject"#.to_string(),
+            command: None,
             worktree_path: r#"/path/"inject"#.to_string(),
             env_vars: HashMap::new(),
         };

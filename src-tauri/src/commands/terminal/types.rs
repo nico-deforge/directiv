@@ -12,7 +12,11 @@ pub enum TerminalLayout {
 #[derive(Debug, Clone)]
 pub struct TerminalConfig {
     pub identifier: String,
+    /// tmux session name (or equivalent concept for other backends)
     pub session: String,
+    /// Optional startup command to run after navigating to the worktree.
+    /// For cmux, this is the Claude command. If None, no command is sent.
+    pub command: Option<String>,
     pub worktree_path: String,
     pub env_vars: HashMap<String, String>,
 }
@@ -22,6 +26,7 @@ pub struct TerminalConfig {
 pub enum Emulator {
     Ghostty,
     Iterm2,
+    Cmux,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

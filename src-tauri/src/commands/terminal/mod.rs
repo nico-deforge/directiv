@@ -1,8 +1,10 @@
+pub mod cmux;
 pub mod controller;
 pub mod ghostty;
 pub mod iterm;
 pub mod types;
 
+use cmux::CmuxController;
 use controller::TerminalController;
 use ghostty::GhosttyController;
 use iterm::ITermController;
@@ -36,6 +38,17 @@ pub async fn open_terminal(
             dispatch_terminal(
                 &app,
                 ITermController,
+                &session,
+                &identifier,
+                &worktree_path,
+                layout,
+            )
+            .await
+        }
+        "cmux" => {
+            dispatch_terminal(
+                &app,
+                CmuxController,
                 &session,
                 &identifier,
                 &worktree_path,
@@ -78,6 +91,9 @@ async fn dispatch_terminal(
     let config = TerminalConfig {
         identifier: identifier.to_string(),
         session: session.to_string(),
+        // The session string doubles as a startup command for cmux workspaces.
+        // Other controllers (Ghostty, iTerm2) use the session field directly.
+        command: Some(session.to_string()),
         worktree_path: worktree_path.to_string(),
         env_vars,
     };
@@ -114,6 +130,22 @@ pub async fn query_terminals(
     app: tauri::AppHandle,
     emulator: String,
 ) -> Result<Vec<TerminalStatus>, String> {
+    // cmux manages its own sessions — query them directly without tmux
+    if emulator == "cmux" {
+        let sessions = CmuxController.list_sessions(&app).await?;
+        let statuses = sessions
+            .into_iter()
+            .map(|(id, name)| TerminalStatus {
+                session_name: name.clone(),
+                identifier: id,
+                // cmux workspaces are always considered active: they persist until explicitly
+                // closed, unlike tmux sessions which can die without emulator cleanup.
+                active: true,
+            })
+            .collect();
+        return Ok(statuses);
+    }
+
     // Get tmux sessions to know which Directiv sessions exist
     let tmux_output = app
         .shell()
