@@ -561,7 +561,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           )}
           {hasSession && terminalActive !== null && (
             <span
-              className={`${claudeWaiting ? "" : "ml-auto"} flex items-center`}
+              className={`${claudeWaiting || cmuxBadge ? "" : "ml-auto"} flex items-center`}
               title={terminalActive ? "Terminal open" : "Terminal closed"}
             >
               <Terminal
