@@ -291,7 +291,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         sessionName: session?.name,
         terminal,
       });
-      queryClient.invalidateQueries({ queryKey: ["worktrees"] });
+      await queryClient.refetchQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
     } catch (err) {
       toastError(err);
@@ -314,7 +314,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         }
       }
       await wtMerge(worktreeRepoPath, worktree.branch);
-      queryClient.invalidateQueries({ queryKey: ["worktrees"] });
+      await queryClient.refetchQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
@@ -789,7 +789,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
               title="Delete worktree and branch"
             >
-              <Trash2 className="size-3.5" />
+              {deletingWorktree ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
             </button>
           )}
 
