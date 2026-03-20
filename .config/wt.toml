@@ -1,0 +1,15 @@
+# Copy build caches from source worktree, then install dependencies
+[post-create]
+copy = "wt step copy-ignored"
+install = "mise run install"
+
+# Quality checks before commit (during wt merge)
+[pre-commit]
+tsc = "mise run tsc"
+lint = "mise run lint"
+format = "mise run format:check"
+clippy = "cd src-tauri && cargo clippy -- -D warnings"
+rust-fmt = "cd src-tauri && cargo fmt -- --check"
+
+# Run Rust tests before merging
+pre-merge = "cd src-tauri && cargo test"

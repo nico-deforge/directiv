@@ -58,7 +58,6 @@ pub async fn wt_version(app: tauri::AppHandle) -> Result<WtVersionInfo, String> 
     } else {
         version
     };
-
     if version.is_empty() {
         return Err("wt returned an empty version string.".to_string());
     }
