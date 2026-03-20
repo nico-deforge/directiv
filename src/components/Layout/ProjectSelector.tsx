@@ -294,13 +294,12 @@ function NewWorktreeSection() {
   async function handleUseExisting(resetToBase: boolean) {
     if (!branchExistsPrompt) return;
     const { repoPath, baseBranch: promptBase } = branchExistsPrompt;
-    const repo = repos.find((r) => r.path === repoPath);
     setBranchExistsPrompt(null);
     try {
       await worktreeCreateExistingBranch(
         repoPath,
         branchName.trim(),
-        repo?.copyPaths,
+        undefined,
         promptBase,
         resetToBase,
       );
