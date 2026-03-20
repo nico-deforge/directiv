@@ -255,9 +255,11 @@ async function ensureSession(
 
 // For cmux, there is no tmux session. The workspace is created and Claude is
 // launched entirely within CmuxController.create(), which receives the Claude
-// command via the `session` field of TerminalConfig. This function runs the
-// onStart hooks (if any) then delegates to openTerminal, passing the Claude
-// command as the `session` parameter so CmuxController.create() can use it.
+// command via TerminalConfig.command. This function runs the onStart hooks
+// (if any) then delegates to openTerminal, passing the Claude command as the
+// `session` parameter — the Rust open_terminal handler maps it to
+// TerminalConfig.command so CmuxController.create() can send it as the
+// startup command.
 async function ensureSessionCmux(
   identifier: string,
   worktreePath: string,
@@ -269,8 +271,6 @@ async function ensureSessionCmux(
   if (onStart && onStart.length > 0) {
     await runHooks(onStart, worktreePath);
   }
-  // Pass claudeCmd as `session` — CmuxController.create() reads it from
-  // TerminalConfig.session and sends it as the startup command.
   await openTerminal(
     terminal,
     claudeCmd,

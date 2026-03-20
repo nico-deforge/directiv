@@ -224,6 +224,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         sessionName: session?.name,
         beforeRemove: repo?.beforeRemove,
         skipHooks,
+        terminal,
       });
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
