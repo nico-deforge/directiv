@@ -5,15 +5,42 @@ import {
   tmuxCreateSession,
   tmuxKillSession,
   tmuxCapturePane,
+  queryTerminals,
 } from "../lib/tauri";
 import { detectClaudeStates } from "../lib/claudeState";
+import { useSettingsStore } from "../stores/settingsStore";
 import type { TmuxSession, ClaudeSessionStatus } from "../types";
 import { LOCAL_REFRESH_INTERVAL } from "../constants/intervals";
 
+/**
+ * List active sessions for the configured terminal backend.
+ *
+ * For tmux-based backends (ghostty, iterm2): polls tmux directly.
+ * For cmux: synthesizes TmuxSession records from `query_terminals("cmux")`
+ * so that the board can detect active workspaces without depending on tmux.
+ *
+ * The synthesized TmuxSession uses workspace_name as the session name
+ * (matching the identifier used in toSessionName()), attached=true,
+ * and placeholder values for windows/created.
+ */
 export function useTmuxSessions() {
+  const terminal = useSettingsStore((s) => s.config.terminal);
+  const isCmux = terminal === "cmux";
+
   return useQuery<TmuxSession[]>({
-    queryKey: ["tmux", "sessions"],
-    queryFn: tmuxListSessions,
+    queryKey: ["tmux", "sessions", terminal],
+    queryFn: async () => {
+      if (isCmux) {
+        const statuses = await queryTerminals("cmux");
+        return statuses.map((s) => ({
+          name: s.sessionName,
+          attached: s.active,
+          windows: 1,
+          created: "",
+        }));
+      }
+      return tmuxListSessions();
+    },
     refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
 }
