@@ -33,6 +33,7 @@ pub fn run() {
             commands::terminal::open_terminal,
             commands::terminal::query_terminals,
             commands::terminal::open_editor,
+            commands::terminal::cmux_close_workspace,
             commands::hooks::run_hooks,
             commands::config::load_config,
             commands::config::save_config,

@@ -13,6 +13,7 @@ import {
   openTerminal,
   runHooks,
   getPluginDir,
+  cmuxCloseWorkspace,
 } from "./tauri";
 import { toSessionName } from "./tmux-utils";
 import type {
@@ -250,6 +251,35 @@ async function ensureSession(
   }
 }
 
+// --- cmux session management (bypasses tmux) ---
+
+// For cmux, there is no tmux session. The workspace is created and Claude is
+// launched entirely within CmuxController.create(), which receives the Claude
+// command via the `session` field of TerminalConfig. This function runs the
+// onStart hooks (if any) then delegates to openTerminal, passing the Claude
+// command as the `session` parameter so CmuxController.create() can use it.
+async function ensureSessionCmux(
+  identifier: string,
+  worktreePath: string,
+  claudeCmd: string,
+  terminal: string,
+  terminalLayout: TerminalLayout | undefined,
+  onStart?: string[],
+): Promise<void> {
+  if (onStart && onStart.length > 0) {
+    await runHooks(onStart, worktreePath);
+  }
+  // Pass claudeCmd as `session` — CmuxController.create() reads it from
+  // TerminalConfig.session and sends it as the startup command.
+  await openTerminal(
+    terminal,
+    claudeCmd,
+    identifier,
+    worktreePath,
+    terminalLayout,
+  );
+}
+
 export interface RemoveWorktreeFlowParams {
   repoPath: string;
   worktreePath: string;
@@ -258,6 +288,7 @@ export interface RemoveWorktreeFlowParams {
   beforeRemove?: string[];
   deleteBranch?: boolean;
   skipHooks?: boolean;
+  terminal?: string;
 }
 
 export async function removeWorktreeFlow({
@@ -268,6 +299,7 @@ export async function removeWorktreeFlow({
   beforeRemove,
   deleteBranch = true,
   skipHooks = false,
+  terminal,
 }: RemoveWorktreeFlowParams): Promise<void> {
   if (!skipHooks && beforeRemove && beforeRemove.length > 0) {
     try {
@@ -276,7 +308,15 @@ export async function removeWorktreeFlow({
       throw parseHookError(err);
     }
   }
-  if (sessionName) {
+  if (terminal === "cmux") {
+    // For cmux, close the workspace by identifier (workspace name = identifier).
+    // sessionName is the tmux session name convention — for cmux the workspace
+    // name matches the identifier, not the sessionName.
+    const workspaceName = branch ?? sessionName;
+    if (workspaceName) {
+      await cmuxCloseWorkspace(workspaceName).catch(() => {});
+    }
+  } else if (sessionName) {
     await tmuxKillSession(sessionName).catch(() => {});
   }
   await worktreeRemove(repoPath, worktreePath, branch, deleteBranch);
@@ -320,22 +360,35 @@ export async function startTask({
     fetchBefore,
   );
 
-  const sessionName = toSessionName(identifier);
   const claudeCmd = await buildClaudeCommand(
     skill,
     identifier,
     usePlugin,
     model,
   );
-  await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
-  openTerminalWithToast(
-    terminal,
-    sessionName,
-    identifier,
-    worktree.path,
-    terminalLayout,
-  );
+  if (terminal === "cmux") {
+    // cmux manages its own sessions — no tmux required.
+    // CmuxController.create() creates the workspace and launches Claude.
+    await ensureSessionCmux(
+      identifier,
+      worktree.path,
+      claudeCmd,
+      terminal,
+      terminalLayout,
+      onStart,
+    );
+  } else {
+    const sessionName = toSessionName(identifier);
+    await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
+    openTerminalWithToast(
+      terminal,
+      sessionName,
+      identifier,
+      worktree.path,
+      terminalLayout,
+    );
+  }
 
   await updateLinearStatusToStarted(issueId).catch((err) => {
     toast.warning(
@@ -373,16 +426,27 @@ export async function startFreeTask({
     fetchBefore,
   );
 
-  const sessionName = toSessionName(branchName);
-  await ensureSession(sessionName, worktree.path, onStart);
-
-  openTerminalWithToast(
-    terminal,
-    sessionName,
-    branchName,
-    worktree.path,
-    terminalLayout,
-  );
+  if (terminal === "cmux") {
+    const claudeCmd = await buildClaudeCommand();
+    await ensureSessionCmux(
+      branchName,
+      worktree.path,
+      claudeCmd,
+      terminal,
+      terminalLayout,
+      onStart,
+    );
+  } else {
+    const sessionName = toSessionName(branchName);
+    await ensureSession(sessionName, worktree.path, onStart);
+    openTerminalWithToast(
+      terminal,
+      sessionName,
+      branchName,
+      worktree.path,
+      terminalLayout,
+    );
+  }
 }
 
 async function updateLinearStatusToStarted(issueId: string): Promise<void> {

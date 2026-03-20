@@ -210,6 +210,10 @@ export function queryTerminals(emulator: string): Promise<TerminalStatus[]> {
   return invoke<TerminalStatus[]>("query_terminals", { emulator });
 }
 
+export function cmuxCloseWorkspace(name: string): Promise<void> {
+  return invoke<void>("cmux_close_workspace", { name });
+}
+
 // --- Editor commands ---
 
 export function openEditor(editor: string, path: string): Promise<void> {
