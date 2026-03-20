@@ -222,6 +222,29 @@ export function cmuxSetStatus(
   return invoke<void>("cmux_set_status", { workspaceName, key, value });
 }
 
+export function cmuxSetProgress(
+  workspaceName: string,
+  value: number,
+): Promise<void> {
+  return invoke<void>("cmux_set_progress", { workspaceName, value });
+}
+
+export function cmuxLog(
+  workspaceName: string,
+  level: string,
+  message: string,
+): Promise<void> {
+  return invoke<void>("cmux_log", { workspaceName, level, message });
+}
+
+export function cmuxClearProgress(workspaceName: string): Promise<void> {
+  return invoke<void>("cmux_clear_progress", { workspaceName });
+}
+
+export function cmuxClearLog(workspaceName: string): Promise<void> {
+  return invoke<void>("cmux_clear_log", { workspaceName });
+}
+
 export function cmuxPing(): Promise<boolean> {
   return invoke<boolean>("cmux_ping");
 }

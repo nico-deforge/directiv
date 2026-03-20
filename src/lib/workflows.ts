@@ -15,6 +15,14 @@ import {
   getPluginDir,
   cmuxCloseWorkspace,
 } from "./tauri";
+import {
+  pushProgress,
+  pushLog,
+  clearSidebarProgress,
+  clearSidebarLog,
+  CMUX_PROGRESS,
+  CMUX_LOG_LEVELS,
+} from "./cmuxSidebar";
 import { toSessionName } from "./tmux-utils";
 import type {
   ActionKey,
@@ -314,6 +322,10 @@ export async function removeWorktreeFlow({
     // name matches the identifier, not the sessionName.
     const workspaceName = branch ?? sessionName;
     if (workspaceName) {
+      // Clear sidebar progress and logs before closing workspace.
+      // Best-effort — errors are ignored inside clear helpers.
+      void clearSidebarProgress(workspaceName);
+      void clearSidebarLog(workspaceName);
       await cmuxCloseWorkspace(workspaceName).catch(() => {});
     }
   } else if (sessionName) {
@@ -360,6 +372,12 @@ export async function startTask({
     fetchBefore,
   );
 
+  // Step 1: worktree created — 20% progress
+  if (terminal === "cmux") {
+    void pushProgress(identifier, CMUX_PROGRESS.WORKTREE_CREATED);
+    void pushLog(identifier, CMUX_LOG_LEVELS.INFO, "Worktree created");
+  }
+
   const claudeCmd = await buildClaudeCommand(
     skill,
     identifier,
@@ -378,6 +396,9 @@ export async function startTask({
       terminalLayout,
       onStart,
     );
+    // Step 2: Claude launched — 40% progress
+    void pushProgress(identifier, CMUX_PROGRESS.CLAUDE_LAUNCHED);
+    void pushLog(identifier, CMUX_LOG_LEVELS.INFO, "Claude launched");
   } else {
     const sessionName = toSessionName(identifier);
     await ensureSession(sessionName, worktree.path, onStart, claudeCmd);

@@ -78,8 +78,8 @@ export function useCmuxSidebarSync(tasksWithContext: TaskWithContext[]): void {
         void pushPrStatus(workspaceName, syncKey.prStatus);
       }
 
-      if (syncKey.ciStatus !== null) {
-        void pushCiStatus(workspaceName, pullRequest!.ciStatus);
+      if (pullRequest && syncKey.ciStatus !== null) {
+        void pushCiStatus(workspaceName, pullRequest.ciStatus);
       }
     }
   }, [isCmux, tasksWithContext]);
