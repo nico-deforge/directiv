@@ -153,7 +153,7 @@ pub async fn wt_switch_create(
 // --- wt_remove command ---
 
 /// Remove the worktree for `branch_name` rooted at `repo_path` using `wt remove`.
-/// Deletes the worktree directory and its branch (if merged).
+/// Deletes the worktree directory and its branch.
 #[tauri::command]
 pub async fn wt_remove(
     app: tauri::AppHandle,
