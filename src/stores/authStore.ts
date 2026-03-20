@@ -159,7 +159,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ linearOrgId: org.id, linearOrgName: org.name });
     } catch (err) {
       // If token was already stored, keep CONNECTED status
-      if (get().linearAccessToken) return;
+      if (get().linearAccessToken) {
+        console.warn("Linear org fetch failed after OAuth:", err);
+        return;
+      }
       set({
         linearStatus: AUTH_PROVIDER_STATUS.ERROR,
         linearError: toErrorMessage(err),
@@ -170,8 +173,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   disconnectLinear: async () => {
     try {
       await linearOAuthDisconnect();
-    } catch {
-      // Best effort
+    } catch (err) {
+      console.warn("disconnectLinear cleanup error:", err);
     }
     set(LINEAR_DISCONNECTED);
   },
@@ -187,7 +190,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } else if (!token) {
         set(LINEAR_DISCONNECTED);
       }
-    } catch {
+    } catch (err) {
+      console.warn("Token refresh failed:", err);
       set(LINEAR_DISCONNECTED);
     }
   },

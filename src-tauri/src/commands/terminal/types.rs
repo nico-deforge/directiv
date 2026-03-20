@@ -12,7 +12,8 @@ pub enum TerminalLayout {
 #[derive(Debug, Clone)]
 pub struct TerminalConfig {
     pub identifier: String,
-    /// tmux session name (or equivalent concept for other backends)
+    /// tmux session name (or equivalent concept for other backends).
+    /// For cmux, this carries the Claude startup command (used as `TerminalConfig.command`).
     pub session: String,
     /// Optional startup command to run after navigating to the worktree.
     /// For cmux, this is the Claude command. If None, no command is sent.

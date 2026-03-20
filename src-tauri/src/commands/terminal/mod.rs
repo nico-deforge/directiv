@@ -9,12 +9,12 @@ use controller::TerminalController;
 use ghostty::GhosttyController;
 use iterm::ITermController;
 use tauri_plugin_shell::ShellExt;
-use types::{TerminalConfig, TerminalStatus};
+use types::{Emulator, TerminalConfig, TerminalStatus};
 
 #[tauri::command]
 pub async fn open_terminal(
     app: tauri::AppHandle,
-    emulator: String,
+    emulator: Emulator,
     session: String,
     identifier: String,
     worktree_path: String,
@@ -22,8 +22,8 @@ pub async fn open_terminal(
 ) -> Result<bool, String> {
     let layout = layout.unwrap_or_default();
 
-    match emulator.as_str() {
-        "ghostty" => {
+    match emulator {
+        Emulator::Ghostty => {
             dispatch_terminal(
                 &app,
                 GhosttyController,
@@ -34,7 +34,7 @@ pub async fn open_terminal(
             )
             .await
         }
-        "iterm2" => {
+        Emulator::Iterm2 => {
             dispatch_terminal(
                 &app,
                 ITermController,
@@ -45,7 +45,7 @@ pub async fn open_terminal(
             )
             .await
         }
-        "cmux" => {
+        Emulator::Cmux => {
             dispatch_terminal(
                 &app,
                 CmuxController,
@@ -56,7 +56,6 @@ pub async fn open_terminal(
             )
             .await
         }
-        _ => Err(format!("Unknown terminal emulator: {emulator}")),
     }
 }
 
@@ -100,6 +99,21 @@ async fn dispatch_terminal(
 
     controller.create(app, &config).await?;
 
+    // After creation, find and focus the new session (brings the app to the foreground)
+    match controller.find_session(app, identifier, worktree_path).await {
+        Ok(Some(terminal_ref)) => {
+            if let Err(e) = controller.focus(app, &terminal_ref).await {
+                eprintln!("post-create focus failed (non-fatal): {e}");
+            }
+        }
+        Ok(None) => {
+            eprintln!("post-create find_session returned None for {identifier}");
+        }
+        Err(e) => {
+            eprintln!("post-create find_session failed (non-fatal): {e}");
+        }
+    }
+
     if should_split {
         // Give the terminal time to register before looking it up
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
@@ -128,10 +142,10 @@ async fn dispatch_terminal(
 #[tauri::command]
 pub async fn query_terminals(
     app: tauri::AppHandle,
-    emulator: String,
+    emulator: Emulator,
 ) -> Result<Vec<TerminalStatus>, String> {
     // cmux manages its own sessions — query them directly without tmux
-    if emulator == "cmux" {
+    if matches!(emulator, Emulator::Cmux) {
         let sessions = CmuxController.list_sessions(&app).await?;
         let statuses = sessions
             .into_iter()
@@ -170,10 +184,10 @@ pub async fn query_terminals(
     }
 
     // Get emulator sessions
-    let emulator_sessions: Vec<(String, String)> = match emulator.as_str() {
-        "ghostty" => GhosttyController.list_sessions(&app).await?,
-        "iterm2" => ITermController.list_sessions(&app).await?,
-        _ => return Err(format!("Unknown terminal emulator: {emulator}")),
+    let emulator_sessions: Vec<(String, String)> = match emulator {
+        Emulator::Ghostty => GhosttyController.list_sessions(&app).await?,
+        Emulator::Iterm2 => ITermController.list_sessions(&app).await?,
+        Emulator::Cmux => unreachable!(),
     };
 
     // Build a set of tmux session names that have a matching emulator terminal.
@@ -304,11 +318,16 @@ pub async fn cmux_clear_log(app: tauri::AppHandle, workspace_name: String) -> Re
 /// Returns true if cmux is available, false if not installed or not running.
 #[tauri::command]
 pub async fn cmux_ping(app: tauri::AppHandle) -> Result<bool, String> {
-    let output = app.shell().command("cmux").args(["ping"]).output().await;
+    let output = app
+        .shell()
+        .command(cmux::resolve_cmux_path())
+        .args(["ping"])
+        .output()
+        .await;
 
     match output {
         Ok(out) => Ok(out.status.success()),
-        Err(_) => Ok(false), // cmux not installed
+        Err(_) => Ok(false), // cmux binary not found or not executable
     }
 }
 

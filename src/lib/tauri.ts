@@ -2,11 +2,18 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   TmuxSession,
   WorktreeInfo,
+  WtCiStatus,
   PluginSkillInfo,
   ClaudeSkillEntry,
   DiscoveredRepo,
   TerminalStatus,
+  CmuxNotification,
 } from "../types";
+import type { CmuxLogLevel } from "./cmuxSidebar";
+
+// Re-export types that used to live here so existing imports keep working.
+export { NOTIFICATION_CATEGORIES } from "../types";
+export type { CmuxNotification } from "../types";
 
 // --- Workspace commands ---
 
@@ -14,7 +21,6 @@ interface RawDiscoveredRepo {
   id: string;
   path: string;
   githubNwo?: string;
-  configWarning?: string;
 }
 
 export async function scanWorkspace(
@@ -32,8 +38,6 @@ export async function scanWorkspace(
 
 // --- wt (Worktrunk) commands ---
 
-import type { WtCiStatus } from "../types";
-
 interface WtWorktreeInfoRaw {
   branch: string;
   path: string;
@@ -41,7 +45,7 @@ interface WtWorktreeInfoRaw {
   ahead: number;
   behind: number;
   mainState: string | null;
-  ciStatus: string | null;
+  ciStatus: WtCiStatus | null;
   ciUrl: string | null;
   ciStale: boolean | null;
   devUrl: string | null;
@@ -77,7 +81,7 @@ export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
     baseBranch: null,
     mainState: entry.mainState,
     remoteAhead: 0,
-    ciStatus: entry.ciStatus as WtCiStatus | null,
+    ciStatus: entry.ciStatus,
     ciUrl: entry.ciUrl,
     ciStale: entry.ciStale,
     devUrl: entry.devUrl,
@@ -160,7 +164,7 @@ export function cmuxSetProgress(
 
 export function cmuxLog(
   workspaceName: string,
-  level: string,
+  level: CmuxLogLevel,
   message: string,
 ): Promise<void> {
   return invoke<void>("cmux_log", { workspaceName, level, message });
@@ -176,26 +180,6 @@ export function cmuxClearLog(workspaceName: string): Promise<void> {
 
 export function cmuxPing(): Promise<boolean> {
   return invoke<boolean>("cmux_ping");
-}
-
-export const NOTIFICATION_CATEGORIES = {
-  PERMISSION: "permission",
-  QUESTION: "question",
-  ERROR: "error",
-  COMPLETED: "completed",
-  WAITING: "waiting",
-  ATTENTION: "attention",
-} as const;
-
-export type NotificationCategory =
-  (typeof NOTIFICATION_CATEGORIES)[keyof typeof NOTIFICATION_CATEGORIES];
-
-export interface CmuxNotification {
-  title: string;
-  subtitle: string | null;
-  body: string | null;
-  workspaceId: string;
-  category: NotificationCategory;
 }
 
 export function cmuxListNotifications(): Promise<CmuxNotification[]> {

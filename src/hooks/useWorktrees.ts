@@ -26,8 +26,8 @@ export function useAllWorktrees(repos: DiscoveredRepo[]) {
             repoPath: repo.path,
             worktrees,
           });
-        } catch {
-          // Skip repos that fail
+        } catch (err) {
+          console.warn("[useAllWorktrees]", repo.path, err);
         }
       }
       return results;

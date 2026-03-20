@@ -17,13 +17,7 @@ import {
   pushCiStatus,
   derivePrStatusLabel,
 } from "../lib/cmuxSidebar";
-import type { EnrichedTask, PullRequestInfo, WorktreeInfo } from "../types";
-
-interface TaskWithContext {
-  task: EnrichedTask;
-  worktree: WorktreeInfo | null;
-  pullRequest: PullRequestInfo | null;
-}
+import type { TaskWithContext } from "../types";
 
 interface SyncKey {
   linearStatus: string;

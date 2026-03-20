@@ -51,7 +51,12 @@ pub async fn wt_version(app: tauri::AppHandle) -> Result<WtVersionInfo, String> 
             )
         })?;
 
-    // wt --version writes to stderr (common for clap-based CLIs)
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("wt --version failed: {stderr}"));
+    }
+
+    // wt --version writes to stdout (clap v4+); fall back to stderr for older versions.
     let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let version = if version.is_empty() {
         String::from_utf8_lossy(&output.stderr).trim().to_string()
@@ -97,6 +102,35 @@ struct WtCi {
     stale: Option<bool>,
 }
 
+// --- CI status enum ---
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WtCiStatus {
+    Passed,
+    Running,
+    Failed,
+    Conflicts,
+    NoCi,
+    Error,
+    #[serde(other)]
+    Unknown,
+}
+
+impl WtCiStatus {
+    fn from_str(s: &str) -> Self {
+        match s {
+            "passed" => WtCiStatus::Passed,
+            "running" => WtCiStatus::Running,
+            "failed" => WtCiStatus::Failed,
+            "conflicts" => WtCiStatus::Conflicts,
+            "no-ci" => WtCiStatus::NoCi,
+            "error" => WtCiStatus::Error,
+            _ => WtCiStatus::Unknown,
+        }
+    }
+}
+
 // --- Public output type ---
 
 #[derive(Debug, Serialize)]
@@ -108,7 +142,7 @@ pub struct WtWorktreeInfo {
     pub ahead: u32,
     pub behind: u32,
     pub main_state: Option<String>,
-    pub ci_status: Option<String>,
+    pub ci_status: Option<WtCiStatus>,
     pub ci_url: Option<String>,
     pub ci_stale: Option<bool>,
     pub dev_url: Option<String>,
@@ -138,6 +172,7 @@ pub async fn wt_switch_create(
         &[
             "switch",
             "--create",
+            "--yes",
             "--no-cd",
             "-C",
             &repo_path,
@@ -224,7 +259,7 @@ pub async fn wt_list(
                 .main
                 .map(|m| (m.ahead.unwrap_or(0), m.behind.unwrap_or(0)))
                 .unwrap_or((0, 0));
-            let ci_status = entry.ci.as_ref().and_then(|c| c.status.clone());
+            let ci_status = entry.ci.as_ref().and_then(|c| c.status.as_deref()).map(WtCiStatus::from_str);
             let ci_url = entry.ci.as_ref().and_then(|c| c.url.clone());
             let ci_stale = entry.ci.as_ref().and_then(|c| c.stale);
             let dev_url = entry.url.clone();

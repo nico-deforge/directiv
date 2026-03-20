@@ -20,13 +20,7 @@ import {
   CMUX_PROGRESS,
   CMUX_LOG_LEVELS,
 } from "../lib/cmuxSidebar";
-import type { EnrichedTask, PullRequestInfo, WorktreeInfo } from "../types";
-
-interface TaskWithContext {
-  task: EnrichedTask;
-  worktree: WorktreeInfo | null;
-  pullRequest: PullRequestInfo | null;
-}
+import type { TaskWithContext, PullRequestInfo } from "../types";
 
 // Track which events have already been logged per workspace so we don't
 // spam the log panel on every poll cycle.
@@ -47,6 +41,8 @@ function toEventKey(state: EventState): string {
  */
 function progressFromPr(pr: PullRequestInfo): number | null {
   if (pr.state === "merged") return CMUX_PROGRESS.MERGED;
+  // APPROVED and REVIEW_REQUIRED share the same progress step — both indicate
+  // the PR is in the review phase, and we don't distinguish partial from full approval.
   if (pr.reviewDecision === "APPROVED") return CMUX_PROGRESS.IN_REVIEW;
   if (pr.reviewDecision === "REVIEW_REQUIRED") return CMUX_PROGRESS.IN_REVIEW;
   if (pr.state === "open" && pr.number > 0) return CMUX_PROGRESS.PR_OPENED;
@@ -100,8 +96,7 @@ export function useCmuxProgressSync(tasksWithContext: TaskWithContext[]): void {
       // PR opened or newly detected
       if (
         eventState.prNumber !== null &&
-        (lastKey === undefined ||
-          !lastKey.startsWith(`${eventState.prNumber}|`))
+        !lastKey.startsWith(`${eventState.prNumber}|`)
       ) {
         void pushProgress(workspaceName, CMUX_PROGRESS.PR_OPENED);
         void pushLog(

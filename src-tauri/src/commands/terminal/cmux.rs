@@ -1,9 +1,37 @@
 use super::controller::TerminalController;
 use super::types::{Emulator, TerminalConfig, TerminalRef};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::sync::OnceLock;
 use tauri_plugin_shell::ShellExt;
 
 pub struct CmuxController;
+
+/// Known locations where cmux may be installed on macOS.
+/// GUI apps don't inherit the user's shell PATH, so we check these explicitly.
+const CMUX_KNOWN_PATHS: &[&str] = &[
+    "/usr/local/bin/cmux",
+    "/Applications/cmux.app/Contents/Resources/bin/cmux",
+    "/opt/homebrew/bin/cmux",
+];
+
+/// Cached resolved path to the cmux binary.
+static CMUX_PATH: OnceLock<String> = OnceLock::new();
+
+/// Resolve the cmux binary path, checking known locations if "cmux" isn't in PATH.
+/// Caches the result for subsequent calls.
+pub fn resolve_cmux_path() -> &'static str {
+    CMUX_PATH.get_or_init(|| {
+        // Check known absolute paths first (most reliable for GUI apps)
+        for path in CMUX_KNOWN_PATHS {
+            if Path::new(path).exists() {
+                return path.to_string();
+            }
+        }
+        // Fallback to bare name (relies on PATH)
+        "cmux".to_string()
+    })
+}
 
 /// Run a cmux CLI command and return stdout trimmed.
 /// If cmux is not running, returns an Err with a clear message.
@@ -14,11 +42,11 @@ async fn run_cmux(
 ) -> Result<String, String> {
     let output = app
         .shell()
-        .command("cmux")
+        .command(resolve_cmux_path())
         .args(args)
         .output()
         .await
-        .map_err(|e| format!("cmux {operation}: failed to execute: {e}"))?;
+        .map_err(|e| format!("cmux {operation}: failed to execute '{}': {e}", resolve_cmux_path()))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -34,13 +62,12 @@ async fn run_cmux(
 async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
     let output = app
         .shell()
-        .command("cmux")
+        .command(resolve_cmux_path())
         .args(["ping"])
         .output()
         .await
-        .map_err(|_| {
-            "cmux is not installed. Please install cmux to use it as a terminal backend."
-                .to_string()
+        .map_err(|e| {
+            format!("cmux is not installed ({e}). Please install cmux to use it as a terminal backend.")
         })?;
 
     if !output.status.success() {
@@ -53,71 +80,68 @@ async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Shape of a single workspace returned by `cmux list-workspaces --json`.
-/// The `working_directory` field uses serde rename to handle the camelCase JSON key.
-/// cmux may use either "workingDirectory" or "path" for the working directory.
+/// Shape of a workspace from `cmux tree --all --json`.
+/// Workspaces use `ref` (e.g. "workspace:18") and `title` (the display name).
 #[derive(Deserialize)]
 struct CmuxWorkspace {
-    id: String,
-    name: String,
-    #[serde(alias = "workingDirectory", alias = "path", default)]
-    working_directory: String,
+    #[serde(rename = "ref")]
+    ws_ref: String,
+    title: String,
 }
 
-/// Shape of a single workspace returned by `cmux new-workspace --json`.
+/// Top-level structure of `cmux tree --all --json`.
 #[derive(Deserialize)]
-struct CmuxNewWorkspace {
-    id: String,
+struct CmuxTree {
+    windows: Vec<CmuxWindow>,
+}
+
+#[derive(Deserialize)]
+struct CmuxWindow {
+    workspaces: Vec<CmuxWorkspace>,
+}
+
+/// List all workspaces via `cmux tree --all --json`.
+async fn list_cmux_workspaces(app: &tauri::AppHandle) -> Result<Vec<CmuxWorkspace>, String> {
+    let json = run_cmux(app, &["tree", "--all", "--json"], "list_workspaces").await?;
+
+    if json.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let tree: CmuxTree = serde_json::from_str(&json)
+        .map_err(|e| format!("cmux list_workspaces: failed to parse tree: {e}"))?;
+
+    Ok(tree.windows.into_iter().flat_map(|w| w.workspaces).collect())
+}
+
+/// Parse a workspace ref from `cmux new-workspace` output.
+/// Output format: "OK workspace:N"
+fn parse_workspace_ref(output: &str) -> Option<String> {
+    output
+        .split_whitespace()
+        .find(|w| w.starts_with("workspace:"))
+        .map(|s| s.to_string())
 }
 
 impl TerminalController for CmuxController {
-    /// Find an existing cmux workspace by name (identifier) or working directory.
+    /// Find an existing cmux workspace by title (identifier).
     ///
-    /// Strategy: list all workspaces via `cmux list-workspaces --json` and search
-    /// for a match by name first, then by working directory prefix.
+    /// Strategy: list all workspaces via `cmux tree --all --json` and search
+    /// for a match by title (the workspace display name set via rename-workspace).
     async fn find_session(
         &self,
         app: &tauri::AppHandle,
         identifier: &str,
-        worktree_path: &str,
+        _worktree_path: &str,
     ) -> Result<Option<TerminalRef>, String> {
         check_cmux_available(app).await?;
 
-        let json = match run_cmux(app, &["list-workspaces", "--json"], "find_session").await {
-            Ok(s) => s,
-            Err(e) => {
-                // If no workspaces exist, cmux may return an error or empty array.
-                if e.contains("no workspaces") || e.contains("empty") {
-                    return Ok(None);
-                }
-                return Err(e);
-            }
-        };
+        let workspaces = list_cmux_workspaces(app).await?;
 
-        if json.is_empty() || json == "[]" || json == "null" {
-            return Ok(None);
-        }
-
-        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(&json)
-            .map_err(|e| format!("cmux find_session: failed to parse workspace list: {e}"))?;
-
-        // Match by name first (exact match with identifier)
         for ws in &workspaces {
-            if ws.name == identifier {
+            if ws.title == identifier {
                 return Ok(Some(TerminalRef {
-                    identifier: ws.id.clone(),
-                    emulator: Emulator::Cmux,
-                }));
-            }
-        }
-
-        // Fallback: match by working directory.
-        // Only check if the workspace's working dir starts with the target path,
-        // not the reverse — avoids matching parent directories of the worktree.
-        for ws in &workspaces {
-            if ws.working_directory.starts_with(worktree_path) {
-                return Ok(Some(TerminalRef {
-                    identifier: ws.id.clone(),
+                    identifier: ws.ws_ref.clone(),
                     emulator: Emulator::Cmux,
                 }));
             }
@@ -126,7 +150,7 @@ impl TerminalController for CmuxController {
         Ok(None)
     }
 
-    /// Focus an existing cmux workspace by its workspace ID.
+    /// Focus an existing cmux workspace and bring cmux to the foreground.
     async fn focus(
         &self,
         app: &tauri::AppHandle,
@@ -140,72 +164,68 @@ impl TerminalController for CmuxController {
             "focus",
         )
         .await?;
+
+        // Bring cmux app to the foreground
+        match app.shell().command("open").args(["-a", "cmux"]).output().await {
+            Ok(out) if !out.status.success() => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                eprintln!("cmux focus: 'open -a cmux' failed: {stderr}");
+            }
+            Err(e) => eprintln!("cmux focus: failed to run 'open': {e}"),
+            _ => {}
+        }
+
         Ok(())
     }
 
-    /// Create a new cmux workspace, cd into the worktree, and launch the startup command.
+    /// Create a new cmux workspace, rename it, cd into the worktree, and launch the startup command.
     ///
     /// Flow:
-    /// 1. `cmux new-workspace --name <identifier> --json` → captures workspace ID
-    /// 2. `cmux send --workspace <id> "cd <worktree_path>\r"` → navigate to worktree
-    /// 3. If `config.command` is set: `cmux send --workspace <id> "<command>\r"` → run it
-    ///
-    /// # Assumptions
-    /// - `cmux new-workspace --name <name> --json` returns a JSON object with `"id"` field.
-    /// - `cmux send --workspace <uuid>` correctly targets the named workspace.
-    /// - `cmux new-workspace` returns after the shell is ready (prompt displayed).
+    /// 1. `cmux new-workspace --cwd <worktree_path>` → returns "OK workspace:N"
+    /// 2. `cmux rename-workspace --workspace <ref> <identifier>` → set the display name
+    /// 3. Inject env vars via `cmux send`
+    /// 4. If `config.command` is set: `cmux send --workspace <ref> "<command>\r"` → run it
     async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
         check_cmux_available(app).await?;
 
-        // Create the workspace and capture its ID
-        let json = run_cmux(
+        // Create the workspace with --cwd to start in the worktree directory
+        let output = run_cmux(
             app,
-            &["new-workspace", "--name", &config.identifier, "--json"],
+            &["new-workspace", "--cwd", &config.worktree_path],
             "create",
         )
         .await?;
 
-        // Extract workspace UUID from JSON output.
-        // Fall back to the identifier (name) if the output is not valid JSON
-        // (e.g., cmux returns a raw ID string without JSON wrapping).
-        let workspace_id = serde_json::from_str::<CmuxNewWorkspace>(&json)
-            .map(|ws| ws.id)
-            .unwrap_or_else(|_| {
-                let trimmed = json.trim().to_string();
-                if !trimmed.is_empty() && !trimmed.starts_with('{') {
-                    trimmed
-                } else {
-                    config.identifier.clone()
-                }
-            });
+        // Parse workspace ref from "OK workspace:N" output
+        let ws_ref = parse_workspace_ref(&output)
+            .ok_or_else(|| format!("cmux create: unexpected output: {output}"))?;
 
-        // Inject DIRECTIV env vars before cd/claude so the shell has them set.
+        // Rename the workspace to the task identifier (e.g., "ACQ-145")
+        run_cmux(
+            app,
+            &["rename-workspace", "--workspace", &ws_ref, &config.identifier],
+            "create:rename",
+        )
+        .await?;
+
+        // Inject DIRECTIV env vars before launching the command
         for (key, value) in &config.env_vars {
             let export_cmd = format!("export {}={}\r", shell_escape(key), shell_escape(value));
             run_cmux(
                 app,
-                &["send", "--workspace", &workspace_id, &export_cmd],
+                &["send", "--workspace", &ws_ref, &export_cmd],
                 "create:env",
             )
             .await?;
         }
 
-        // Navigate to the worktree directory
-        let cd_cmd = format!("cd {}\r", shell_escape(&config.worktree_path));
-        run_cmux(
-            app,
-            &["send", "--workspace", &workspace_id, &cd_cmd],
-            "create:cd",
-        )
-        .await?;
-
-        // Send the startup command if provided. The command is shell-escaped to prevent
-        // injection via untrusted input (e.g., a worktree path with special characters).
+        // Send the startup command if provided.
+        // cmux send passes raw text to the terminal — no shell escaping needed.
         if let Some(cmd) = &config.command {
-            let escaped_cmd = format!("{}\r", shell_escape(cmd));
+            let cmd_with_enter = format!("{cmd}\r");
             run_cmux(
                 app,
-                &["send", "--workspace", &workspace_id, &escaped_cmd],
+                &["send", "--workspace", &ws_ref, &cmd_with_enter],
                 "create:command",
             )
             .await?;
@@ -233,61 +253,35 @@ impl TerminalController for CmuxController {
 
     /// List all active cmux workspaces.
     ///
-    /// Returns a vec of (workspace_id, workspace_name) pairs.
-    /// The workspace_id is the UUID used for targeting; workspace_name matches
-    /// the identifier used when creating the workspace (e.g., "ACQ-145").
+    /// Returns a vec of (workspace_ref, workspace_title) pairs.
     async fn list_sessions(&self, app: &tauri::AppHandle) -> Result<Vec<(String, String)>, String> {
         check_cmux_available(app).await?;
 
-        let json = match run_cmux(app, &["list-workspaces", "--json"], "list_sessions").await {
-            Ok(s) => s,
-            Err(e) => {
-                if e.contains("not running") || e.contains("Not running") {
-                    return Ok(vec![]);
-                }
-                return Err(e);
-            }
-        };
+        let workspaces = list_cmux_workspaces(app).await?;
 
-        if json.is_empty() || json == "[]" || json == "null" {
-            return Ok(vec![]);
-        }
-
-        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(&json)
-            .map_err(|e| format!("cmux list_sessions: failed to parse workspace list: {e}"))?;
-
-        let sessions = workspaces.into_iter().map(|ws| (ws.id, ws.name)).collect();
-
-        Ok(sessions)
+        Ok(workspaces.into_iter().map(|ws| (ws.ws_ref, ws.title)).collect())
     }
 }
 
-/// Close a cmux workspace by name. Finds the workspace by name and closes it.
+/// Close a cmux workspace by title. Finds the workspace by title and closes it.
 /// Used by the `cmux_close_workspace` Tauri command as the cmux equivalent of tmux kill-session.
 pub async fn close_workspace(app: &tauri::AppHandle, name: &str) -> Result<(), String> {
     check_cmux_available(app).await?;
 
-    let json = run_cmux(app, &["list-workspaces", "--json"], "close_workspace").await?;
+    let workspaces = list_cmux_workspaces(app).await?;
 
-    if json.is_empty() || json == "[]" || json == "null" {
-        return Ok(());
-    }
-
-    let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(&json)
-        .map_err(|e| format!("cmux close_workspace: failed to parse workspace list: {e}"))?;
-
-    let workspace_id = workspaces
+    let ws_ref = workspaces
         .into_iter()
-        .find(|ws| ws.name == name)
-        .map(|ws| ws.id);
+        .find(|ws| ws.title == name)
+        .map(|ws| ws.ws_ref);
 
-    let Some(id) = workspace_id else {
+    let Some(r) = ws_ref else {
         return Ok(());
     };
 
     run_cmux(
         app,
-        &["close-workspace", "--workspace", &id],
+        &["close-workspace", "--workspace", &r],
         "close_workspace",
     )
     .await?;
@@ -318,6 +312,8 @@ pub enum NotificationCategory {
 impl NotificationCategory {
     /// Derive category from notification title/body when cmux does not expose it structurally.
     /// Mirrors the keyword classification logic used by cmux internally.
+    /// Note: `Attention` is never produced by this method — it can only come from cmux's
+    /// structured category field. Text-based fallback defaults to `Waiting`.
     fn from_text(title: &str, body: Option<&str>) -> Self {
         let text = format!(
             "{} {}",
@@ -443,13 +439,7 @@ pub async fn set_status(
 /// Helper: check if cmux is available, returning false without error when not running.
 /// Used by best-effort sidebar commands (progress, log) to skip silently.
 async fn is_cmux_available(app: &tauri::AppHandle) -> bool {
-    app.shell()
-        .command("cmux")
-        .args(["ping"])
-        .output()
-        .await
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    check_cmux_available(app).await.is_ok()
 }
 
 /// Set the progress bar in a cmux workspace.
@@ -563,71 +553,52 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_workspace_id_from_json_standard() {
-        let json = r#"{"id": "abc-123", "name": "ACQ-145"}"#;
-        let ws: CmuxNewWorkspace = serde_json::from_str(json).unwrap();
-        assert_eq!(ws.id, "abc-123");
+    fn test_parse_workspace_ref_standard() {
+        assert_eq!(
+            parse_workspace_ref("OK workspace:25"),
+            Some("workspace:25".to_string())
+        );
     }
 
     #[test]
-    fn test_parse_workspace_id_from_json_uuid() {
-        let json = r#"{"id": "550e8400-e29b-41d4-a716-446655440000", "name": "test"}"#;
-        let ws: CmuxNewWorkspace = serde_json::from_str(json).unwrap();
-        assert_eq!(ws.id, "550e8400-e29b-41d4-a716-446655440000");
+    fn test_parse_workspace_ref_with_whitespace() {
+        assert_eq!(
+            parse_workspace_ref("  OK workspace:7  \n"),
+            Some("workspace:7".to_string())
+        );
     }
 
     #[test]
-    fn test_parse_workspace_id_from_json_missing() {
-        let json = r#"{"name": "ACQ-145"}"#;
-        let result: Result<CmuxNewWorkspace, _> = serde_json::from_str(json);
-        assert!(result.is_err());
+    fn test_parse_workspace_ref_no_match() {
+        assert_eq!(parse_workspace_ref("ERROR something"), None);
     }
 
     #[test]
-    fn test_parse_workspace_id_from_json_empty() {
-        let result: Result<CmuxNewWorkspace, _> = serde_json::from_str("");
-        assert!(result.is_err());
+    fn test_parse_workspace_ref_empty() {
+        assert_eq!(parse_workspace_ref(""), None);
     }
 
     #[test]
-    fn test_parse_workspaces_from_json_single() {
-        let json =
-            r#"[{"id": "abc-123", "name": "ACQ-145", "workingDirectory": "/path/to/worktree"}]"#;
-        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(json).unwrap();
-        assert_eq!(workspaces.len(), 1);
-        assert_eq!(workspaces[0].id, "abc-123");
-        assert_eq!(workspaces[0].name, "ACQ-145");
-        assert_eq!(workspaces[0].working_directory, "/path/to/worktree");
-    }
-
-    #[test]
-    fn test_parse_workspaces_from_json_multiple() {
-        let json = r#"[
-            {"id": "id-1", "name": "ACQ-145", "workingDirectory": "/path/a"},
-            {"id": "id-2", "name": "ACQ-146", "workingDirectory": "/path/b"}
-        ]"#;
-        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(json).unwrap();
+    fn test_parse_tree_json() {
+        let json = r#"{"windows": [{"workspaces": [
+            {"ref": "workspace:1", "title": "ACQ-145", "index": 0, "selected": true, "active": true, "pinned": false, "panes": []},
+            {"ref": "workspace:2", "title": "ACQ-146", "index": 1, "selected": false, "active": false, "pinned": false, "panes": []}
+        ]}]}"#;
+        let tree: CmuxTree = serde_json::from_str(json).unwrap();
+        let workspaces: Vec<CmuxWorkspace> = tree.windows.into_iter().flat_map(|w| w.workspaces).collect();
         assert_eq!(workspaces.len(), 2);
-        assert_eq!(workspaces[0].id, "id-1");
-        assert_eq!(workspaces[0].name, "ACQ-145");
-        assert_eq!(workspaces[1].id, "id-2");
-        assert_eq!(workspaces[1].name, "ACQ-146");
+        assert_eq!(workspaces[0].ws_ref, "workspace:1");
+        assert_eq!(workspaces[0].title, "ACQ-145");
+        assert_eq!(workspaces[1].ws_ref, "workspace:2");
+        assert_eq!(workspaces[1].title, "ACQ-146");
     }
 
     #[test]
-    fn test_parse_workspaces_from_json_empty_array() {
-        let json = "[]";
-        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(json).unwrap();
+    fn test_parse_tree_json_empty() {
+        let json = r#"{"windows": [{"workspaces": []}]}"#;
+        let tree: CmuxTree = serde_json::from_str(json).unwrap();
+        let workspaces: Vec<CmuxWorkspace> = tree.windows.into_iter().flat_map(|w| w.workspaces).collect();
         assert!(workspaces.is_empty());
-    }
-
-    #[test]
-    fn test_parse_workspaces_from_json_fallback_path_field() {
-        // cmux may use "path" instead of "workingDirectory"
-        let json = r#"[{"id": "abc-123", "name": "ACQ-145", "path": "/alt/path"}]"#;
-        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(json).unwrap();
-        assert_eq!(workspaces.len(), 1);
-        assert_eq!(workspaces[0].working_directory, "/alt/path");
     }
 
     #[test]

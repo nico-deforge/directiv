@@ -97,13 +97,13 @@ export interface WorktreeInfo {
   ahead: number;
   behind: number;
   baseBranch: string | null;
-  mainState?: string | null;
-  remoteAhead?: number;
-  ciStatus?: WtCiStatus | null;
-  ciUrl?: string | null;
-  ciStale?: boolean | null;
-  devUrl?: string | null;
-  devUrlActive?: boolean | null;
+  mainState: string | null;
+  remoteAhead: number;
+  ciStatus: WtCiStatus | null;
+  ciUrl: string | null;
+  ciStale: boolean | null;
+  devUrl: string | null;
+  devUrlActive: boolean | null;
 }
 
 // --- GitHub ---
@@ -239,7 +239,36 @@ export interface DiscoveredRepo {
   path: string;
   workspaceId: string;
   githubNwo?: string;
-  configWarning?: string;
+}
+
+// --- Cmux types ---
+
+export const NOTIFICATION_CATEGORIES = {
+  PERMISSION: "permission",
+  QUESTION: "question",
+  ERROR: "error",
+  COMPLETED: "completed",
+  WAITING: "waiting",
+  ATTENTION: "attention",
+} as const;
+
+export type NotificationCategory =
+  (typeof NOTIFICATION_CATEGORIES)[keyof typeof NOTIFICATION_CATEGORIES];
+
+export interface CmuxNotification {
+  title: string;
+  subtitle: string | null;
+  body: string | null;
+  workspaceId: string;
+  category: NotificationCategory;
+}
+
+// --- Task with context (used by cmux sync hooks) ---
+
+export interface TaskWithContext {
+  task: EnrichedTask;
+  worktree: WorktreeInfo | null;
+  pullRequest: PullRequestInfo | null;
 }
 
 export interface LinearOrgConfig {

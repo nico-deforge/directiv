@@ -51,8 +51,8 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import {
   openEditor,
   tmuxKillSession,
+  cmuxCloseWorkspace,
   wtMerge,
-  wtSwitchCreate,
   type CmuxNotification,
   NOTIFICATION_CATEGORIES,
 } from "../../lib/tauri";
@@ -220,7 +220,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const [branchError, setBranchError] = useState<{
     type: "exists";
     branch: string;
-    baseBranch?: string;
     repoPath: string;
   } | null>(null);
   const [sendingSkill, setSendingSkill] = useState(false);
@@ -267,7 +266,12 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     if (!session) return;
     setKillingSession(true);
     try {
-      await tmuxKillSession(session.name);
+      if (terminal === "cmux") {
+        await cmuxCloseWorkspace(session.name);
+      } else {
+        await tmuxKillSession(session.name);
+      }
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
       toastError(err);
@@ -288,7 +292,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         terminal,
       });
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
-      queryClient.invalidateQueries({ queryKey: ["tmux"] });
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
     } catch (err) {
       toastError(err);
     } finally {
@@ -301,12 +305,17 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setConfirmingMerge(false);
     setMergingWorktree(true);
     try {
-      // Kill tmux session before merging (wt merge removes the worktree)
+      // Kill session before merging (wt merge removes the worktree)
       if (session) {
-        await tmuxKillSession(session.name);
+        if (terminal === "cmux") {
+          await cmuxCloseWorkspace(session.name);
+        } else {
+          await tmuxKillSession(session.name);
+        }
       }
       await wtMerge(worktreeRepoPath, worktree.branch);
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
       toastError(err);
@@ -315,10 +324,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
-  function getRepoSkillParams(
-    _repoPath: string,
-    key: SkillKey,
-  ): {
+  function getRepoSkillParams(key: SkillKey): {
     skill: string;
     usePlugin: boolean;
     model: ClaudeModel | undefined;
@@ -335,7 +341,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setSelectedRepo(null);
     setBranchError(null);
     const { skill, usePlugin, model } = getRepoSkillParams(
-      repoPath,
       key ?? pendingSkillKey,
     );
     const { terminalLayout } = useSettingsStore.getState().config;
@@ -356,7 +361,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             setBranchError({
               type: "exists",
               branch: err.branchName,
-              baseBranch: err.baseBranch,
               repoPath: err.repoPath,
             });
           } else {
@@ -371,29 +375,23 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     if (!branchError) return;
     const { repoPath } = branchError;
     setBranchError(null);
-    const { skill, usePlugin, model } = getRepoSkillParams(
-      repoPath,
-      pendingSkillKey,
+    const { skill, usePlugin, model } = getRepoSkillParams(pendingSkillKey);
+    const { terminalLayout } = useSettingsStore.getState().config;
+    // ensureWorktree inside startTask handles existing branches — no manual
+    // wtSwitchCreate needed.
+    startTask.mutate(
+      {
+        issueId: task.id,
+        identifier: task.identifier,
+        repoPath,
+        terminal,
+        terminalLayout,
+        skill,
+        usePlugin,
+        model,
+      },
+      { onError: (err) => toastError(err) },
     );
-    try {
-      await wtSwitchCreate(repoPath, task.identifier);
-      const existingConfig = useSettingsStore.getState().config;
-      startTask.mutate(
-        {
-          issueId: task.id,
-          identifier: task.identifier,
-          repoPath,
-          terminal,
-          terminalLayout: existingConfig.terminalLayout,
-          skill,
-          usePlugin,
-          model,
-        },
-        { onError: (err) => toastError(err) },
-      );
-    } catch (err) {
-      toastError(err);
-    }
   }
 
   function openDropdown(key: SkillKey) {
@@ -430,7 +428,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   async function handleFixCI() {
     if (!worktree || !worktreeRepoPath) return;
-    const { skill } = getRepoSkillParams(worktreeRepoPath, "FIX_CI");
+    const { skill } = getRepoSkillParams("FIX_CI");
 
     if (session) {
       setSendingSkill(true);
@@ -822,14 +820,12 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               {repos.length === 1 ? (
                 <BranchSelector
                   repoPath={repos[0].path}
-                  configWarning={repos[0].configWarning}
                   onSelect={() => handleStart(repos[0].path)}
                 />
               ) : selectedRepo ? (
                 <BranchSelector
                   repoPath={selectedRepo.path}
                   repoId={selectedRepo.id}
-                  configWarning={selectedRepo.configWarning}
                   onSelect={() => handleStart(selectedRepo.path)}
                   onBack={() => setSelectedRepo(null)}
                 />
@@ -842,11 +838,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                     >
                       {repo.id}
-                      {repo.configWarning && (
-                        <span title={repo.configWarning}>
-                          <AlertTriangle className="size-3.5 shrink-0 text-[var(--accent-amber)]" />
-                        </span>
-                      )}
                     </button>
                   ))}
                 </div>

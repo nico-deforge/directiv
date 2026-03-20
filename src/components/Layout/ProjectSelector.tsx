@@ -28,7 +28,7 @@ import {
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorkspaceRepos } from "../../hooks/useWorkspace";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { wtList, tmuxKillSession, tmuxListSessions } from "../../lib/tauri";
+import { wtList, tmuxKillSession, tmuxListSessions, cmuxCloseWorkspace } from "../../lib/tauri";
 import { removeWorktreeFlow, BranchExistsError } from "../../lib/workflows";
 import type {
   StaleWorktree,
@@ -66,7 +66,7 @@ export function ProjectSelector() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["linear"] }),
       queryClient.invalidateQueries({ queryKey: ["github"] }),
-      queryClient.invalidateQueries({ queryKey: ["tmux"] }),
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] }),
       queryClient.invalidateQueries({ queryKey: ["worktrees"] }),
     ]);
     setIsRefreshing(false);
@@ -242,7 +242,6 @@ function NewWorktreeSection() {
   const [branchExistsPrompt, setBranchExistsPrompt] = useState<{
     branch: string;
     repoPath: string;
-    baseBranch?: string;
   } | null>(null);
 
   const isValidBranchName = (name: string) =>
@@ -274,7 +273,6 @@ function NewWorktreeSection() {
             setBranchExistsPrompt({
               branch: err.branchName,
               repoPath: err.repoPath,
-              baseBranch: err.baseBranch,
             });
           } else {
             toastError(err);
@@ -565,6 +563,7 @@ function ReviewRequestItem({ pr }: { pr: ReviewRequestedPR }) {
 function OrphanSessionsSection() {
   const repos = useWorkspaceRepos();
   const queryClient = useQueryClient();
+  const terminal = useSettingsStore((s) => s.config.terminal);
 
   const [orphanSessions, setOrphanSessions] = useState<TmuxSession[]>([]);
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(
@@ -614,8 +613,13 @@ function OrphanSessionsSection() {
     try {
       for (const session of orphanSessions) {
         if (!selectedSessions.has(session.name)) continue;
-        await tmuxKillSession(session.name);
+        if (terminal === "cmux") {
+          await cmuxCloseWorkspace(session.name);
+        } else {
+          await tmuxKillSession(session.name);
+        }
       }
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
       setShowCleanup(false);
       setOrphanSessions([]);
@@ -625,7 +629,7 @@ function OrphanSessionsSection() {
     } finally {
       setCleaning(false);
     }
-  }, [orphanSessions, selectedSessions, queryClient]);
+  }, [orphanSessions, selectedSessions, queryClient, terminal]);
 
   function toggleSessionSelection(name: string) {
     setSelectedSessions((prev) => {
@@ -774,7 +778,7 @@ function CleanupSection() {
         }
       }
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
-      queryClient.invalidateQueries({ queryKey: ["tmux"] });
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
       setShowCleanup(false);
       setStaleWorktrees([]);
       setSelected(new Set());

@@ -35,17 +35,11 @@ import type {
 
 export class BranchExistsError extends Error {
   branchName: string;
-  baseBranch: string | undefined;
   repoPath: string;
-  constructor(
-    branchName: string,
-    baseBranch: string | undefined,
-    repoPath: string,
-  ) {
+  constructor(branchName: string, repoPath: string) {
     super(`Branch '${branchName}' already exists`);
     this.name = "BranchExistsError";
     this.branchName = branchName;
-    this.baseBranch = baseBranch;
     this.repoPath = repoPath;
   }
 }
@@ -67,7 +61,7 @@ function parseWorktreeError(err: unknown, repoPath: string): Error {
   if (msg.includes("already exists")) {
     const match = msg.match(/branch['"` ]+([^\s'"` ]+)/i);
     const branch = match?.[1] ?? "";
-    return new BranchExistsError(branch, undefined, repoPath);
+    return new BranchExistsError(branch, repoPath);
   }
   // wt remove / switch: branch is already checked out in another worktree
   if (msg.includes("already checked out")) {
@@ -192,7 +186,9 @@ async function ensureSession(
     const cmd = claudeCmd ?? (await buildClaudeCommand());
     await tmuxSendKeys(sessionName, cmd);
   } catch (err) {
-    await tmuxKillSession(sessionName).catch(() => {});
+    await tmuxKillSession(sessionName).catch((e) => {
+      console.warn("[ensureSession] cleanup failed:", e);
+    });
     throw err;
   }
 }
@@ -244,10 +240,14 @@ export async function removeWorktreeFlow({
       // Best-effort — errors are ignored inside clear helpers.
       void clearSidebarProgress(workspaceName);
       void clearSidebarLog(workspaceName);
-      await cmuxCloseWorkspace(workspaceName).catch(() => {});
+      await cmuxCloseWorkspace(workspaceName).catch((e) => {
+        console.warn("[removeWorktreeFlow] close workspace failed:", e);
+      });
     }
   } else if (sessionName) {
-    await tmuxKillSession(sessionName).catch(() => {});
+    await tmuxKillSession(sessionName).catch((e) => {
+      console.warn("[removeWorktreeFlow] kill session failed:", e);
+    });
   }
   await wtRemove(repoPath, branch);
 }
