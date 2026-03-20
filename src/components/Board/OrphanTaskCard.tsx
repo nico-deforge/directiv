@@ -18,7 +18,6 @@ import { CIStatusIcon } from "./CIStatusIcon";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { LinearIssueStub } from "../../hooks/useLinear";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
-import { useWorkspaceRepos } from "../../hooks/useWorkspace";
 import {
   tmuxKillSession,
   tmuxCreateSession,
@@ -26,13 +25,8 @@ import {
   tmuxSendKeys,
   openTerminal,
   openEditor,
-  worktreeCheckBranchSynced,
 } from "../../lib/tauri";
-import {
-  buildClaudeCommand,
-  openTerminalWithToast,
-  HookFailedError,
-} from "../../lib/workflows";
+import { buildClaudeCommand, openTerminalWithToast } from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -53,24 +47,18 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
   const removeWorktree = useWorktreeRemove();
-  const repos = useWorkspaceRepos();
   const queryClient = useQueryClient();
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [killingSession, setKillingSession] = useState(false);
   const [launchingSession, setLaunchingSession] = useState(false);
-  const [hasUnpushed, setHasUnpushed] = useState(false);
-  const [hookError, setHookError] = useState<string | null>(null);
 
   const hasSession = session !== null;
   const isDeleting = removeWorktree.isPending;
 
   useEffect(() => {
     if (!confirmingDelete) return;
-    const timer = setTimeout(() => {
-      setConfirmingDelete(false);
-      setHasUnpushed(false);
-    }, 5000);
+    const timer = setTimeout(() => setConfirmingDelete(false), 5000);
     return () => clearTimeout(timer);
   }, [confirmingDelete]);
 
@@ -131,44 +119,21 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     }
   }
 
-  async function handleDelete(skipHooks = false) {
-    if (!skipHooks && !confirmingDelete) {
-      // First click: check for unpushed commits, then show confirmation
+  async function handleDelete() {
+    if (!confirmingDelete) {
       setConfirmingDelete(true);
-      try {
-        const synced = await worktreeCheckBranchSynced(
-          repoPath,
-          worktree.branch,
-        );
-        setHasUnpushed(!synced);
-      } catch {
-        setHasUnpushed(false);
-      }
       return;
     }
     setConfirmingDelete(false);
-    setHasUnpushed(false);
-    setHookError(null);
 
-    const repo = repos.find((r) => r.path === repoPath);
     removeWorktree.mutate(
       {
         repoPath,
-        worktreePath: worktree.path,
         branch: worktree.branch,
-        deleteBranch: true,
         sessionName: session ? toSessionName(worktree.branch) : undefined,
-        beforeRemove: repo?.beforeRemove,
-        skipHooks,
       },
       {
-        onError: (err) => {
-          if (err instanceof HookFailedError) {
-            setHookError(err.message);
-          } else {
-            toastError(err);
-          }
-        },
+        onError: (err) => toastError(err),
       },
     );
   }
@@ -304,14 +269,6 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         {/* Delete worktree button */}
         {confirmingDelete ? (
           <span className="flex items-center gap-2 text-xs">
-            {hasUnpushed && (
-              <span
-                className="text-[var(--accent-amber)]"
-                title="Branch has unpushed commits"
-              >
-                Unpushed!
-              </span>
-            )}
             <button
               onClick={() => handleDelete()}
               disabled={isDeleting}
@@ -321,10 +278,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             </button>
             <span className="text-[var(--text-muted)]">/</span>
             <button
-              onClick={() => {
-                setConfirmingDelete(false);
-                setHasUnpushed(false);
-              }}
+              onClick={() => setConfirmingDelete(false)}
               className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
               Cancel
@@ -345,30 +299,6 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           </button>
         )}
       </div>
-
-      {/* Hook error panel */}
-      {hookError && (
-        <div className="border-t border-[var(--border-default)] px-3 py-2">
-          <p className="mb-2 text-xs text-[var(--accent-red)]">{hookError}</p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setHookError(null);
-                handleDelete(true);
-              }}
-              className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
-            >
-              Delete anyway
-            </button>
-            <button
-              onClick={() => setHookError(null)}
-              className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

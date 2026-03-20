@@ -38,9 +38,6 @@ import {
   isOverriddenSkill,
   sendSkillToSession,
   BranchExistsError,
-  BaseNotFoundError,
-  BranchHasUnpushedError,
-  HookFailedError,
   removeWorktreeFlow,
   openTerminalWithToast,
 } from "../../lib/workflows";
@@ -159,12 +156,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const [pendingSkillKey, setPendingSkillKey] = useState<SkillKey>("CODE");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [branchError, setBranchError] = useState<{
-    type: "exists" | "not-found" | "unpushed";
+    type: "exists";
     branch: string;
     baseBranch?: string;
     repoPath: string;
   } | null>(null);
-  const [hookError, setHookError] = useState<string | null>(null);
   const [sendingSkill, setSendingSkill] = useState(false);
 
   const hasSession = session !== null;
@@ -209,30 +205,20 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
-  async function handleDeleteWorktree(skipHooks = false) {
+  async function handleDeleteWorktree() {
     if (!worktree || !worktreeRepoPath) return;
     setDeletingWorktree(true);
     setConfirmingDelete(false);
-    setHookError(null);
     try {
-      const repo = repos.find((r) => r.path === worktreeRepoPath);
       await removeWorktreeFlow({
         repoPath: worktreeRepoPath,
-        worktreePath: worktree.path,
         branch: worktree.branch,
-        deleteBranch: true,
         sessionName: session?.name,
-        beforeRemove: repo?.beforeRemove,
-        skipHooks,
       });
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
-      if (err instanceof HookFailedError) {
-        setHookError(err.message);
-      } else {
-        toastError(err);
-      }
+      toastError(err);
     } finally {
       setDeletingWorktree(false);
     }
@@ -254,11 +240,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     };
   }
 
-  function handleStart(repoPath: string, baseBranch?: string, key?: SkillKey) {
+  function handleStart(repoPath: string, key?: SkillKey) {
     setDropdownOpen(false);
     setSelectedRepo(null);
     setBranchError(null);
-    const repo = repos.find((r) => r.path === repoPath);
     const { skill, usePlugin, model } = getRepoSkillParams(
       repoPath,
       key ?? pendingSkillKey,
@@ -271,10 +256,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         repoPath,
         terminal,
         terminalLayout,
-        copyPaths: repo?.copyPaths,
-        onStart: repo?.onStart,
-        baseBranch,
-        fetchBefore: repo?.fetchBefore,
         skill,
         usePlugin,
         model,
@@ -287,20 +268,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               branch: err.branchName,
               baseBranch: err.baseBranch,
               repoPath: err.repoPath,
-            });
-          } else if (err instanceof BaseNotFoundError) {
-            setBranchError({
-              type: "not-found",
-              branch: err.baseName,
-              baseBranch: undefined,
-              repoPath,
-            });
-          } else if (err instanceof BranchHasUnpushedError) {
-            setBranchError({
-              type: "unpushed",
-              branch: err.branchName,
-              baseBranch,
-              repoPath,
             });
           } else {
             toastError(err);
@@ -336,10 +303,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           repoPath,
           terminal,
           terminalLayout: existingConfig.terminalLayout,
-          copyPaths: repo?.copyPaths,
-          onStart: repo?.onStart,
-          baseBranch,
-          fetchBefore: false,
           skill,
           usePlugin,
           model,
@@ -347,20 +310,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         { onError: (err) => toastError(err) },
       );
     } catch (err) {
-      if (
-        !force &&
-        err instanceof Error &&
-        err.message.includes("BRANCH_HAS_UNPUSHED:")
-      ) {
-        setBranchError({
-          type: "unpushed",
-          branch: task.identifier,
-          baseBranch,
-          repoPath,
-        });
-      } else {
-        toastError(err);
-      }
+      toastError(err);
     }
   }
 
@@ -368,7 +318,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setPendingSkillKey(key);
     // If worktree already exists, skip branch selection and start directly
     if (worktree && worktreeRepoPath) {
-      handleStart(worktreeRepoPath, undefined, key);
+      handleStart(worktreeRepoPath, key);
       return;
     }
     setDropdownOpen((prev) => !prev);
@@ -702,18 +652,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                 <BranchSelector
                   repoPath={repos[0].path}
                   configWarning={repos[0].configWarning}
-                  onSelect={(baseBranch) =>
-                    handleStart(repos[0].path, baseBranch)
-                  }
+                  onSelect={() => handleStart(repos[0].path)}
                 />
               ) : selectedRepo ? (
                 <BranchSelector
                   repoPath={selectedRepo.path}
                   repoId={selectedRepo.id}
                   configWarning={selectedRepo.configWarning}
-                  onSelect={(baseBranch) =>
-                    handleStart(selectedRepo.path, baseBranch)
-                  }
+                  onSelect={() => handleStart(selectedRepo.path)}
                   onBack={() => setSelectedRepo(null)}
                 />
               ) : (
@@ -734,32 +680,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Hook error panel */}
-          {hookError && (
-            <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] p-3 shadow-lg">
-              <p className="mb-2 text-xs text-[var(--accent-red)]">
-                {hookError}
-              </p>
-              <div className="flex flex-col gap-1.5">
-                <button
-                  onClick={() => {
-                    setHookError(null);
-                    handleDeleteWorktree(true);
-                  }}
-                  className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
-                >
-                  Delete anyway
-                </button>
-                <button
-                  onClick={() => setHookError(null)}
-                  className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
           )}
 
@@ -785,50 +705,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                       className="rounded bg-[var(--accent-amber)]/20 px-2 py-1 text-xs text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30"
                     >
                       Reset to base
-                    </button>
-                    <button
-                      onClick={() => setBranchError(null)}
-                      className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              )}
-              {branchError.type === "not-found" && (
-                <>
-                  <p className="mb-2 text-xs text-[var(--accent-red)]">
-                    Base branch{" "}
-                    <span className="font-medium">{branchError.branch}</span>{" "}
-                    not found.
-                  </p>
-                  <button
-                    onClick={() => setBranchError(null)}
-                    className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-                  >
-                    Dismiss
-                  </button>
-                </>
-              )}
-              {branchError.type === "unpushed" && (
-                <>
-                  <p className="mb-2 text-xs text-[var(--accent-amber)]">
-                    Branch{" "}
-                    <span className="font-medium">{branchError.branch}</span>{" "}
-                    has unpushed commits. Reset anyway?
-                  </p>
-                  <div className="flex flex-col gap-1.5">
-                    <button
-                      onClick={() => handleExistingBranch(true, true)}
-                      className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
-                    >
-                      Force reset
-                    </button>
-                    <button
-                      onClick={() => handleExistingBranch(false)}
-                      className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
-                    >
-                      Use existing branch
                     </button>
                     <button
                       onClick={() => setBranchError(null)}
