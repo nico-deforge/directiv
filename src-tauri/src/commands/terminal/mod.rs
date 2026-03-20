@@ -1,8 +1,10 @@
+pub mod cmux;
 pub mod controller;
 pub mod ghostty;
 pub mod iterm;
 pub mod types;
 
+use cmux::{CmuxController, CmuxNotification};
 use controller::TerminalController;
 use ghostty::GhosttyController;
 use iterm::ITermController;
@@ -36,6 +38,17 @@ pub async fn open_terminal(
             dispatch_terminal(
                 &app,
                 ITermController,
+                &session,
+                &identifier,
+                &worktree_path,
+                layout,
+            )
+            .await
+        }
+        "cmux" => {
+            dispatch_terminal(
+                &app,
+                CmuxController,
                 &session,
                 &identifier,
                 &worktree_path,
@@ -78,6 +91,9 @@ async fn dispatch_terminal(
     let config = TerminalConfig {
         identifier: identifier.to_string(),
         session: session.to_string(),
+        // The session string doubles as a startup command for cmux workspaces.
+        // Other controllers (Ghostty, iTerm2) use the session field directly.
+        command: Some(session.to_string()),
         worktree_path: worktree_path.to_string(),
         env_vars,
     };
@@ -114,6 +130,22 @@ pub async fn query_terminals(
     app: tauri::AppHandle,
     emulator: String,
 ) -> Result<Vec<TerminalStatus>, String> {
+    // cmux manages its own sessions — query them directly without tmux
+    if emulator == "cmux" {
+        let sessions = CmuxController.list_sessions(&app).await?;
+        let statuses = sessions
+            .into_iter()
+            .map(|(id, name)| TerminalStatus {
+                session_name: name.clone(),
+                identifier: id,
+                // cmux workspaces are always considered active: they persist until explicitly
+                // closed, unlike tmux sessions which can die without emulator cleanup.
+                active: true,
+            })
+            .collect();
+        return Ok(statuses);
+    }
+
     // Get tmux sessions to know which Directiv sessions exist
     let tmux_output = app
         .shell()
@@ -178,6 +210,106 @@ pub async fn query_terminals(
         .collect();
 
     Ok(statuses)
+}
+
+#[tauri::command]
+pub async fn cmux_close_workspace(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    cmux::close_workspace(&app, &name).await
+}
+
+/// List all pending cmux notifications returned by `cmux list-notifications --json`.
+///
+/// Each notification includes title, subtitle, body, workspace_id, and a parsed category.
+/// If no notifications exist or cmux is not running, returns an empty array.
+/// The category is parsed structurally from the JSON; if absent, it is derived via keyword
+/// matching on title/body (mirrors cmux's internal classification logic).
+#[tauri::command]
+pub async fn cmux_list_notifications(
+    app: tauri::AppHandle,
+) -> Result<Vec<CmuxNotification>, String> {
+    cmux::list_notifications(&app).await
+}
+
+/// Set a sidebar status pill in a cmux workspace.
+///
+/// Calls `cmux set-status --workspace <workspace_id> <key> <value>`.
+/// The key identifies the pill (e.g. "linear", "pr", "ci") and value is the display text.
+/// This is a best-effort call — errors are silently swallowed so the app never crashes
+/// due to a sidebar update failure. If cmux is not running, this is a no-op.
+///
+/// # Assumed CLI syntax
+/// `cmux set-status --workspace <id> <key> <value>`
+/// The workspace is targeted by ID (UUID returned by new-workspace) or by name.
+/// We use the workspace name (= identifier / issue ID) for simplicity.
+#[tauri::command]
+pub async fn cmux_set_status(
+    app: tauri::AppHandle,
+    workspace_name: String,
+    key: String,
+    value: String,
+) -> Result<(), String> {
+    cmux::set_status(&app, &workspace_name, &key, &value).await
+}
+
+/// Set the progress bar value in a cmux workspace.
+///
+/// Calls `cmux set-progress --workspace <workspace_name> <value>` where value is 0.0–1.0.
+/// Best-effort — silently no-ops when cmux is not running.
+#[tauri::command]
+pub async fn cmux_set_progress(
+    app: tauri::AppHandle,
+    workspace_name: String,
+    value: f64,
+) -> Result<(), String> {
+    cmux::set_progress(&app, &workspace_name, value).await
+}
+
+/// Append a log entry to the cmux workspace log panel.
+///
+/// Calls `cmux log --workspace <workspace_name> --level <level> <message>`.
+/// Level: "info" | "success" | "warning" | "error"
+/// Best-effort — silently no-ops when cmux is not running.
+#[tauri::command]
+pub async fn cmux_log(
+    app: tauri::AppHandle,
+    workspace_name: String,
+    level: String,
+    message: String,
+) -> Result<(), String> {
+    cmux::log_entry(&app, &workspace_name, &level, &message).await
+}
+
+/// Clear the progress bar in a cmux workspace.
+///
+/// Calls `cmux clear-progress --workspace <workspace_name>`.
+/// Called when a task is stopped.
+#[tauri::command]
+pub async fn cmux_clear_progress(
+    app: tauri::AppHandle,
+    workspace_name: String,
+) -> Result<(), String> {
+    cmux::clear_progress(&app, &workspace_name).await
+}
+
+/// Clear the log panel in a cmux workspace.
+///
+/// Calls `cmux clear-log --workspace <workspace_name>`.
+/// Called when a task is stopped.
+#[tauri::command]
+pub async fn cmux_clear_log(app: tauri::AppHandle, workspace_name: String) -> Result<(), String> {
+    cmux::clear_log(&app, &workspace_name).await
+}
+
+/// Check whether cmux is installed and running via `cmux ping`.
+/// Returns true if cmux is available, false if not installed or not running.
+#[tauri::command]
+pub async fn cmux_ping(app: tauri::AppHandle) -> Result<bool, String> {
+    let output = app.shell().command("cmux").args(["ping"]).output().await;
+
+    match output {
+        Ok(out) => Ok(out.status.success()),
+        Err(_) => Ok(false), // cmux not installed
+    }
 }
 
 #[tauri::command]

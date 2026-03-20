@@ -24,6 +24,9 @@ import {
 } from "../../hooks/useLinear";
 import { useCurrentLinearTeamIds } from "../../hooks/useLinearConfig";
 import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
+import { useCmuxNotifications } from "../../hooks/useCmuxNotifications";
+import { useCmuxSidebarSync } from "../../hooks/useCmuxSidebarSync";
+import { useCmuxProgressSync } from "../../hooks/useCmuxProgressSync";
 import { useTerminalStatuses } from "../../hooks/useTerminalStatuses";
 import { useGitHubMyOpenPRs, useGitHubRepoAccess } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
@@ -120,6 +123,7 @@ function DependencyGraphInner() {
     [sessions],
   );
   const { data: claudeStates } = useClaudeSessionStates(activeSessionNames);
+  const cmuxNotifications = useCmuxNotifications();
   const {
     data: prs,
     isError: isPRsError,
@@ -192,6 +196,29 @@ function DependencyGraphInner() {
     }
     return map;
   }, [allWorktrees]);
+
+  // Build enriched task list with resolved worktrees and PRs for cmux sidebar sync.
+  // Each entry mirrors the data computed per-task in the node-building memo below.
+  const tasksWithContext = useMemo(() => {
+    const activeTasks = tasks ?? [];
+    return activeTasks.map((task) => {
+      const wtInfo = worktreeByBranch.get(task.identifier.toLowerCase());
+      const pr =
+        prByBranch.get(task.identifier.toLowerCase()) ??
+        (wtInfo ? prByBranch.get(wtInfo.worktree.branch.toLowerCase()) : null);
+      return {
+        task,
+        worktree: wtInfo?.worktree ?? null,
+        pullRequest: pr ?? null,
+      };
+    });
+  }, [tasks, worktreeByBranch, prByBranch]);
+
+  // Push Linear/PR/CI status to the cmux sidebar whenever data changes.
+  useCmuxSidebarSync(tasksWithContext);
+
+  // Push workflow progress milestones and activity logs to the cmux sidebar.
+  useCmuxProgressSync(tasksWithContext);
 
   // Find orphan worktrees (not linked to any active issue across all projects)
   const orphanWorktrees = useMemo(() => {
@@ -294,6 +321,7 @@ function DependencyGraphInner() {
             pullRequest: pr ?? null,
             repos,
             claudeStatus: claudeStates?.get(sessionName) ?? null,
+            cmuxNotification: cmuxNotifications.get(sessionName) ?? null,
             githubRepoBlocked,
             terminalActive,
           },
@@ -337,6 +365,7 @@ function DependencyGraphInner() {
           pullRequest: pr ?? null,
           repos,
           claudeStatus: claudeStates?.get(sessionName) ?? null,
+          cmuxNotification: cmuxNotifications.get(sessionName) ?? null,
           githubRepoBlocked,
           terminalActive,
         },
@@ -382,6 +411,7 @@ function DependencyGraphInner() {
     prByBranch,
     sessionByName,
     claudeStates,
+    cmuxNotifications,
     repos,
     resolvedTheme,
     repoNwoById,

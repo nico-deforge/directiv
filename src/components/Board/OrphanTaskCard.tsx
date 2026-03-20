@@ -78,7 +78,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         worktree.path,
         terminalLayout,
       );
-      queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
     } catch (err) {
       toastError(err);
     } finally {
@@ -111,7 +111,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     setKillingSession(true);
     try {
       await tmuxKillSession(toSessionName(worktree.branch));
-      queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
     } catch {
       // Session may already be gone
     } finally {

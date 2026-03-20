@@ -53,7 +53,7 @@ export function useWorktreeRemove() {
       removeWorktreeFlow(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
-      queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
     },
   });
 }

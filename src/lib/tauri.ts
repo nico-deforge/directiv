@@ -139,6 +139,69 @@ export function queryTerminals(emulator: string): Promise<TerminalStatus[]> {
   return invoke<TerminalStatus[]>("query_terminals", { emulator });
 }
 
+export function cmuxCloseWorkspace(name: string): Promise<void> {
+  return invoke<void>("cmux_close_workspace", { name });
+}
+
+export function cmuxSetStatus(
+  workspaceName: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  return invoke<void>("cmux_set_status", { workspaceName, key, value });
+}
+
+export function cmuxSetProgress(
+  workspaceName: string,
+  value: number,
+): Promise<void> {
+  return invoke<void>("cmux_set_progress", { workspaceName, value });
+}
+
+export function cmuxLog(
+  workspaceName: string,
+  level: string,
+  message: string,
+): Promise<void> {
+  return invoke<void>("cmux_log", { workspaceName, level, message });
+}
+
+export function cmuxClearProgress(workspaceName: string): Promise<void> {
+  return invoke<void>("cmux_clear_progress", { workspaceName });
+}
+
+export function cmuxClearLog(workspaceName: string): Promise<void> {
+  return invoke<void>("cmux_clear_log", { workspaceName });
+}
+
+export function cmuxPing(): Promise<boolean> {
+  return invoke<boolean>("cmux_ping");
+}
+
+export const NOTIFICATION_CATEGORIES = {
+  PERMISSION: "permission",
+  QUESTION: "question",
+  ERROR: "error",
+  COMPLETED: "completed",
+  WAITING: "waiting",
+  ATTENTION: "attention",
+} as const;
+
+export type NotificationCategory =
+  (typeof NOTIFICATION_CATEGORIES)[keyof typeof NOTIFICATION_CATEGORIES];
+
+export interface CmuxNotification {
+  title: string;
+  subtitle: string | null;
+  body: string | null;
+  workspaceId: string;
+  category: NotificationCategory;
+}
+
+export function cmuxListNotifications(): Promise<CmuxNotification[]> {
+  return invoke<CmuxNotification[]>("cmux_list_notifications");
+}
+
 // --- Editor commands ---
 
 export function openEditor(editor: string, path: string): Promise<void> {
