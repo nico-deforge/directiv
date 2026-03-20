@@ -73,6 +73,7 @@ struct WtListEntry {
     working_tree: Option<WtWorkingTree>,
     main: Option<WtMain>,
     main_state: Option<String>, // top-level field from wt list JSON
+    ci: Option<WtCi>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -87,6 +88,13 @@ struct WtMain {
     state: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct WtCi {
+    status: Option<String>,
+    url: Option<String>,
+    stale: Option<bool>,
+}
+
 // --- Public output type ---
 
 #[derive(Debug, Serialize)]
@@ -98,6 +106,9 @@ pub struct WtWorktreeInfo {
     pub ahead: u32,
     pub behind: u32,
     pub main_state: Option<String>,
+    pub ci_status: Option<String>,
+    pub ci_url: Option<String>,
+    pub ci_stale: Option<bool>,
 }
 
 // --- Output types for wt_switch_create ---
@@ -194,6 +205,9 @@ pub async fn wt_list(
                 .main
                 .map(|m| (m.ahead.unwrap_or(0), m.behind.unwrap_or(0)))
                 .unwrap_or((0, 0));
+            let ci_status = entry.ci.as_ref().and_then(|c| c.status.clone());
+            let ci_url = entry.ci.as_ref().and_then(|c| c.url.clone());
+            let ci_stale = entry.ci.as_ref().and_then(|c| c.stale);
             Some(WtWorktreeInfo {
                 branch,
                 path: entry.path,
@@ -201,6 +215,9 @@ pub async fn wt_list(
                 ahead,
                 behind,
                 main_state,
+                ci_status,
+                ci_url,
+                ci_stale,
             })
         })
         .collect();

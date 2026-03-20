@@ -32,6 +32,8 @@ export async function scanWorkspace(
 
 // --- wt (Worktrunk) commands ---
 
+import type { WtCiStatus } from "../types";
+
 interface WtWorktreeInfoRaw {
   branch: string;
   path: string;
@@ -39,6 +41,9 @@ interface WtWorktreeInfoRaw {
   ahead: number;
   behind: number;
   mainState: string | null;
+  ciStatus: string | null;
+  ciUrl: string | null;
+  ciStale: boolean | null;
 }
 
 export async function wtSwitchCreate(
@@ -63,6 +68,9 @@ export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
     baseBranch: null,
     mainState: entry.mainState,
     remoteAhead: 0,
+    ciStatus: entry.ciStatus as WtCiStatus | null,
+    ciUrl: entry.ciUrl,
+    ciStale: entry.ciStale,
   }));
 }
 

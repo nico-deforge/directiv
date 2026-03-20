@@ -78,6 +78,17 @@ export interface TmuxSession {
 
 // --- Git Worktrees ---
 
+export const WT_CI_STATUSES = {
+  PASSED: "passed",
+  RUNNING: "running",
+  FAILED: "failed",
+  CONFLICTS: "conflicts",
+  NO_CI: "no-ci",
+  ERROR: "error",
+} as const;
+
+export type WtCiStatus = (typeof WT_CI_STATUSES)[keyof typeof WT_CI_STATUSES];
+
 export interface WorktreeInfo {
   branch: string;
   path: string;
@@ -88,6 +99,9 @@ export interface WorktreeInfo {
   baseBranch: string | null;
   mainState?: string | null;
   remoteAhead?: number;
+  ciStatus?: WtCiStatus | null;
+  ciUrl?: string | null;
+  ciStale?: boolean | null;
 }
 
 // --- GitHub ---
