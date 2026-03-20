@@ -214,6 +214,14 @@ export function cmuxCloseWorkspace(name: string): Promise<void> {
   return invoke<void>("cmux_close_workspace", { name });
 }
 
+export function cmuxSetStatus(
+  workspaceName: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  return invoke<void>("cmux_set_status", { workspaceName, key, value });
+}
+
 export function cmuxPing(): Promise<boolean> {
   return invoke<boolean>("cmux_ping");
 }
