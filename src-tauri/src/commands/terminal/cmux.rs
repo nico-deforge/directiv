@@ -1,6 +1,6 @@
 use super::controller::TerminalController;
 use super::types::{Emulator, TerminalConfig, TerminalRef};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri_plugin_shell::ShellExt;
 
 pub struct CmuxController;
@@ -300,6 +300,126 @@ pub async fn close_workspace(app: &tauri::AppHandle, name: &str) -> Result<(), S
     Ok(())
 }
 
+/// Notification category as classified by cmux.
+///
+/// cmux hooks (pre-tool-use, notification, stop) classify agent states:
+/// - Permission: Claude is requesting permission to run a tool
+/// - Question: Claude is asking the user a question
+/// - Error: Claude encountered an error
+/// - Completed: Claude finished its task
+/// - Waiting: Claude is waiting for user input (generic)
+/// - Attention: Claude needs attention (other)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum NotificationCategory {
+    Permission,
+    Question,
+    Error,
+    Completed,
+    Waiting,
+    Attention,
+}
+
+impl NotificationCategory {
+    /// Derive category from notification title/body when cmux does not expose it structurally.
+    /// Mirrors the keyword classification logic used by cmux internally.
+    fn from_text(title: &str, body: Option<&str>) -> Self {
+        let text = format!(
+            "{} {}",
+            title.to_lowercase(),
+            body.unwrap_or("").to_lowercase()
+        );
+        if text.contains("permission") || text.contains("allow") || text.contains("approve") {
+            NotificationCategory::Permission
+        } else if text.contains("error") || text.contains("failed") || text.contains("failure") {
+            NotificationCategory::Error
+        } else if text.contains("complete") || text.contains("finished") || text.contains("done") {
+            NotificationCategory::Completed
+        } else if text.contains("question") || text.contains("?") {
+            NotificationCategory::Question
+        } else {
+            NotificationCategory::Waiting
+        }
+    }
+}
+
+/// A notification returned by `cmux list-notifications --json`.
+///
+/// The `category` field may or may not be present in the JSON depending on the cmux version.
+/// When absent, it is derived from `title` and `body` using keyword matching.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawCmuxNotification {
+    #[serde(default)]
+    title: String,
+    subtitle: Option<String>,
+    body: Option<String>,
+    #[serde(alias = "workspaceId", default)]
+    workspace_id: String,
+    /// Structured category from cmux — present only if cmux exposes it.
+    category: Option<NotificationCategory>,
+}
+
+/// Parsed notification ready for the frontend.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CmuxNotification {
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub body: Option<String>,
+    pub workspace_id: String,
+    pub category: NotificationCategory,
+}
+
+impl From<RawCmuxNotification> for CmuxNotification {
+    fn from(raw: RawCmuxNotification) -> Self {
+        let category = raw.category.unwrap_or_else(|| {
+            NotificationCategory::from_text(&raw.title, raw.body.as_deref())
+        });
+        CmuxNotification {
+            title: raw.title,
+            subtitle: raw.subtitle,
+            body: raw.body,
+            workspace_id: raw.workspace_id,
+            category,
+        }
+    }
+}
+
+/// Query `cmux list-notifications --json` and return structured notifications.
+///
+/// Returns an empty vec if cmux is not running, not installed, or there are no notifications.
+/// The JSON format assumption: cmux returns a JSON array of notification objects.
+/// Category is parsed structurally if present, otherwise derived via keyword matching.
+pub async fn list_notifications(app: &tauri::AppHandle) -> Result<Vec<CmuxNotification>, String> {
+    check_cmux_available(app).await?;
+
+    let json =
+        match run_cmux(app, &["list-notifications", "--json"], "list_notifications").await {
+            Ok(s) => s,
+            Err(e) => {
+                // No notifications or empty list is not an error
+                if e.contains("no notifications")
+                    || e.contains("empty")
+                    || e.contains("not found")
+                {
+                    return Ok(vec![]);
+                }
+                return Err(e);
+            }
+        };
+
+    if json.is_empty() || json == "[]" || json == "null" {
+        return Ok(vec![]);
+    }
+
+    let raw: Vec<RawCmuxNotification> = serde_json::from_str(&json).map_err(|e| {
+        format!("cmux list_notifications: failed to parse notification list: {e}")
+    })?;
+
+    Ok(raw.into_iter().map(CmuxNotification::from).collect())
+}
+
 /// Shell-escape a string by wrapping it in single quotes and escaping internal single quotes.
 fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
@@ -394,5 +514,85 @@ mod tests {
     fn test_shell_escape_with_single_quote() {
         // Single quotes in path are escaped: it's → 'it'\''s'
         assert_eq!(shell_escape("/path/it's/dir"), "'/path/it'\\''s/dir'");
+    }
+
+    // --- Notification tests ---
+
+    #[test]
+    fn test_parse_notification_with_structured_category() {
+        let json = r#"[{
+            "title": "Permission Request",
+            "body": "Allow bash command?",
+            "workspaceId": "ws-123",
+            "category": "permission"
+        }]"#;
+        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
+        let notifications: Vec<CmuxNotification> =
+            raw.into_iter().map(CmuxNotification::from).collect();
+        assert_eq!(notifications.len(), 1);
+        assert_eq!(notifications[0].category, NotificationCategory::Permission);
+        assert_eq!(notifications[0].workspace_id, "ws-123");
+    }
+
+    #[test]
+    fn test_parse_notification_category_fallback_permission() {
+        let json = r#"[{
+            "title": "Tool permission needed",
+            "body": "approve this?",
+            "workspaceId": "ws-1"
+        }]"#;
+        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
+        let n = CmuxNotification::from(raw.into_iter().next().unwrap());
+        assert_eq!(n.category, NotificationCategory::Permission);
+    }
+
+    #[test]
+    fn test_parse_notification_category_fallback_error() {
+        let json = r#"[{
+            "title": "Task failed",
+            "body": "An error occurred",
+            "workspaceId": "ws-2"
+        }]"#;
+        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
+        let n = CmuxNotification::from(raw.into_iter().next().unwrap());
+        assert_eq!(n.category, NotificationCategory::Error);
+    }
+
+    #[test]
+    fn test_parse_notification_category_fallback_completed() {
+        let json = r#"[{
+            "title": "Task complete",
+            "workspaceId": "ws-3"
+        }]"#;
+        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
+        let n = CmuxNotification::from(raw.into_iter().next().unwrap());
+        assert_eq!(n.category, NotificationCategory::Completed);
+    }
+
+    #[test]
+    fn test_parse_notification_category_fallback_waiting() {
+        let json = r#"[{
+            "title": "Awaiting input",
+            "workspaceId": "ws-4"
+        }]"#;
+        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
+        let n = CmuxNotification::from(raw.into_iter().next().unwrap());
+        assert_eq!(n.category, NotificationCategory::Waiting);
+    }
+
+    #[test]
+    fn test_parse_notification_empty_array() {
+        let json = "[]";
+        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
+        assert!(raw.is_empty());
+    }
+
+    #[test]
+    fn test_parse_notification_optional_fields() {
+        let json = r#"[{"title": "hello", "workspaceId": "ws-5"}]"#;
+        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
+        let n = CmuxNotification::from(raw.into_iter().next().unwrap());
+        assert!(n.subtitle.is_none());
+        assert!(n.body.is_none());
     }
 }
