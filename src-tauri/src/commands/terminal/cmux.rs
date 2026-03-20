@@ -454,6 +454,119 @@ pub async fn set_status(
     Ok(())
 }
 
+/// Helper: check if cmux is available, returning false without error when not running.
+/// Used by best-effort sidebar commands (progress, log) to skip silently.
+async fn is_cmux_available(app: &tauri::AppHandle) -> bool {
+    app.shell()
+        .command("cmux")
+        .args(["ping"])
+        .output()
+        .await
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Set the progress bar in a cmux workspace.
+///
+/// Calls `cmux set-progress --workspace <workspace_name> <value>`.
+/// Value is a float in the range 0.0–1.0 (e.g. 0.4 = 40%).
+///
+/// # Assumptions
+/// - `cmux set-progress --workspace <name> <value>` accepts a decimal fraction.
+/// - Best-effort: silently no-ops when cmux is not running.
+pub async fn set_progress(
+    app: &tauri::AppHandle,
+    workspace_name: &str,
+    value: f64,
+) -> Result<(), String> {
+    if !is_cmux_available(app).await {
+        return Ok(());
+    }
+
+    let value_str = format!("{value:.2}");
+    run_cmux(
+        app,
+        &["set-progress", "--workspace", workspace_name, &value_str],
+        "set_progress",
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Append a log entry to the cmux workspace log panel.
+///
+/// Calls `cmux log --workspace <workspace_name> --level <level> <message>`.
+/// Level is one of: info, success, warning, error.
+///
+/// # Assumptions
+/// - `cmux log --workspace <name> --level <level> <message>` appends to the log panel.
+/// - Best-effort: silently no-ops when cmux is not running.
+pub async fn log_entry(
+    app: &tauri::AppHandle,
+    workspace_name: &str,
+    level: &str,
+    message: &str,
+) -> Result<(), String> {
+    if !is_cmux_available(app).await {
+        return Ok(());
+    }
+
+    run_cmux(
+        app,
+        &[
+            "log",
+            "--workspace",
+            workspace_name,
+            "--level",
+            level,
+            message,
+        ],
+        "log",
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Clear the progress bar in a cmux workspace.
+///
+/// Calls `cmux clear-progress --workspace <workspace_name>`.
+/// Used when a task is stopped or completed.
+pub async fn clear_progress(app: &tauri::AppHandle, workspace_name: &str) -> Result<(), String> {
+    if !is_cmux_available(app).await {
+        return Ok(());
+    }
+
+    run_cmux(
+        app,
+        &["clear-progress", "--workspace", workspace_name],
+        "clear_progress",
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Clear the log panel in a cmux workspace.
+///
+/// Calls `cmux clear-log --workspace <workspace_name>`.
+/// Used when a task is stopped or completed.
+pub async fn clear_log(app: &tauri::AppHandle, workspace_name: &str) -> Result<(), String> {
+    if !is_cmux_available(app).await {
+        return Ok(());
+    }
+
+    run_cmux(
+        app,
+        &["clear-log", "--workspace", workspace_name],
+        "clear_log",
+    )
+    .await?;
+
+    Ok(())
+}
+
 /// Shell-escape a string by wrapping it in single quotes and escaping internal single quotes.
 fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))

@@ -26,6 +26,7 @@ import { useCurrentLinearTeamIds } from "../../hooks/useLinearConfig";
 import { useTmuxSessions, useClaudeSessionStates } from "../../hooks/useTmux";
 import { useCmuxNotifications } from "../../hooks/useCmuxNotifications";
 import { useCmuxSidebarSync } from "../../hooks/useCmuxSidebarSync";
+import { useCmuxProgressSync } from "../../hooks/useCmuxProgressSync";
 import { useTerminalStatuses } from "../../hooks/useTerminalStatuses";
 import { useGitHubMyOpenPRs, useGitHubRepoAccess } from "../../hooks/useGitHub";
 import { useAllWorktrees } from "../../hooks/useWorktrees";
@@ -215,6 +216,9 @@ function DependencyGraphInner() {
 
   // Push Linear/PR/CI status to the cmux sidebar whenever data changes.
   useCmuxSidebarSync(tasksWithContext);
+
+  // Push workflow progress milestones and activity logs to the cmux sidebar.
+  useCmuxProgressSync(tasksWithContext);
 
   // Find orphan worktrees (not linked to any active issue across all projects)
   const orphanWorktrees = useMemo(() => {

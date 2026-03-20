@@ -251,6 +251,55 @@ pub async fn cmux_set_status(
     cmux::set_status(&app, &workspace_name, &key, &value).await
 }
 
+/// Set the progress bar value in a cmux workspace.
+///
+/// Calls `cmux set-progress --workspace <workspace_name> <value>` where value is 0.0–1.0.
+/// Best-effort — silently no-ops when cmux is not running.
+#[tauri::command]
+pub async fn cmux_set_progress(
+    app: tauri::AppHandle,
+    workspace_name: String,
+    value: f64,
+) -> Result<(), String> {
+    cmux::set_progress(&app, &workspace_name, value).await
+}
+
+/// Append a log entry to the cmux workspace log panel.
+///
+/// Calls `cmux log --workspace <workspace_name> --level <level> <message>`.
+/// Level: "info" | "success" | "warning" | "error"
+/// Best-effort — silently no-ops when cmux is not running.
+#[tauri::command]
+pub async fn cmux_log(
+    app: tauri::AppHandle,
+    workspace_name: String,
+    level: String,
+    message: String,
+) -> Result<(), String> {
+    cmux::log_entry(&app, &workspace_name, &level, &message).await
+}
+
+/// Clear the progress bar in a cmux workspace.
+///
+/// Calls `cmux clear-progress --workspace <workspace_name>`.
+/// Called when a task is stopped.
+#[tauri::command]
+pub async fn cmux_clear_progress(
+    app: tauri::AppHandle,
+    workspace_name: String,
+) -> Result<(), String> {
+    cmux::clear_progress(&app, &workspace_name).await
+}
+
+/// Clear the log panel in a cmux workspace.
+///
+/// Calls `cmux clear-log --workspace <workspace_name>`.
+/// Called when a task is stopped.
+#[tauri::command]
+pub async fn cmux_clear_log(app: tauri::AppHandle, workspace_name: String) -> Result<(), String> {
+    cmux::clear_log(&app, &workspace_name).await
+}
+
 /// Check whether cmux is installed and running via `cmux ping`.
 /// Returns true if cmux is available, false if not installed or not running.
 #[tauri::command]
