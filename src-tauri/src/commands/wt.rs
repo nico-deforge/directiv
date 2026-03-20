@@ -181,6 +181,21 @@ pub async fn wt_remove(
     Ok(())
 }
 
+// --- wt_merge command ---
+
+/// Merge and clean up a worktree for `branch_name` using `wt merge --yes`.
+/// Runs squash + rebase + fast-forward + cleanup in one step.
+#[tauri::command]
+pub async fn wt_merge(
+    app: tauri::AppHandle,
+    repo_path: String,
+    branch_name: String,
+) -> Result<(), String> {
+    run_wt(&app, &["merge", "-C", &repo_path, "--yes", &branch_name]).await?;
+
+    Ok(())
+}
+
 // --- wt_list command ---
 
 #[tauri::command]

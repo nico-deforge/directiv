@@ -46,6 +46,7 @@ pub fn run() {
             commands::wt::wt_list,
             commands::wt::wt_switch_create,
             commands::wt::wt_remove,
+            commands::wt::wt_merge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
