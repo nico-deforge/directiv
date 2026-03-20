@@ -167,12 +167,12 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       {/* Linear Section */}
       {linearIssue && (
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <SquareKanban className="size-4 shrink-0 text-[var(--accent-blue)]" />
+          <SquareKanban className="size-4 shrink-0 text-[#5E6AD2]" />
           <a
             href={linearIssue.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 min-w-0 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="flex items-center gap-1 min-w-0 text-sm text-[#5E6AD2] hover:text-[#7C85E3]"
           >
             <span className="truncate">{linearIssue.identifier}</span>
             <ExternalLink className="size-3 shrink-0" />

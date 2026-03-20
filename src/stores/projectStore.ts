@@ -17,6 +17,7 @@ export interface Project {
   id: string;
   name: string;
   statusType: LinearProjectStatusType;
+  url: string | null;
 }
 
 interface ProjectState {
