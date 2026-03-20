@@ -2,26 +2,24 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   TmuxSession,
   WorktreeInfo,
+  WtCiStatus,
   PluginSkillInfo,
   ClaudeSkillEntry,
   DiscoveredRepo,
-  SkillOverrides,
-  ModelOverrides,
   TerminalStatus,
+  CmuxNotification,
 } from "../types";
+import type { CmuxLogLevel } from "./cmuxSidebar";
+
+// Re-export types that used to live here so existing imports keep working.
+export { NOTIFICATION_CATEGORIES } from "../types";
+export type { CmuxNotification } from "../types";
 
 // --- Workspace commands ---
 
 interface RawDiscoveredRepo {
   id: string;
   path: string;
-  copyPaths: string[];
-  onStart: string[];
-  beforeRemove: string[];
-  fetchBefore: boolean;
-  configWarning?: string;
-  skills?: SkillOverrides;
-  models?: ModelOverrides;
   githubNwo?: string;
 }
 
@@ -38,84 +36,57 @@ export async function scanWorkspace(
   }));
 }
 
-// --- Worktree commands ---
+// --- wt (Worktrunk) commands ---
 
-export function worktreeList(repoPath: string): Promise<WorktreeInfo[]> {
-  return invoke<WorktreeInfo[]>("worktree_list", { repoPath });
+interface WtWorktreeInfoRaw {
+  branch: string;
+  path: string;
+  isDirty: boolean;
+  ahead: number;
+  behind: number;
+  mainState: string | null;
+  ciStatus: WtCiStatus | null;
+  ciUrl: string | null;
+  ciStale: boolean | null;
+  devUrl: string | null;
+  devUrlActive: boolean | null;
 }
 
-export function worktreeCreate(
+export async function wtMerge(
   repoPath: string,
-  issueId: string,
-  copyPaths?: string[],
-  baseBranch?: string,
-  fetchBefore?: boolean,
-): Promise<WorktreeInfo> {
-  return invoke<WorktreeInfo>("worktree_create", {
-    repoPath,
-    issueId,
-    copyPaths,
-    baseBranch,
-    fetchBefore,
-  });
-}
-
-export function worktreeRemove(
-  repoPath: string,
-  worktreePath: string,
-  branch?: string,
-  deleteBranch?: boolean,
+  branchName: string,
 ): Promise<void> {
-  return invoke<void>("worktree_remove", {
-    repoPath,
-    worktreePath,
-    branch,
-    deleteBranch,
-  });
+  return invoke<void>("wt_merge", { repoPath, branchName });
 }
 
-export function worktreeCreateExistingBranch(
+export async function wtSwitchCreate(
   repoPath: string,
-  issueId: string,
-  copyPaths?: string[],
-  baseBranch?: string,
-  resetToBase?: boolean,
-  forceReset?: boolean,
-): Promise<WorktreeInfo> {
-  return invoke<WorktreeInfo>("worktree_create_existing_branch", {
-    repoPath,
-    issueId,
-    copyPaths,
-    baseBranch,
-    resetToBase: resetToBase ?? false,
-    forceReset: forceReset ?? false,
-  });
+  branchName: string,
+): Promise<{ path: string }> {
+  return invoke<{ path: string }>("wt_switch_create", { repoPath, branchName });
 }
 
-export function worktreeCheckBranchSynced(
-  repoPath: string,
-  branch: string,
-): Promise<boolean> {
-  return invoke<boolean>("worktree_check_branch_synced", {
-    repoPath,
-    branch,
-  });
-}
-
-export function worktreeCheckMerged(
-  repoPath: string,
-  branch: string,
-  baseBranch?: string,
-): Promise<boolean> {
-  return invoke<boolean>("worktree_check_merged", {
-    repoPath,
-    branch,
-    baseBranch,
-  });
-}
-
-export function gitFetchPrune(repoPath: string): Promise<void> {
-  return invoke<void>("git_fetch_prune", { repoPath });
+export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
+  const raw = await invoke<WtWorktreeInfoRaw[]>("wt_list", { repoPath });
+  return raw.map((entry) => ({
+    branch: entry.branch,
+    path: entry.path,
+    // Derive issueId from branch name (same convention as Directiv)
+    issueId: entry.branch.match(/^[A-Z]+-\d+(\.\d+)?$/i)
+      ? entry.branch.toUpperCase()
+      : null,
+    isDirty: entry.isDirty,
+    ahead: entry.ahead,
+    behind: entry.behind,
+    baseBranch: null,
+    mainState: entry.mainState,
+    remoteAhead: 0,
+    ciStatus: entry.ciStatus,
+    ciUrl: entry.ciUrl,
+    ciStale: entry.ciStale,
+    devUrl: entry.devUrl,
+    devUrlActive: entry.devUrlActive,
+  }));
 }
 
 // --- Tmux commands ---
@@ -150,15 +121,6 @@ export function tmuxWaitForReady(
   return invoke<void>("tmux_wait_for_ready", { session, timeoutMs });
 }
 
-// --- Hook commands ---
-
-export function runHooks(
-  commands: string[],
-  workingDir: string,
-): Promise<void> {
-  return invoke<void>("run_hooks", { commands, workingDir });
-}
-
 // --- Terminal commands ---
 
 export function openTerminal(
@@ -179,6 +141,49 @@ export function openTerminal(
 
 export function queryTerminals(emulator: string): Promise<TerminalStatus[]> {
   return invoke<TerminalStatus[]>("query_terminals", { emulator });
+}
+
+export function cmuxCloseWorkspace(name: string): Promise<void> {
+  return invoke<void>("cmux_close_workspace", { name });
+}
+
+export function cmuxSetStatus(
+  workspaceName: string,
+  key: string,
+  value: string,
+): Promise<void> {
+  return invoke<void>("cmux_set_status", { workspaceName, key, value });
+}
+
+export function cmuxSetProgress(
+  workspaceName: string,
+  value: number,
+): Promise<void> {
+  return invoke<void>("cmux_set_progress", { workspaceName, value });
+}
+
+export function cmuxLog(
+  workspaceName: string,
+  level: CmuxLogLevel,
+  message: string,
+): Promise<void> {
+  return invoke<void>("cmux_log", { workspaceName, level, message });
+}
+
+export function cmuxClearProgress(workspaceName: string): Promise<void> {
+  return invoke<void>("cmux_clear_progress", { workspaceName });
+}
+
+export function cmuxClearLog(workspaceName: string): Promise<void> {
+  return invoke<void>("cmux_clear_log", { workspaceName });
+}
+
+export function cmuxPing(): Promise<boolean> {
+  return invoke<boolean>("cmux_ping");
+}
+
+export function cmuxListNotifications(): Promise<CmuxNotification[]> {
+  return invoke<CmuxNotification[]>("cmux_list_notifications");
 }
 
 // --- Editor commands ---

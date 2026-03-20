@@ -17,13 +17,6 @@ pub fn run() {
 
     builder
         .invoke_handler(tauri::generate_handler![
-            commands::worktree::worktree_list,
-            commands::worktree::worktree_create,
-            commands::worktree::worktree_create_existing_branch,
-            commands::worktree::worktree_remove,
-            commands::worktree::worktree_check_merged,
-            commands::worktree::worktree_check_branch_synced,
-            commands::worktree::git_fetch_prune,
             commands::tmux::tmux_list_sessions,
             commands::tmux::tmux_create_session,
             commands::tmux::tmux_kill_session,
@@ -32,8 +25,15 @@ pub fn run() {
             commands::tmux::tmux_wait_for_ready,
             commands::terminal::open_terminal,
             commands::terminal::query_terminals,
+            commands::terminal::cmux_close_workspace,
+            commands::terminal::cmux_set_status,
+            commands::terminal::cmux_set_progress,
+            commands::terminal::cmux_log,
+            commands::terminal::cmux_clear_progress,
+            commands::terminal::cmux_clear_log,
+            commands::terminal::cmux_ping,
+            commands::terminal::cmux_list_notifications,
             commands::terminal::open_editor,
-            commands::hooks::run_hooks,
             commands::config::load_config,
             commands::config::save_config,
             commands::skills::get_plugin_dir,
@@ -50,6 +50,11 @@ pub fn run() {
             commands::github::gh_list_my_open_prs,
             commands::github::gh_list_review_requests,
             commands::github::gh_check_repo_access,
+            commands::wt::wt_version,
+            commands::wt::wt_list,
+            commands::wt::wt_switch_create,
+            commands::wt::wt_remove,
+            commands::wt::wt_merge,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

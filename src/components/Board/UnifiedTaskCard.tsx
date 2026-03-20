@@ -17,6 +17,10 @@ import {
   Code2,
   AlertTriangle,
   ClipboardList,
+  CheckCircle,
+  HelpCircle,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -30,6 +34,8 @@ import type {
 } from "../../types";
 import { CI_STATUSES } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
+import { CiStatusBadge } from "./CiStatusBadge";
+import { WT_CI_STATUSES } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
 import {
   type SkillKey,
@@ -38,9 +44,6 @@ import {
   isOverriddenSkill,
   sendSkillToSession,
   BranchExistsError,
-  BaseNotFoundError,
-  BranchHasUnpushedError,
-  HookFailedError,
   removeWorktreeFlow,
   openTerminalWithToast,
 } from "../../lib/workflows";
@@ -48,7 +51,10 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import {
   openEditor,
   tmuxKillSession,
-  worktreeCreateExistingBranch,
+  cmuxCloseWorkspace,
+  wtMerge,
+  type CmuxNotification,
+  NOTIFICATION_CATEGORIES,
 } from "../../lib/tauri";
 import { BranchSelector } from "../shared/BranchSelector";
 import { QuickPeek } from "./QuickPeek";
@@ -113,6 +119,54 @@ function getWorkflowStatus(
   return "personal-review";
 }
 
+/** Map a cmux notification to a badge style, label, and icon for display on the card. */
+function getCmuxBadgeConfig(n: CmuxNotification): {
+  className: string;
+  label: string;
+  Icon: React.ElementType;
+} {
+  const label = n.body ?? n.title;
+  switch (n.category) {
+    case NOTIFICATION_CATEGORIES.PERMISSION:
+      return {
+        className:
+          "animate-pulse bg-[var(--accent-orange)]/20 text-[var(--accent-orange)] hover:bg-[var(--accent-orange)]/30",
+        label,
+        Icon: AlertTriangle,
+      };
+    case NOTIFICATION_CATEGORIES.ERROR:
+      return {
+        className:
+          "bg-[var(--accent-red)]/20 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30",
+        label,
+        Icon: XCircle,
+      };
+    case NOTIFICATION_CATEGORIES.COMPLETED:
+      return {
+        className:
+          "bg-[var(--accent-green)]/20 text-[var(--accent-green)] hover:bg-[var(--accent-green)]/30",
+        label: "Completed",
+        Icon: CheckCircle,
+      };
+    case NOTIFICATION_CATEGORIES.QUESTION:
+    case NOTIFICATION_CATEGORIES.WAITING:
+      return {
+        className:
+          "bg-[var(--accent-blue)]/20 text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30",
+        label,
+        Icon: HelpCircle,
+      };
+    case NOTIFICATION_CATEGORIES.ATTENTION:
+    default:
+      return {
+        className:
+          "bg-[var(--accent-amber)]/20 text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30",
+        label,
+        Icon: Clock,
+      };
+  }
+}
+
 export type UnifiedTaskNodeData = {
   task: EnrichedTask;
   worktree: WorktreeInfo | null;
@@ -121,6 +175,8 @@ export type UnifiedTaskNodeData = {
   pullRequest: PullRequestInfo | null;
   repos: DiscoveredRepo[];
   claudeStatus: ClaudeSessionStatus | null;
+  /** Enriched agent state from cmux — only present when cmux is the terminal backend. */
+  cmuxNotification: CmuxNotification | null;
   githubRepoBlocked: boolean;
   terminalActive: boolean | null;
   onDragStart?: (nodeId: string, e: React.MouseEvent) => void;
@@ -138,6 +194,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     pullRequest,
     repos,
     claudeStatus,
+    cmuxNotification,
     githubRepoBlocked,
     terminalActive,
     onDragStart,
@@ -153,27 +210,36 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   const [killingSession, setKillingSession] = useState(false);
   const [deletingWorktree, setDeletingWorktree] = useState(false);
+  const [mergingWorktree, setMergingWorktree] = useState(false);
+  const [confirmingMerge, setConfirmingMerge] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
   const [pendingSkillKey, setPendingSkillKey] = useState<SkillKey>("CODE");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [branchError, setBranchError] = useState<{
-    type: "exists" | "not-found" | "unpushed";
+    type: "exists";
     branch: string;
-    baseBranch?: string;
     repoPath: string;
   } | null>(null);
-  const [hookError, setHookError] = useState<string | null>(null);
   const [sendingSkill, setSendingSkill] = useState(false);
 
   const hasSession = session !== null;
   const isLoading =
-    startTask.isPending || killingSession || deletingWorktree || sendingSkill;
+    startTask.isPending ||
+    killingSession ||
+    deletingWorktree ||
+    mergingWorktree ||
+    sendingSkill;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
+
+  // Enriched badge config when cmux is the backend
+  const cmuxBadge = cmuxNotification
+    ? getCmuxBadgeConfig(cmuxNotification)
+    : null;
 
   useEffect(() => {
     if (!confirmingDelete) return;
@@ -200,7 +266,12 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     if (!session) return;
     setKillingSession(true);
     try {
-      await tmuxKillSession(session.name);
+      if (terminal === "cmux") {
+        await cmuxCloseWorkspace(session.name);
+      } else {
+        await tmuxKillSession(session.name);
+      }
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
       toastError(err);
@@ -209,58 +280,67 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
-  async function handleDeleteWorktree(skipHooks = false) {
+  async function handleDeleteWorktree() {
     if (!worktree || !worktreeRepoPath) return;
     setDeletingWorktree(true);
     setConfirmingDelete(false);
-    setHookError(null);
     try {
-      const repo = repos.find((r) => r.path === worktreeRepoPath);
       await removeWorktreeFlow({
         repoPath: worktreeRepoPath,
-        worktreePath: worktree.path,
         branch: worktree.branch,
-        deleteBranch: true,
         sessionName: session?.name,
-        beforeRemove: repo?.beforeRemove,
-        skipHooks,
+        terminal,
       });
-      queryClient.invalidateQueries({ queryKey: ["worktrees"] });
-      queryClient.invalidateQueries({ queryKey: ["tmux"] });
+      await queryClient.refetchQueries({ queryKey: ["worktrees"] });
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
     } catch (err) {
-      if (err instanceof HookFailedError) {
-        setHookError(err.message);
-      } else {
-        toastError(err);
-      }
+      toastError(err);
     } finally {
       setDeletingWorktree(false);
     }
   }
 
-  function getRepoSkillParams(
-    repoPath: string,
-    key: SkillKey,
-  ): {
+  async function handleMerge() {
+    if (!worktree || !worktreeRepoPath) return;
+    setConfirmingMerge(false);
+    setMergingWorktree(true);
+    try {
+      // Kill session before merging (wt merge removes the worktree)
+      if (session) {
+        if (terminal === "cmux") {
+          await cmuxCloseWorkspace(session.name);
+        } else {
+          await tmuxKillSession(session.name);
+        }
+      }
+      await wtMerge(worktreeRepoPath, worktree.branch);
+      await queryClient.refetchQueries({ queryKey: ["worktrees"] });
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["tmux"] });
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setMergingWorktree(false);
+    }
+  }
+
+  function getRepoSkillParams(key: SkillKey): {
     skill: string;
     usePlugin: boolean;
     model: ClaudeModel | undefined;
   } {
-    const repo = repos.find((r) => r.path === repoPath);
     return {
-      skill: resolveSkill(key, repo?.skills, globalSkills),
-      usePlugin: !isOverriddenSkill(key, repo?.skills, globalSkills),
-      model: resolveModel(key, repo?.models, globalModels),
+      skill: resolveSkill(key, globalSkills),
+      usePlugin: !isOverriddenSkill(key, globalSkills),
+      model: resolveModel(key, globalModels),
     };
   }
 
-  function handleStart(repoPath: string, baseBranch?: string, key?: SkillKey) {
+  function handleStart(repoPath: string, key?: SkillKey) {
     setDropdownOpen(false);
     setSelectedRepo(null);
     setBranchError(null);
-    const repo = repos.find((r) => r.path === repoPath);
     const { skill, usePlugin, model } = getRepoSkillParams(
-      repoPath,
       key ?? pendingSkillKey,
     );
     const { terminalLayout } = useSettingsStore.getState().config;
@@ -271,10 +351,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         repoPath,
         terminal,
         terminalLayout,
-        copyPaths: repo?.copyPaths,
-        onStart: repo?.onStart,
-        baseBranch,
-        fetchBefore: repo?.fetchBefore,
         skill,
         usePlugin,
         model,
@@ -285,22 +361,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             setBranchError({
               type: "exists",
               branch: err.branchName,
-              baseBranch: err.baseBranch,
               repoPath: err.repoPath,
-            });
-          } else if (err instanceof BaseNotFoundError) {
-            setBranchError({
-              type: "not-found",
-              branch: err.baseName,
-              baseBranch: undefined,
-              repoPath,
-            });
-          } else if (err instanceof BranchHasUnpushedError) {
-            setBranchError({
-              type: "unpushed",
-              branch: err.branchName,
-              baseBranch,
-              repoPath,
             });
           } else {
             toastError(err);
@@ -310,65 +371,34 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     );
   }
 
-  async function handleExistingBranch(resetToBase: boolean, force = false) {
+  async function handleExistingBranch() {
     if (!branchError) return;
-    const { repoPath, baseBranch } = branchError;
+    const { repoPath } = branchError;
     setBranchError(null);
-    const repo = repos.find((r) => r.path === repoPath);
-    const { skill, usePlugin, model } = getRepoSkillParams(
-      repoPath,
-      pendingSkillKey,
-    );
-    try {
-      await worktreeCreateExistingBranch(
+    const { skill, usePlugin, model } = getRepoSkillParams(pendingSkillKey);
+    const { terminalLayout } = useSettingsStore.getState().config;
+    // ensureWorktree inside startTask handles existing branches — no manual
+    // wtSwitchCreate needed.
+    startTask.mutate(
+      {
+        issueId: task.id,
+        identifier: task.identifier,
         repoPath,
-        task.identifier,
-        repo?.copyPaths,
-        baseBranch,
-        resetToBase,
-        force,
-      );
-      const existingConfig = useSettingsStore.getState().config;
-      startTask.mutate(
-        {
-          issueId: task.id,
-          identifier: task.identifier,
-          repoPath,
-          terminal,
-          terminalLayout: existingConfig.terminalLayout,
-          copyPaths: repo?.copyPaths,
-          onStart: repo?.onStart,
-          baseBranch,
-          fetchBefore: false,
-          skill,
-          usePlugin,
-          model,
-        },
-        { onError: (err) => toastError(err) },
-      );
-    } catch (err) {
-      if (
-        !force &&
-        err instanceof Error &&
-        err.message.includes("BRANCH_HAS_UNPUSHED:")
-      ) {
-        setBranchError({
-          type: "unpushed",
-          branch: task.identifier,
-          baseBranch,
-          repoPath,
-        });
-      } else {
-        toastError(err);
-      }
-    }
+        terminal,
+        terminalLayout,
+        skill,
+        usePlugin,
+        model,
+      },
+      { onError: (err) => toastError(err) },
+    );
   }
 
   function openDropdown(key: SkillKey) {
     setPendingSkillKey(key);
     // If worktree already exists, skip branch selection and start directly
     if (worktree && worktreeRepoPath) {
-      handleStart(worktreeRepoPath, undefined, key);
+      handleStart(worktreeRepoPath, key);
       return;
     }
     setDropdownOpen((prev) => !prev);
@@ -398,7 +428,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   async function handleFixCI() {
     if (!worktree || !worktreeRepoPath) return;
-    const { skill } = getRepoSkillParams(worktreeRepoPath, "FIX_CI");
+    const { skill } = getRepoSkillParams("FIX_CI");
 
     if (session) {
       setSendingSkill(true);
@@ -469,7 +499,22 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               {task.assigneeName}
             </span>
           )}
-          {claudeWaiting && (
+          {/* cmux enriched badge — shown when cmux is the backend */}
+          {cmuxBadge && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenTerminal();
+              }}
+              title={cmuxNotification?.body ?? cmuxNotification?.title}
+              className={`ml-auto flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${cmuxBadge.className}`}
+            >
+              <cmuxBadge.Icon className="size-3 shrink-0" />
+              <span className="max-w-[120px] truncate">{cmuxBadge.label}</span>
+            </button>
+          )}
+          {/* Fallback badge for Ghostty/iTerm2 — shown when no cmux notification */}
+          {!cmuxBadge && claudeWaiting && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -483,7 +528,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           )}
           {hasSession && terminalActive !== null && (
             <span
-              className={`${claudeWaiting ? "" : "ml-auto"} flex items-center`}
+              className={`${claudeWaiting || cmuxBadge ? "" : "ml-auto"} flex items-center`}
               title={terminalActive ? "Terminal open" : "Terminal closed"}
             >
               <Terminal
@@ -579,6 +624,39 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
             </span>
           )}
+          {worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI && (
+            <span className="ml-auto">
+              <CiStatusBadge
+                status={worktree.ciStatus}
+                url={worktree.ciUrl}
+                stale={worktree.ciStale}
+              />
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Dev Server URL Section */}
+      {worktree?.devUrl && (
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+          <a
+            href={worktree.devUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center gap-1 min-w-0 text-xs ${
+              worktree.devUrlActive
+                ? "text-[var(--accent-blue)] hover:text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+            }`}
+            title={
+              worktree.devUrlActive
+                ? "Dev server running"
+                : "Dev server offline"
+            }
+          >
+            <ExternalLink className="size-3 shrink-0" />
+            <span className="truncate">{worktree.devUrl}</span>
+          </a>
         </div>
       )}
 
@@ -646,6 +724,47 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             </button>
           )}
 
+          {/* Merge button — shown on approved cards with a worktree */}
+          {workflowStatus === "to-deploy" &&
+            worktree &&
+            worktreeRepoPath &&
+            !confirmingDelete &&
+            !confirmingMerge && (
+              <button
+                onClick={() => setConfirmingMerge(true)}
+                disabled={isLoading}
+                className="flex items-center gap-1 rounded bg-[var(--accent-green)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-green)] hover:bg-[var(--accent-green)]/30 disabled:opacity-50"
+                title="Merge locally via wt merge"
+              >
+                {mergingWorktree ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  "Merge"
+                )}
+              </button>
+            )}
+
+          {/* Merge confirmation */}
+          {confirmingMerge && (
+            <span className="flex items-center gap-2 text-xs">
+              <span className="text-[var(--text-muted)]">Confirm merge?</span>
+              <button
+                onClick={handleMerge}
+                disabled={mergingWorktree}
+                className="text-[var(--accent-green)] hover:opacity-80 disabled:opacity-50"
+              >
+                {mergingWorktree ? "Merging..." : "Yes"}
+              </button>
+              <span className="text-[var(--text-muted)]">/</span>
+              <button
+                onClick={() => setConfirmingMerge(false)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                No
+              </button>
+            </span>
+          )}
+
           {/* Kill Session button */}
           {hasSession && !confirmingDelete && (
             <button
@@ -670,7 +789,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
               title="Delete worktree and branch"
             >
-              <Trash2 className="size-3.5" />
+              {deletingWorktree ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
             </button>
           )}
 
@@ -701,19 +824,13 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               {repos.length === 1 ? (
                 <BranchSelector
                   repoPath={repos[0].path}
-                  configWarning={repos[0].configWarning}
-                  onSelect={(baseBranch) =>
-                    handleStart(repos[0].path, baseBranch)
-                  }
+                  onSelect={() => handleStart(repos[0].path)}
                 />
               ) : selectedRepo ? (
                 <BranchSelector
                   repoPath={selectedRepo.path}
                   repoId={selectedRepo.id}
-                  configWarning={selectedRepo.configWarning}
-                  onSelect={(baseBranch) =>
-                    handleStart(selectedRepo.path, baseBranch)
-                  }
+                  onSelect={() => handleStart(selectedRepo.path)}
                   onBack={() => setSelectedRepo(null)}
                 />
               ) : (
@@ -725,41 +842,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--bg-elevated)]"
                     >
                       {repo.id}
-                      {repo.configWarning && (
-                        <span title={repo.configWarning}>
-                          <AlertTriangle className="size-3.5 shrink-0 text-[var(--accent-amber)]" />
-                        </span>
-                      )}
                     </button>
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Hook error panel */}
-          {hookError && (
-            <div className="absolute left-0 top-full z-20 mt-1 w-72 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] p-3 shadow-lg">
-              <p className="mb-2 text-xs text-[var(--accent-red)]">
-                {hookError}
-              </p>
-              <div className="flex flex-col gap-1.5">
-                <button
-                  onClick={() => {
-                    setHookError(null);
-                    handleDeleteWorktree(true);
-                  }}
-                  className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
-                >
-                  Delete anyway
-                </button>
-                <button
-                  onClick={() => setHookError(null)}
-                  className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
           )}
 
@@ -775,57 +861,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                   </p>
                   <div className="flex flex-col gap-1.5">
                     <button
-                      onClick={() => handleExistingBranch(false)}
-                      className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
-                    >
-                      Use existing branch
-                    </button>
-                    <button
-                      onClick={() => handleExistingBranch(true)}
-                      className="rounded bg-[var(--accent-amber)]/20 px-2 py-1 text-xs text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30"
-                    >
-                      Reset to base
-                    </button>
-                    <button
-                      onClick={() => setBranchError(null)}
-                      className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              )}
-              {branchError.type === "not-found" && (
-                <>
-                  <p className="mb-2 text-xs text-[var(--accent-red)]">
-                    Base branch{" "}
-                    <span className="font-medium">{branchError.branch}</span>{" "}
-                    not found.
-                  </p>
-                  <button
-                    onClick={() => setBranchError(null)}
-                    className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:bg-[var(--bg-elevated)]"
-                  >
-                    Dismiss
-                  </button>
-                </>
-              )}
-              {branchError.type === "unpushed" && (
-                <>
-                  <p className="mb-2 text-xs text-[var(--accent-amber)]">
-                    Branch{" "}
-                    <span className="font-medium">{branchError.branch}</span>{" "}
-                    has unpushed commits. Reset anyway?
-                  </p>
-                  <div className="flex flex-col gap-1.5">
-                    <button
-                      onClick={() => handleExistingBranch(true, true)}
-                      className="rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30"
-                    >
-                      Force reset
-                    </button>
-                    <button
-                      onClick={() => handleExistingBranch(false)}
+                      onClick={() => handleExistingBranch()}
                       className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
                     >
                       Use existing branch

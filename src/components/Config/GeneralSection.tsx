@@ -1,5 +1,8 @@
 import { Settings2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { cmuxPing } from "../../lib/tauri";
+import { TERMINAL_EMULATORS } from "../../types";
 import type { CodeEditor, Theme, TerminalEmulator } from "../../types";
 
 const EDITORS: { value: CodeEditor; label: string }[] = [
@@ -15,14 +18,22 @@ const THEMES: { value: Theme; label: string }[] = [
   { value: "system", label: "System" },
 ];
 
-const TERMINAL_EMULATORS: { value: TerminalEmulator; label: string }[] = [
-  { value: "ghostty", label: "Ghostty" },
-  { value: "iterm2", label: "iTerm2" },
+const TERMINAL_OPTIONS: { value: TerminalEmulator; label: string }[] = [
+  { value: TERMINAL_EMULATORS.GHOSTTY, label: "Ghostty" },
+  { value: TERMINAL_EMULATORS.ITERM2, label: "iTerm2" },
+  { value: TERMINAL_EMULATORS.CMUX, label: "cmux" },
 ];
 
 export function GeneralSection() {
   const config = useSettingsStore((s) => s.config);
   const setConfig = useSettingsStore((s) => s.setConfig);
+
+  const { data: cmuxAvailable = false } = useQuery<boolean>({
+    queryKey: ["cmux-ping"],
+    queryFn: cmuxPing,
+    staleTime: 30_000,
+    retry: false,
+  });
 
   function handleEditorChange(editor: CodeEditor) {
     setConfig({ ...config, editor });
@@ -119,12 +130,24 @@ export function GeneralSection() {
             }
             className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
-            {TERMINAL_EMULATORS.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
+            {TERMINAL_OPTIONS.map((t) => {
+              const disabled =
+                t.value === TERMINAL_EMULATORS.CMUX && !cmuxAvailable;
+              return (
+                <option key={t.value} value={t.value} disabled={disabled}>
+                  {t.value === TERMINAL_EMULATORS.CMUX && !cmuxAvailable
+                    ? "cmux (not detected — install and launch cmux)"
+                    : t.label}
+                </option>
+              );
+            })}
           </select>
+          {config.terminal === TERMINAL_EMULATORS.CMUX && !cmuxAvailable && (
+            <p className="mt-2 text-xs text-[var(--text-muted)]">
+              cmux is not detected. Install cmux and launch it before using it
+              as a terminal backend.
+            </p>
+          )}
         </div>
       </section>
     </div>

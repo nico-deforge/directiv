@@ -2,18 +2,26 @@ import { IssueRelationType } from "@linear/sdk";
 import { toast } from "sonner";
 import { getValidLinearClient } from "./linearAuth";
 import {
-  worktreeCreate,
-  worktreeList,
-  worktreeRemove,
+  wtList,
+  wtSwitchCreate,
   tmuxCreateSession,
   tmuxKillSession,
   tmuxListSessions,
   tmuxSendKeys,
   tmuxWaitForReady,
   openTerminal,
-  runHooks,
   getPluginDir,
+  cmuxCloseWorkspace,
 } from "./tauri";
+import {
+  pushProgress,
+  pushLog,
+  clearSidebarProgress,
+  clearSidebarLog,
+  CMUX_PROGRESS,
+  CMUX_LOG_LEVELS,
+} from "./cmuxSidebar";
+import { wtRemove } from "./tauriWt";
 import { toSessionName } from "./tmux-utils";
 import type {
   ActionKey,
@@ -27,27 +35,12 @@ import type {
 
 export class BranchExistsError extends Error {
   branchName: string;
-  baseBranch: string | undefined;
   repoPath: string;
-  constructor(
-    branchName: string,
-    baseBranch: string | undefined,
-    repoPath: string,
-  ) {
+  constructor(branchName: string, repoPath: string) {
     super(`Branch '${branchName}' already exists`);
     this.name = "BranchExistsError";
     this.branchName = branchName;
-    this.baseBranch = baseBranch;
     this.repoPath = repoPath;
-  }
-}
-
-export class BaseNotFoundError extends Error {
-  baseName: string;
-  constructor(baseName: string) {
-    super(`Base branch '${baseName}' not found`);
-    this.name = "BaseNotFoundError";
-    this.baseName = baseName;
   }
 }
 
@@ -62,52 +55,18 @@ export class BranchCheckedOutError extends Error {
   }
 }
 
-export class BranchHasUnpushedError extends Error {
-  branchName: string;
-  constructor(branchName: string) {
-    super(`Branch '${branchName}' has unpushed commits`);
-    this.name = "BranchHasUnpushedError";
-    this.branchName = branchName;
-  }
-}
-
-export class HookFailedError extends Error {
-  hookCmd: string;
-  stderr: string;
-  constructor(hookCmd: string, stderr: string) {
-    super(`Hook \`${hookCmd}\` failed: ${stderr}`);
-    this.name = "HookFailedError";
-    this.hookCmd = hookCmd;
-    this.stderr = stderr;
-  }
-}
-
-function parseHookError(err: unknown): Error {
+function parseWorktreeError(err: unknown, repoPath: string): Error {
   const msg = err instanceof Error ? err.message : String(err);
-  const match = msg.match(/^Hook `(.+?)` failed:\s*([\s\S]*)$/);
-  if (match) {
-    return new HookFailedError(match[1], match[2]);
+  // wt switch --create emits "already exists" when the branch is present
+  if (msg.includes("already exists")) {
+    const match = msg.match(/branch['"` ]+([^\s'"` ]+)/i);
+    const branch = match?.[1] ?? "";
+    return new BranchExistsError(branch, repoPath);
   }
-  return err instanceof Error ? err : new Error(msg);
-}
-
-function parseWorktreeError(
-  err: unknown,
-  baseBranch: string | undefined,
-  repoPath: string,
-): Error {
-  const msg = err instanceof Error ? err.message : String(err);
-  if (msg.includes("BRANCH_EXISTS:")) {
-    const branch = msg.split("BRANCH_EXISTS:")[1];
-    return new BranchExistsError(branch, baseBranch, repoPath);
-  }
-  if (msg.includes("BASE_NOT_FOUND:")) {
-    const base = msg.split("BASE_NOT_FOUND:")[1];
-    return new BaseNotFoundError(base);
-  }
-  if (msg.includes("BRANCH_HAS_UNPUSHED:")) {
-    const branch = msg.split("BRANCH_HAS_UNPUSHED:")[1];
-    return new BranchHasUnpushedError(branch);
+  // wt remove / switch: branch is already checked out in another worktree
+  if (msg.includes("already checked out")) {
+    const pathMatch = msg.match(/in (.+)$/);
+    return new BranchCheckedOutError("", pathMatch?.[1]?.trim() ?? repoPath);
   }
   return err instanceof Error ? err : new Error(msg);
 }
@@ -128,29 +87,26 @@ const SKILL_FIELD: Record<SkillKey, ActionKey> = {
 
 export function resolveSkill(
   key: SkillKey,
-  repoOverrides?: SkillOverrides,
   globalOverrides?: SkillOverrides,
 ): string {
   const field = SKILL_FIELD[key];
-  return repoOverrides?.[field] ?? globalOverrides?.[field] ?? SKILLS[key];
+  return globalOverrides?.[field] ?? SKILLS[key];
 }
 
 export function resolveModel(
   key: SkillKey,
-  repoOverrides?: ModelOverrides,
   globalOverrides?: ModelOverrides,
 ): ClaudeModel | undefined {
   const field = SKILL_FIELD[key];
-  return repoOverrides?.[field] ?? globalOverrides?.[field];
+  return globalOverrides?.[field];
 }
 
 export function isOverriddenSkill(
   key: SkillKey,
-  repoOverrides?: SkillOverrides,
   globalOverrides?: SkillOverrides,
 ): boolean {
   const field = SKILL_FIELD[key];
-  return !!(repoOverrides?.[field] ?? globalOverrides?.[field]);
+  return !!globalOverrides?.[field];
 }
 
 export async function sendSkillToSession(
@@ -192,10 +148,6 @@ export interface StartTaskParams {
   repoPath: string;
   terminal: string;
   terminalLayout?: TerminalLayout;
-  copyPaths?: string[];
-  onStart?: string[];
-  baseBranch?: string;
-  fetchBefore?: boolean;
   skill?: string;
   usePlugin?: boolean;
   model?: ClaudeModel;
@@ -204,82 +156,100 @@ export interface StartTaskParams {
 async function ensureWorktree(
   repoPath: string,
   branchName: string,
-  copyPaths?: string[],
-  baseBranch?: string,
-  fetchBefore?: boolean,
 ): Promise<{ path: string }> {
-  const worktrees = await worktreeList(repoPath);
-  const existingIndex = worktrees.findIndex((w) => w.branch === branchName);
-  if (existingIndex > 0) return worktrees[existingIndex];
-  if (existingIndex === 0) {
-    throw new BranchCheckedOutError(branchName, worktrees[0].path);
+  const worktrees = await wtList(repoPath);
+  const existing = worktrees.find((w) => w.branch === branchName);
+  if (existing) {
+    if (worktrees.indexOf(existing) === 0) {
+      throw new BranchCheckedOutError(branchName, existing.path);
+    }
+    return existing;
   }
   try {
-    return await worktreeCreate(
-      repoPath,
-      branchName,
-      copyPaths,
-      baseBranch,
-      fetchBefore,
-    );
+    return await wtSwitchCreate(repoPath, branchName);
   } catch (err) {
-    throw parseWorktreeError(err, baseBranch, repoPath);
+    throw parseWorktreeError(err, repoPath);
   }
 }
 
 async function ensureSession(
   sessionName: string,
   worktreePath: string,
-  onStart?: string[],
   claudeCmd?: string,
 ): Promise<void> {
   const sessions = await tmuxListSessions();
   if (sessions.find((s) => s.name === sessionName)) return;
 
-  if (onStart && onStart.length > 0) {
-    await runHooks(onStart, worktreePath);
-  }
   await tmuxCreateSession(sessionName, worktreePath);
   try {
     await tmuxWaitForReady(sessionName);
     const cmd = claudeCmd ?? (await buildClaudeCommand());
     await tmuxSendKeys(sessionName, cmd);
   } catch (err) {
-    await tmuxKillSession(sessionName).catch(() => {});
+    await tmuxKillSession(sessionName).catch((e) => {
+      console.warn("[ensureSession] cleanup failed:", e);
+    });
     throw err;
   }
 }
 
+// --- cmux session management (bypasses tmux) ---
+
+// For cmux, there is no tmux session. The workspace is created and Claude is
+// launched entirely within CmuxController.create(), which receives the Claude
+// command via TerminalConfig.command. This function delegates to openTerminal,
+// passing the Claude command as the `session` parameter — the Rust
+// open_terminal handler maps it to TerminalConfig.command so
+// CmuxController.create() can send it as the startup command.
+async function ensureSessionCmux(
+  identifier: string,
+  worktreePath: string,
+  claudeCmd: string,
+  terminal: string,
+  terminalLayout: TerminalLayout | undefined,
+): Promise<void> {
+  await openTerminal(
+    terminal,
+    claudeCmd,
+    identifier,
+    worktreePath,
+    terminalLayout,
+  );
+}
+
 export interface RemoveWorktreeFlowParams {
   repoPath: string;
-  worktreePath: string;
-  branch?: string;
+  branch: string;
   sessionName?: string;
-  beforeRemove?: string[];
-  deleteBranch?: boolean;
-  skipHooks?: boolean;
+  terminal?: string;
 }
 
 export async function removeWorktreeFlow({
   repoPath,
-  worktreePath,
   branch,
   sessionName,
-  beforeRemove,
-  deleteBranch = true,
-  skipHooks = false,
+  terminal,
 }: RemoveWorktreeFlowParams): Promise<void> {
-  if (!skipHooks && beforeRemove && beforeRemove.length > 0) {
-    try {
-      await runHooks(beforeRemove, worktreePath);
-    } catch (err) {
-      throw parseHookError(err);
+  if (terminal === "cmux") {
+    // For cmux, close the workspace by identifier (workspace name = identifier).
+    // sessionName is the tmux session name convention — for cmux the workspace
+    // name matches the identifier, not the sessionName.
+    const workspaceName = branch ?? sessionName;
+    if (workspaceName) {
+      // Clear sidebar progress and logs before closing workspace.
+      // Best-effort — errors are ignored inside clear helpers.
+      void clearSidebarProgress(workspaceName);
+      void clearSidebarLog(workspaceName);
+      await cmuxCloseWorkspace(workspaceName).catch((e) => {
+        console.warn("[removeWorktreeFlow] close workspace failed:", e);
+      });
     }
+  } else if (sessionName) {
+    await tmuxKillSession(sessionName).catch((e) => {
+      console.warn("[removeWorktreeFlow] kill session failed:", e);
+    });
   }
-  if (sessionName) {
-    await tmuxKillSession(sessionName).catch(() => {});
-  }
-  await worktreeRemove(repoPath, worktreePath, branch, deleteBranch);
+  await wtRemove(repoPath, branch);
 }
 
 export function openTerminalWithToast(
@@ -304,38 +274,49 @@ export async function startTask({
   repoPath,
   terminal,
   terminalLayout,
-  copyPaths,
-  onStart,
-  baseBranch,
-  fetchBefore,
   skill,
   usePlugin,
   model,
 }: StartTaskParams): Promise<void> {
-  const worktree = await ensureWorktree(
-    repoPath,
-    identifier,
-    copyPaths,
-    baseBranch,
-    fetchBefore,
-  );
+  const worktree = await ensureWorktree(repoPath, identifier);
 
-  const sessionName = toSessionName(identifier);
+  // Step 1: worktree created — 20% progress
+  if (terminal === "cmux") {
+    void pushProgress(identifier, CMUX_PROGRESS.WORKTREE_CREATED);
+    void pushLog(identifier, CMUX_LOG_LEVELS.INFO, "Worktree created");
+  }
+
   const claudeCmd = await buildClaudeCommand(
     skill,
     identifier,
     usePlugin,
     model,
   );
-  await ensureSession(sessionName, worktree.path, onStart, claudeCmd);
 
-  openTerminalWithToast(
-    terminal,
-    sessionName,
-    identifier,
-    worktree.path,
-    terminalLayout,
-  );
+  if (terminal === "cmux") {
+    // cmux manages its own sessions — no tmux required.
+    // CmuxController.create() creates the workspace and launches Claude.
+    await ensureSessionCmux(
+      identifier,
+      worktree.path,
+      claudeCmd,
+      terminal,
+      terminalLayout,
+    );
+    // Step 2: Claude launched — 40% progress
+    void pushProgress(identifier, CMUX_PROGRESS.CLAUDE_LAUNCHED);
+    void pushLog(identifier, CMUX_LOG_LEVELS.INFO, "Claude launched");
+  } else {
+    const sessionName = toSessionName(identifier);
+    await ensureSession(sessionName, worktree.path, claudeCmd);
+    openTerminalWithToast(
+      terminal,
+      sessionName,
+      identifier,
+      worktree.path,
+      terminalLayout,
+    );
+  }
 
   await updateLinearStatusToStarted(issueId).catch((err) => {
     toast.warning(
@@ -349,10 +330,6 @@ interface StartFreeTaskParams {
   repoPath: string;
   terminal: string;
   terminalLayout?: TerminalLayout;
-  copyPaths?: string[];
-  onStart?: string[];
-  baseBranch?: string;
-  fetchBefore?: boolean;
 }
 
 export async function startFreeTask({
@@ -360,29 +337,29 @@ export async function startFreeTask({
   repoPath,
   terminal,
   terminalLayout,
-  copyPaths,
-  onStart,
-  baseBranch,
-  fetchBefore,
 }: StartFreeTaskParams): Promise<void> {
-  const worktree = await ensureWorktree(
-    repoPath,
-    branchName,
-    copyPaths,
-    baseBranch,
-    fetchBefore,
-  );
+  const worktree = await ensureWorktree(repoPath, branchName);
 
-  const sessionName = toSessionName(branchName);
-  await ensureSession(sessionName, worktree.path, onStart);
-
-  openTerminalWithToast(
-    terminal,
-    sessionName,
-    branchName,
-    worktree.path,
-    terminalLayout,
-  );
+  if (terminal === "cmux") {
+    const claudeCmd = await buildClaudeCommand();
+    await ensureSessionCmux(
+      branchName,
+      worktree.path,
+      claudeCmd,
+      terminal,
+      terminalLayout,
+    );
+  } else {
+    const sessionName = toSessionName(branchName);
+    await ensureSession(sessionName, worktree.path);
+    openTerminalWithToast(
+      terminal,
+      sessionName,
+      branchName,
+      worktree.path,
+      terminalLayout,
+    );
+  }
 }
 
 async function updateLinearStatusToStarted(issueId: string): Promise<void> {

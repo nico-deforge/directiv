@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { worktreeList, worktreeCreate } from "../lib/tauri";
+import { wtList } from "../lib/tauri";
 import {
   removeWorktreeFlow,
   type RemoveWorktreeFlowParams,
@@ -20,14 +20,14 @@ export function useAllWorktrees(repos: DiscoveredRepo[]) {
       const results: RepoWorktrees[] = [];
       for (const repo of repos) {
         try {
-          const worktrees = await worktreeList(repo.path);
+          const worktrees = await wtList(repo.path);
           results.push({
             repoId: repo.id,
             repoPath: repo.path,
             worktrees,
           });
-        } catch {
-          // Skip repos that fail
+        } catch (err) {
+          console.warn("[useAllWorktrees]", repo.path, err);
         }
       }
       return results;
@@ -40,25 +40,9 @@ export function useAllWorktrees(repos: DiscoveredRepo[]) {
 export function useWorktrees(repoPath: string) {
   return useQuery<WorktreeInfo[]>({
     queryKey: ["worktrees", repoPath],
-    queryFn: () => worktreeList(repoPath),
+    queryFn: () => wtList(repoPath),
     enabled: !!repoPath,
     refetchInterval: LOCAL_REFRESH_INTERVAL_SLOW,
-  });
-}
-
-export function useWorktreeCreate() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      repoPath,
-      issueId,
-      copyPaths,
-    }: {
-      repoPath: string;
-      issueId: string;
-      copyPaths?: string[];
-    }) => worktreeCreate(repoPath, issueId, copyPaths),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["worktrees"] }),
   });
 }
 
@@ -69,7 +53,7 @@ export function useWorktreeRemove() {
       removeWorktreeFlow(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
-      queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
     },
   });
 }

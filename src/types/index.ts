@@ -78,6 +78,17 @@ export interface TmuxSession {
 
 // --- Git Worktrees ---
 
+export const WT_CI_STATUSES = {
+  PASSED: "passed",
+  RUNNING: "running",
+  FAILED: "failed",
+  CONFLICTS: "conflicts",
+  NO_CI: "no-ci",
+  ERROR: "error",
+} as const;
+
+export type WtCiStatus = (typeof WT_CI_STATUSES)[keyof typeof WT_CI_STATUSES];
+
 export interface WorktreeInfo {
   branch: string;
   path: string;
@@ -86,6 +97,13 @@ export interface WorktreeInfo {
   ahead: number;
   behind: number;
   baseBranch: string | null;
+  mainState: string | null;
+  remoteAhead: number;
+  ciStatus: WtCiStatus | null;
+  ciUrl: string | null;
+  ciStale: boolean | null;
+  devUrl: string | null;
+  devUrlActive: boolean | null;
 }
 
 // --- GitHub ---
@@ -184,7 +202,14 @@ export const TERMINAL_LAYOUTS = {
 export type TerminalLayout =
   (typeof TERMINAL_LAYOUTS)[keyof typeof TERMINAL_LAYOUTS];
 
-export type TerminalEmulator = "ghostty" | "iterm2";
+export const TERMINAL_EMULATORS = {
+  GHOSTTY: "ghostty",
+  ITERM2: "iterm2",
+  CMUX: "cmux",
+} as const;
+
+export type TerminalEmulator =
+  (typeof TERMINAL_EMULATORS)[keyof typeof TERMINAL_EMULATORS];
 export type CodeEditor = "zed" | "cursor" | "vscode" | "code";
 export type Theme = "light" | "dark" | "system";
 
@@ -213,14 +238,37 @@ export interface DiscoveredRepo {
   id: string;
   path: string;
   workspaceId: string;
-  copyPaths: string[];
-  onStart: string[];
-  beforeRemove: string[];
-  fetchBefore: boolean;
-  configWarning?: string;
-  skills?: SkillOverrides;
-  models?: ModelOverrides;
   githubNwo?: string;
+}
+
+// --- Cmux types ---
+
+export const NOTIFICATION_CATEGORIES = {
+  PERMISSION: "permission",
+  QUESTION: "question",
+  ERROR: "error",
+  COMPLETED: "completed",
+  WAITING: "waiting",
+  ATTENTION: "attention",
+} as const;
+
+export type NotificationCategory =
+  (typeof NOTIFICATION_CATEGORIES)[keyof typeof NOTIFICATION_CATEGORIES];
+
+export interface CmuxNotification {
+  title: string;
+  subtitle: string | null;
+  body: string | null;
+  workspaceId: string;
+  category: NotificationCategory;
+}
+
+// --- Task with context (used by cmux sync hooks) ---
+
+export interface TaskWithContext {
+  task: EnrichedTask;
+  worktree: WorktreeInfo | null;
+  pullRequest: PullRequestInfo | null;
 }
 
 export interface LinearOrgConfig {
