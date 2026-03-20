@@ -103,10 +103,8 @@ function DependencyGraphInner() {
   const repos = useWorkspaceRepos();
 
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
-  const projects = useProjectStore((s) => s.projects);
-  const selectedProjectUrl = useMemo(
-    () => projects.find((p) => p.id === selectedProjectId)?.url ?? null,
-    [projects, selectedProjectId],
+  const selectedProjectUrl = useProjectStore(
+    (s) => s.projects.find((p) => p.id === s.selectedProjectId)?.url ?? null,
   );
 
   const { data: linearProjects } = useLinearMyProjects();
