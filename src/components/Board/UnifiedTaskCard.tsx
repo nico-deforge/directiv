@@ -154,6 +154,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const [killingSession, setKillingSession] = useState(false);
   const [deletingWorktree, setDeletingWorktree] = useState(false);
   const [mergingWorktree, setMergingWorktree] = useState(false);
+  const [confirmingMerge, setConfirmingMerge] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
@@ -234,6 +235,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   async function handleMerge() {
     if (!worktree || !worktreeRepoPath) return;
+    setConfirmingMerge(false);
     setMergingWorktree(true);
     try {
       // Kill tmux session before merging (wt merge removes the worktree)
@@ -648,9 +650,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           {workflowStatus === "to-deploy" &&
             worktree &&
             worktreeRepoPath &&
-            !confirmingDelete && (
+            !confirmingDelete &&
+            !confirmingMerge && (
               <button
-                onClick={handleMerge}
+                onClick={() => setConfirmingMerge(true)}
                 disabled={isLoading}
                 className="flex items-center gap-1 rounded bg-[var(--accent-green)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-green)] hover:bg-[var(--accent-green)]/30 disabled:opacity-50"
                 title="Merge locally via wt merge"
@@ -662,6 +665,27 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                 )}
               </button>
             )}
+
+          {/* Merge confirmation */}
+          {confirmingMerge && (
+            <span className="flex items-center gap-2 text-xs">
+              <span className="text-[var(--text-muted)]">Confirm merge?</span>
+              <button
+                onClick={handleMerge}
+                disabled={mergingWorktree}
+                className="text-[var(--accent-green)] hover:opacity-80 disabled:opacity-50"
+              >
+                {mergingWorktree ? "Merging..." : "Yes"}
+              </button>
+              <span className="text-[var(--text-muted)]">/</span>
+              <button
+                onClick={() => setConfirmingMerge(false)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                No
+              </button>
+            </span>
+          )}
 
           {/* Kill Session button */}
           {hasSession && !confirmingDelete && (
