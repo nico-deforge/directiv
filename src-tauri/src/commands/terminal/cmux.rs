@@ -147,14 +147,13 @@ impl TerminalController for CmuxController {
     ///
     /// Flow:
     /// 1. `cmux new-workspace --name <identifier> --json` → captures workspace ID
-    /// 2. Wait 200ms for shell readiness (`.zshrc` etc.) — no cmux equivalent of `tmux wait-for`
-    /// 3. `cmux send --workspace <id> "cd <worktree_path>\r"` → navigate to worktree
-    /// 4. If `config.command` is set: `cmux send --workspace <id> "<command>\r"` → run it
+    /// 2. `cmux send --workspace <id> "cd <worktree_path>\r"` → navigate to worktree
+    /// 3. If `config.command` is set: `cmux send --workspace <id> "<command>\r"` → run it
     ///
     /// # Assumptions
     /// - `cmux new-workspace --name <name> --json` returns a JSON object with `"id"` field.
     /// - `cmux send --workspace <uuid>` correctly targets the named workspace.
-    /// - 200ms is sufficient for shell readiness after workspace creation (configurable if needed).
+    /// - `cmux new-workspace` returns after the shell is ready (prompt displayed).
     async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
         check_cmux_available(app).await?;
 
@@ -179,10 +178,6 @@ impl TerminalController for CmuxController {
                     config.identifier.clone()
                 }
             });
-
-        // Wait for shell readiness — cmux new-workspace is synchronous but the shell
-        // (zsh/bash with .zshrc) needs a moment to finish initialization.
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
         // Inject DIRECTIV env vars before cd/claude so the shell has them set.
         for (key, value) in &config.env_vars {
