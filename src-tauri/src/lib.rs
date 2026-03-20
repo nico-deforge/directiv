@@ -52,6 +52,8 @@ pub fn run() {
             commands::github::gh_check_repo_access,
             commands::wt::wt_version,
             commands::wt::wt_list,
+            commands::wt::wt_switch_create,
+            commands::wt::wt_remove,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
