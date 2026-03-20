@@ -48,6 +48,13 @@ interface WtWorktreeInfoRaw {
   devUrlActive: boolean | null;
 }
 
+export async function wtMerge(
+  repoPath: string,
+  branchName: string,
+): Promise<void> {
+  return invoke<void>("wt_merge", { repoPath, branchName });
+}
+
 export async function wtSwitchCreate(
   repoPath: string,
   branchName: string,

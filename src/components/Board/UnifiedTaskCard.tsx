@@ -44,7 +44,12 @@ import {
   openTerminalWithToast,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { openEditor, tmuxKillSession, wtSwitchCreate } from "../../lib/tauri";
+import {
+  openEditor,
+  tmuxKillSession,
+  wtMerge,
+  wtSwitchCreate,
+} from "../../lib/tauri";
 import { BranchSelector } from "../shared/BranchSelector";
 import { QuickPeek } from "./QuickPeek";
 
@@ -148,6 +153,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   const [killingSession, setKillingSession] = useState(false);
   const [deletingWorktree, setDeletingWorktree] = useState(false);
+  const [mergingWorktree, setMergingWorktree] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
@@ -163,7 +169,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   const hasSession = session !== null;
   const isLoading =
-    startTask.isPending || killingSession || deletingWorktree || sendingSkill;
+    startTask.isPending ||
+    killingSession ||
+    deletingWorktree ||
+    mergingWorktree ||
+    sendingSkill;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
   const claudeWaiting =
@@ -219,6 +229,24 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       toastError(err);
     } finally {
       setDeletingWorktree(false);
+    }
+  }
+
+  async function handleMerge() {
+    if (!worktree || !worktreeRepoPath) return;
+    setMergingWorktree(true);
+    try {
+      // Kill tmux session before merging (wt merge removes the worktree)
+      if (session) {
+        await tmuxKillSession(session.name);
+      }
+      await wtMerge(worktreeRepoPath, worktree.branch);
+      queryClient.invalidateQueries({ queryKey: ["worktrees"] });
+      queryClient.invalidateQueries({ queryKey: ["tmux"] });
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setMergingWorktree(false);
     }
   }
 
@@ -615,6 +643,25 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               Editor
             </button>
           )}
+
+          {/* Merge button — shown on approved cards with a worktree */}
+          {workflowStatus === "to-deploy" &&
+            worktree &&
+            worktreeRepoPath &&
+            !confirmingDelete && (
+              <button
+                onClick={handleMerge}
+                disabled={isLoading}
+                className="flex items-center gap-1 rounded bg-[var(--accent-green)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-green)] hover:bg-[var(--accent-green)]/30 disabled:opacity-50"
+                title="Merge locally via wt merge"
+              >
+                {mergingWorktree ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  "Merge"
+                )}
+              </button>
+            )}
 
           {/* Kill Session button */}
           {hasSession && !confirmingDelete && (
