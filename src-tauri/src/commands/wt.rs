@@ -99,6 +99,72 @@ pub struct WtWorktreeInfo {
     pub main_state: Option<String>,
 }
 
+// --- Output types for wt_switch_create ---
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WtSwitchCreateResult {
+    pub path: String,
+}
+
+// --- wt_switch_create command ---
+
+/// Create a worktree for `branch_name` rooted at `repo_path` using `wt switch --create`.
+/// Returns the path of the newly created worktree.
+#[tauri::command]
+pub async fn wt_switch_create(
+    app: tauri::AppHandle,
+    repo_path: String,
+    branch_name: String,
+) -> Result<WtSwitchCreateResult, String> {
+    let stdout = run_wt(
+        &app,
+        &[
+            "switch",
+            "--create",
+            "--no-cd",
+            "-C",
+            &repo_path,
+            &branch_name,
+        ],
+    )
+    .await?;
+
+    // wt switch --create --no-cd prints the worktree path on stdout.
+    let path = String::from_utf8_lossy(&stdout).trim().to_string();
+
+    if !path.is_empty() {
+        return Ok(WtSwitchCreateResult { path });
+    }
+
+    // Fallback: resolve the path via `wt list --format=json`.
+    let list_stdout = run_wt(&app, &["list", "--format=json", "-C", &repo_path]).await?;
+    let entries: Vec<WtListEntry> = serde_json::from_slice(&list_stdout)
+        .map_err(|e| format!("Failed to parse wt list output: {e}"))?;
+
+    let entry = entries
+        .into_iter()
+        .find(|e| e.branch.as_deref() == Some(&branch_name))
+        .ok_or_else(|| format!("Worktree for branch '{branch_name}' not found after creation"))?;
+
+    Ok(WtSwitchCreateResult { path: entry.path })
+}
+
+// --- wt_remove command ---
+
+/// Remove the worktree for `branch_name` rooted at `repo_path` using `wt remove`.
+/// Deletes the worktree directory and its branch.
+#[tauri::command]
+pub async fn wt_remove(
+    app: tauri::AppHandle,
+    repo_path: String,
+    branch_name: String,
+) -> Result<(), String> {
+    run_wt(&app, &["remove", "-C", &repo_path, "--yes", &branch_name]).await?;
+
+    Ok(())
+}
+
 // --- wt_list command ---
 
 #[tauri::command]
