@@ -8,7 +8,6 @@ pub struct DiscoveredRepo {
     pub id: String,
     pub path: String,
     pub github_nwo: Option<String>,
-    pub config_warning: Option<String>,
 }
 
 fn parse_github_nwo(url: &str) -> Option<String> {
@@ -73,23 +72,12 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
 
         let repo_path = entry_path.to_str().unwrap_or("").to_string();
 
-        // Warn if a legacy .directiv.json exists so users know to migrate
-        let config_warning = if entry_path.join(".directiv.json").exists() {
-            Some(format!(
-                "{}: .directiv.json found — migrate to .config/wt.toml",
-                entry_path.display()
-            ))
-        } else {
-            None
-        };
-
         let github_nwo = get_github_nwo(&repo_path);
 
         repos.push(DiscoveredRepo {
             id,
             path: repo_path,
             github_nwo,
-            config_warning,
         });
     }
 

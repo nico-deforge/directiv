@@ -1,16 +1,14 @@
-import { GitBranch, ChevronLeft, AlertTriangle } from "lucide-react";
+import { GitBranch, ChevronLeft } from "lucide-react";
 import { useWorktrees } from "../../hooks/useWorktrees";
 
 export function BranchSelector({
   repoPath,
   repoId,
-  configWarning,
   onSelect,
   onBack,
 }: {
   repoPath: string;
   repoId?: string;
-  configWarning?: string;
   onSelect: (baseBranch?: string) => void;
   onBack?: () => void;
 }) {
@@ -23,12 +21,6 @@ export function BranchSelector({
 
   return (
     <div className="min-w-48">
-      {configWarning && (
-        <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-[var(--accent-amber)]">
-          <AlertTriangle className="size-3 shrink-0" />
-          <span className="line-clamp-2">.directiv.json error</span>
-        </div>
-      )}
       {onBack && (
         <button
           onClick={onBack}

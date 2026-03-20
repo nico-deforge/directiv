@@ -420,40 +420,36 @@ function DependencyGraphInner() {
     terminalStatusMap,
   ]);
 
+  // Apply hover highlight as derived data (no effect needed)
+  const displayEdges = useMemo(() => {
+    if (!hoveredEdgeId) return nextEdges;
+    return nextEdges.map((edge) => {
+      if (edge.id !== hoveredEdgeId) return edge;
+      return {
+        ...edge,
+        style: {
+          ...edge.style,
+          stroke: EDGE_HIGHLIGHT_COLOR,
+          strokeWidth: 2,
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: EDGE_HIGHLIGHT_COLOR,
+          width: 14,
+          height: 14,
+        },
+      };
+    });
+  }, [nextEdges, hoveredEdgeId]);
+
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
+  // Sync computed graph to ReactFlow state
   useEffect(() => {
     setNodes(nextNodes);
-  }, [nextNodes, setNodes]);
-
-  // Update edges with highlight for hovered edge
-  useEffect(() => {
-    if (!hoveredEdgeId) {
-      setEdges(nextEdges);
-      return;
-    }
-
-    setEdges(
-      nextEdges.map((edge) => {
-        if (edge.id !== hoveredEdgeId) return edge;
-        return {
-          ...edge,
-          style: {
-            ...edge.style,
-            stroke: EDGE_HIGHLIGHT_COLOR,
-            strokeWidth: 2,
-          },
-          markerEnd: {
-            type: MarkerType.ArrowClosed,
-            color: EDGE_HIGHLIGHT_COLOR,
-            width: 14,
-            height: 14,
-          },
-        };
-      }),
-    );
-  }, [nextEdges, setEdges, hoveredEdgeId]);
+    setEdges(displayEdges);
+  }, [nextNodes, displayEdges, setNodes, setEdges]);
 
   // Build task lookup for optimistic updates
   const taskById = useMemo(() => {

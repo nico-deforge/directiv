@@ -3,6 +3,8 @@ import { cmuxListNotifications, type CmuxNotification } from "../lib/tauri";
 import { useSettingsStore } from "../stores/settingsStore";
 import { LOCAL_REFRESH_INTERVAL } from "../constants/intervals";
 
+const EMPTY_MAP = new Map<string, CmuxNotification>();
+
 /**
  * Poll cmux for agent state notifications when cmux is the configured terminal backend.
  *
@@ -31,5 +33,5 @@ export function useCmuxNotifications(): Map<string, CmuxNotification> {
     refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
 
-  return data ?? new Map();
+  return data ?? EMPTY_MAP;
 }

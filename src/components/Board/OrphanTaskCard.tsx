@@ -25,6 +25,7 @@ import {
   tmuxSendKeys,
   openTerminal,
   openEditor,
+  cmuxCloseWorkspace,
 } from "../../lib/tauri";
 import { buildClaudeCommand, openTerminalWithToast } from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
@@ -110,7 +111,11 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     if (!session) return;
     setKillingSession(true);
     try {
-      await tmuxKillSession(toSessionName(worktree.branch));
+      if (terminal === "cmux") {
+        await cmuxCloseWorkspace(toSessionName(worktree.branch));
+      } else {
+        await tmuxKillSession(toSessionName(worktree.branch));
+      }
       queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
     } catch {
       // Session may already be gone
