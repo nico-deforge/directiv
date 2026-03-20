@@ -212,34 +212,21 @@ pub async fn query_terminals(
     Ok(statuses)
 }
 
-/// Close a cmux workspace by name (identifier).
-///
-/// Finds the workspace with the given name via `cmux list-workspaces --json`, then
-/// closes it with `cmux close-workspace --workspace <id>`. If no matching workspace
-/// is found, succeeds silently (idempotent — matches `tmuxKillSession` behavior).
-#[tauri::command]
-pub async fn cmux_close_workspace(app: tauri::AppHandle, name: String) -> Result<(), String> {
-    let sessions = CmuxController.list_sessions(&app).await?;
-    let workspace_id = sessions
-        .into_iter()
-        .find(|(_id, workspace_name)| workspace_name == &name)
-        .map(|(id, _)| id);
-
-    if let Some(id) = workspace_id {
-        app.shell()
-            .command("cmux")
-            .args(["close-workspace", "--workspace", &id])
-            .output()
-            .await
-            .map_err(|e| format!("cmux close-workspace failed: {e}"))?;
-    }
-    // If workspace not found, succeed silently — already closed or never created.
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn cmux_close_workspace(app: tauri::AppHandle, name: String) -> Result<(), String> {
     cmux::close_workspace(&app, &name).await
+}
+
+/// Check whether cmux is installed and running via `cmux ping`.
+/// Returns true if cmux is available, false if not installed or not running.
+#[tauri::command]
+pub async fn cmux_ping(app: tauri::AppHandle) -> Result<bool, String> {
+    let output = app.shell().command("cmux").args(["ping"]).output().await;
+
+    match output {
+        Ok(out) => Ok(out.status.success()),
+        Err(_) => Ok(false), // cmux not installed
+    }
 }
 
 #[tauri::command]

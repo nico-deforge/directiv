@@ -214,6 +214,10 @@ export function cmuxCloseWorkspace(name: string): Promise<void> {
   return invoke<void>("cmux_close_workspace", { name });
 }
 
+export function cmuxPing(): Promise<boolean> {
+  return invoke<boolean>("cmux_ping");
+}
+
 // --- Editor commands ---
 
 export function openEditor(editor: string, path: string): Promise<void> {

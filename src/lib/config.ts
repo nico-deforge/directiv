@@ -4,9 +4,10 @@ import type {
   LinearOrgConfig,
   WorkspaceConfig,
 } from "../types";
+import { TERMINAL_EMULATORS } from "../types";
 
 export const defaultConfig: DirectivConfig = {
-  terminal: "ghostty",
+  terminal: TERMINAL_EMULATORS.GHOSTTY,
   editor: "zed",
   workspaces: [],
   linear: {},
