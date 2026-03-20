@@ -430,16 +430,7 @@ pub async fn set_status(
     value: &str,
 ) -> Result<(), String> {
     // If cmux is not available, skip silently — sidebar status is best-effort.
-    let available = app
-        .shell()
-        .command("cmux")
-        .args(["ping"])
-        .output()
-        .await
-        .map(|o| o.status.success())
-        .unwrap_or(false);
-
-    if !available {
+    if !is_cmux_available(app).await {
         return Ok(());
     }
 
