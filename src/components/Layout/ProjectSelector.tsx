@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { toast } from "sonner";
 import { toastError } from "../../lib/toast";
 import { Link } from "@tanstack/react-router";
 import {
@@ -38,7 +37,6 @@ import {
 } from "../../lib/tauri";
 import {
   removeWorktreeFlow,
-  HookFailedError,
   BranchExistsError,
   BaseNotFoundError,
 } from "../../lib/workflows";
@@ -808,24 +806,14 @@ function CleanupSection() {
       for (const sw of staleWorktrees) {
         const key = `${sw.repoPath}:${sw.worktree.branch}`;
         if (!selected.has(key)) continue;
-        const repo = repos.find((r) => r.path === sw.repoPath);
-        const params = {
-          repoPath: sw.repoPath,
-          worktreePath: sw.worktree.path,
-          branch: sw.worktree.branch,
-          deleteBranch: true,
-          sessionName: toSessionName(sw.worktree.branch),
-          beforeRemove: repo?.beforeRemove,
-        };
         try {
-          await removeWorktreeFlow(params);
+          await removeWorktreeFlow({
+            repoPath: sw.repoPath,
+            branch: sw.worktree.branch,
+            sessionName: toSessionName(sw.worktree.branch),
+          });
         } catch (err) {
-          if (err instanceof HookFailedError) {
-            toast.warning(`Hook skipped for ${sw.worktree.branch}`);
-            await removeWorktreeFlow({ ...params, skipHooks: true });
-          } else {
-            toastError(err);
-          }
+          toastError(err);
         }
       }
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
@@ -838,7 +826,7 @@ function CleanupSection() {
     } finally {
       setCleaning(false);
     }
-  }, [staleWorktrees, selected, repos, queryClient]);
+  }, [staleWorktrees, selected, queryClient]);
 
   function toggleSelection(key: string) {
     setSelected((prev) => {

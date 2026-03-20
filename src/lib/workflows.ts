@@ -4,7 +4,6 @@ import { getValidLinearClient } from "./linearAuth";
 import {
   worktreeCreate,
   worktreeList,
-  worktreeRemove,
   tmuxCreateSession,
   tmuxKillSession,
   tmuxListSessions,
@@ -14,6 +13,7 @@ import {
   runHooks,
   getPluginDir,
 } from "./tauri";
+import { wtRemove } from "./tauriWt";
 import { toSessionName } from "./tmux-utils";
 import type {
   ActionKey,
@@ -69,26 +69,6 @@ export class BranchHasUnpushedError extends Error {
     this.name = "BranchHasUnpushedError";
     this.branchName = branchName;
   }
-}
-
-export class HookFailedError extends Error {
-  hookCmd: string;
-  stderr: string;
-  constructor(hookCmd: string, stderr: string) {
-    super(`Hook \`${hookCmd}\` failed: ${stderr}`);
-    this.name = "HookFailedError";
-    this.hookCmd = hookCmd;
-    this.stderr = stderr;
-  }
-}
-
-function parseHookError(err: unknown): Error {
-  const msg = err instanceof Error ? err.message : String(err);
-  const match = msg.match(/^Hook `(.+?)` failed:\s*([\s\S]*)$/);
-  if (match) {
-    return new HookFailedError(match[1], match[2]);
-  }
-  return err instanceof Error ? err : new Error(msg);
 }
 
 function parseWorktreeError(
@@ -252,34 +232,19 @@ async function ensureSession(
 
 export interface RemoveWorktreeFlowParams {
   repoPath: string;
-  worktreePath: string;
-  branch?: string;
+  branch: string;
   sessionName?: string;
-  beforeRemove?: string[];
-  deleteBranch?: boolean;
-  skipHooks?: boolean;
 }
 
 export async function removeWorktreeFlow({
   repoPath,
-  worktreePath,
   branch,
   sessionName,
-  beforeRemove,
-  deleteBranch = true,
-  skipHooks = false,
 }: RemoveWorktreeFlowParams): Promise<void> {
-  if (!skipHooks && beforeRemove && beforeRemove.length > 0) {
-    try {
-      await runHooks(beforeRemove, worktreePath);
-    } catch (err) {
-      throw parseHookError(err);
-    }
-  }
   if (sessionName) {
     await tmuxKillSession(sessionName).catch(() => {});
   }
-  await worktreeRemove(repoPath, worktreePath, branch, deleteBranch);
+  await wtRemove(repoPath, branch);
 }
 
 export function openTerminalWithToast(
