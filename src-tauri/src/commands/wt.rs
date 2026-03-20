@@ -72,6 +72,10 @@ struct WtListEntry {
     path: String,
     working_tree: Option<WtWorkingTree>,
     main: Option<WtMain>,
+    main_state: Option<String>, // top-level field from wt list JSON
+    ci: Option<WtCi>,
+    url: Option<String>,
+    url_active: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -86,6 +90,13 @@ struct WtMain {
     state: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct WtCi {
+    status: Option<String>,
+    url: Option<String>,
+    stale: Option<bool>,
+}
+
 // --- Public output type ---
 
 #[derive(Debug, Serialize)]
@@ -97,6 +108,92 @@ pub struct WtWorktreeInfo {
     pub ahead: u32,
     pub behind: u32,
     pub main_state: Option<String>,
+    pub ci_status: Option<String>,
+    pub ci_url: Option<String>,
+    pub ci_stale: Option<bool>,
+    pub dev_url: Option<String>,
+    pub dev_url_active: Option<bool>,
+}
+
+// --- Output types for wt_switch_create ---
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WtSwitchCreateResult {
+    pub path: String,
+}
+
+// --- wt_switch_create command ---
+
+/// Create a worktree for `branch_name` rooted at `repo_path` using `wt switch --create`.
+/// Returns the path of the newly created worktree.
+#[tauri::command]
+pub async fn wt_switch_create(
+    app: tauri::AppHandle,
+    repo_path: String,
+    branch_name: String,
+) -> Result<WtSwitchCreateResult, String> {
+    let stdout = run_wt(
+        &app,
+        &[
+            "switch",
+            "--create",
+            "--no-cd",
+            "-C",
+            &repo_path,
+            &branch_name,
+        ],
+    )
+    .await?;
+
+    // wt switch --create --no-cd prints the worktree path on stdout.
+    let path = String::from_utf8_lossy(&stdout).trim().to_string();
+
+    if !path.is_empty() {
+        return Ok(WtSwitchCreateResult { path });
+    }
+
+    // Fallback: resolve the path via `wt list --format=json`.
+    let list_stdout = run_wt(&app, &["list", "--format=json", "-C", &repo_path]).await?;
+    let entries: Vec<WtListEntry> = serde_json::from_slice(&list_stdout)
+        .map_err(|e| format!("Failed to parse wt list output: {e}"))?;
+
+    let entry = entries
+        .into_iter()
+        .find(|e| e.branch.as_deref() == Some(&branch_name))
+        .ok_or_else(|| format!("Worktree for branch '{branch_name}' not found after creation"))?;
+
+    Ok(WtSwitchCreateResult { path: entry.path })
+}
+
+// --- wt_remove command ---
+
+/// Remove the worktree for `branch_name` rooted at `repo_path` using `wt remove`.
+/// Deletes the worktree directory and its branch.
+#[tauri::command]
+pub async fn wt_remove(
+    app: tauri::AppHandle,
+    repo_path: String,
+    branch_name: String,
+) -> Result<(), String> {
+    run_wt(&app, &["remove", "-C", &repo_path, "--yes", &branch_name]).await?;
+
+    Ok(())
+}
+
+// --- wt_merge command ---
+
+/// Merge and clean up a worktree for `branch_name` using `wt merge --yes`.
+/// Runs squash + rebase + fast-forward + cleanup in one step.
+#[tauri::command]
+pub async fn wt_merge(
+    app: tauri::AppHandle,
+    repo_path: String,
+    branch_name: String,
+) -> Result<(), String> {
+    run_wt(&app, &["merge", "-C", &repo_path, "--yes", &branch_name]).await?;
+
+    Ok(())
 }
 
 // --- wt_list command ---
@@ -120,10 +217,18 @@ pub async fn wt_list(
                 .working_tree
                 .and_then(|wt| wt.is_dirty)
                 .unwrap_or(true);
-            let (ahead, behind, main_state) = entry
+            let main_state = entry
+                .main_state
+                .or_else(|| entry.main.as_ref().and_then(|m| m.state.clone()));
+            let (ahead, behind) = entry
                 .main
-                .map(|m| (m.ahead.unwrap_or(0), m.behind.unwrap_or(0), m.state))
-                .unwrap_or((0, 0, None));
+                .map(|m| (m.ahead.unwrap_or(0), m.behind.unwrap_or(0)))
+                .unwrap_or((0, 0));
+            let ci_status = entry.ci.as_ref().and_then(|c| c.status.clone());
+            let ci_url = entry.ci.as_ref().and_then(|c| c.url.clone());
+            let ci_stale = entry.ci.as_ref().and_then(|c| c.stale);
+            let dev_url = entry.url.clone();
+            let dev_url_active = entry.url_active;
             Some(WtWorktreeInfo {
                 branch,
                 path: entry.path,
@@ -131,6 +236,11 @@ pub async fn wt_list(
                 ahead,
                 behind,
                 main_state,
+                ci_status,
+                ci_url,
+                ci_stale,
+                dev_url,
+                dev_url_active,
             })
         })
         .collect();

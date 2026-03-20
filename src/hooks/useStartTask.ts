@@ -24,10 +24,6 @@ interface StartFreeTaskParams {
   repoPath: string;
   terminal: string;
   terminalLayout?: TerminalLayout;
-  copyPaths?: string[];
-  onStart?: string[];
-  baseBranch?: string;
-  fetchBefore?: boolean;
 }
 
 export function useStartFreeTask() {

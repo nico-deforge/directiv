@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { toast } from "sonner";
 import { toastError } from "../../lib/toast";
 import { Link } from "@tanstack/react-router";
 import {
@@ -29,19 +28,8 @@ import {
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorkspaceRepos } from "../../hooks/useWorkspace";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import {
-  worktreeList,
-  worktreeCheckMerged,
-  tmuxKillSession,
-  tmuxListSessions,
-  gitFetchPrune,
-} from "../../lib/tauri";
-import {
-  removeWorktreeFlow,
-  HookFailedError,
-  BranchExistsError,
-  BaseNotFoundError,
-} from "../../lib/workflows";
+import { wtList, tmuxKillSession, tmuxListSessions } from "../../lib/tauri";
+import { removeWorktreeFlow, BranchExistsError } from "../../lib/workflows";
 import type {
   StaleWorktree,
   ReviewRequestedPR,
@@ -52,7 +40,7 @@ import {
   useIsGitHubConnected,
 } from "../../hooks/useGitHub";
 import { useStartFreeTask } from "../../hooks/useStartTask";
-import { worktreeCreateExistingBranch } from "../../lib/tauri";
+import { wtSwitchCreate } from "../../lib/tauri";
 import { toSessionName } from "../../lib/tmux-utils";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { BranchSelector } from "../shared/BranchSelector";
@@ -274,10 +262,6 @@ function NewWorktreeSection() {
         repoPath: repo.path,
         terminal,
         terminalLayout,
-        copyPaths: repo.copyPaths,
-        onStart: repo.onStart,
-        baseBranch,
-        fetchBefore: repo.fetchBefore,
       },
       {
         onSuccess: () => {
@@ -292,8 +276,6 @@ function NewWorktreeSection() {
               repoPath: err.repoPath,
               baseBranch: err.baseBranch,
             });
-          } else if (err instanceof BaseNotFoundError) {
-            toastError(`Base branch '${err.baseName}' not found`);
           } else {
             toastError(err);
           }
@@ -302,29 +284,18 @@ function NewWorktreeSection() {
     );
   }
 
-  async function handleUseExisting(resetToBase: boolean) {
+  async function handleUseExisting() {
     if (!branchExistsPrompt) return;
-    const { repoPath, baseBranch: promptBase } = branchExistsPrompt;
-    const repo = repos.find((r) => r.path === repoPath);
+    const { repoPath } = branchExistsPrompt;
     setBranchExistsPrompt(null);
     try {
-      await worktreeCreateExistingBranch(
-        repoPath,
-        branchName.trim(),
-        repo?.copyPaths,
-        promptBase,
-        resetToBase,
-      );
+      await wtSwitchCreate(repoPath, branchName.trim());
       startFreeTask.mutate(
         {
           branchName: branchName.trim(),
           repoPath,
           terminal,
           terminalLayout,
-          copyPaths: repo?.copyPaths,
-          onStart: repo?.onStart,
-          baseBranch: promptBase,
-          fetchBefore: false,
         },
         {
           onSuccess: () => {
@@ -434,16 +405,10 @@ function NewWorktreeSection() {
               </p>
               <div className="flex flex-col gap-1">
                 <button
-                  onClick={() => handleUseExisting(false)}
+                  onClick={() => handleUseExisting()}
                   className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-[10px] text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
                 >
                   Use existing
-                </button>
-                <button
-                  onClick={() => handleUseExisting(true)}
-                  className="rounded bg-[var(--accent-amber)]/20 px-2 py-1 text-[10px] text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30"
-                >
-                  Reset to base
                 </button>
                 <button
                   onClick={() => setBranchExistsPrompt(null)}
@@ -616,7 +581,7 @@ function OrphanSessionsSection() {
       const allBranches = new Set<string>();
       for (const repo of repos) {
         try {
-          const worktrees = await worktreeList(repo.path);
+          const worktrees = await wtList(repo.path);
           // Skip main worktree (index 0)
           for (const wt of worktrees.slice(1)) {
             allBranches.add(wt.branch.toLowerCase());
@@ -755,29 +720,17 @@ function CleanupSection() {
   const scanForStale = useCallback(async () => {
     setScanning(true);
     try {
-      // Fetch all repos in parallel
-      await Promise.allSettled(repos.map((repo) => gitFetchPrune(repo.path)));
-
-      // Check all repos and their worktrees in parallel
+      // Use wt list data directly — mainState reflects merge status
       const repoResults = await Promise.all(
         repos.map(async (repo) => {
           try {
-            const worktrees = await worktreeList(repo.path);
-            const mergeChecks = await Promise.allSettled(
-              worktrees.slice(1).map(async (wt) => {
-                const merged = await worktreeCheckMerged(
-                  repo.path,
-                  wt.branch,
-                  wt.baseBranch ?? undefined,
-                );
-                return { wt, merged };
-              }),
-            );
+            const worktrees = await wtList(repo.path);
             const repoStale: StaleWorktree[] = [];
-            for (const result of mergeChecks) {
-              if (result.status === "fulfilled" && result.value.merged) {
+            // Skip main worktree (index 0), check mainState for merged/empty
+            for (const wt of worktrees.slice(1)) {
+              if (wt.mainState === "integrated" || wt.mainState === "empty") {
                 repoStale.push({
-                  worktree: result.value.wt,
+                  worktree: wt,
                   repoId: repo.id,
                   repoPath: repo.path,
                 });
@@ -809,25 +762,15 @@ function CleanupSection() {
       for (const sw of staleWorktrees) {
         const key = `${sw.repoPath}:${sw.worktree.branch}`;
         if (!selected.has(key)) continue;
-        const repo = repos.find((r) => r.path === sw.repoPath);
-        const params = {
-          repoPath: sw.repoPath,
-          worktreePath: sw.worktree.path,
-          branch: sw.worktree.branch,
-          deleteBranch: true,
-          sessionName: toSessionName(sw.worktree.branch),
-          beforeRemove: repo?.beforeRemove,
-          terminal,
-        };
         try {
-          await removeWorktreeFlow(params);
+          await removeWorktreeFlow({
+            repoPath: sw.repoPath,
+            branch: sw.worktree.branch,
+            sessionName: toSessionName(sw.worktree.branch),
+            terminal,
+          });
         } catch (err) {
-          if (err instanceof HookFailedError) {
-            toast.warning(`Hook skipped for ${sw.worktree.branch}`);
-            await removeWorktreeFlow({ ...params, skipHooks: true });
-          } else {
-            toastError(err);
-          }
+          toastError(err);
         }
       }
       queryClient.invalidateQueries({ queryKey: ["worktrees"] });
@@ -840,7 +783,7 @@ function CleanupSection() {
     } finally {
       setCleaning(false);
     }
-  }, [staleWorktrees, selected, repos, queryClient, terminal]);
+  }, [staleWorktrees, selected, queryClient, terminal]);
 
   function toggleSelection(key: string) {
     setSelected((prev) => {

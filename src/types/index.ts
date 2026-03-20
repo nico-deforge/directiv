@@ -78,6 +78,17 @@ export interface TmuxSession {
 
 // --- Git Worktrees ---
 
+export const WT_CI_STATUSES = {
+  PASSED: "passed",
+  RUNNING: "running",
+  FAILED: "failed",
+  CONFLICTS: "conflicts",
+  NO_CI: "no-ci",
+  ERROR: "error",
+} as const;
+
+export type WtCiStatus = (typeof WT_CI_STATUSES)[keyof typeof WT_CI_STATUSES];
+
 export interface WorktreeInfo {
   branch: string;
   path: string;
@@ -88,6 +99,11 @@ export interface WorktreeInfo {
   baseBranch: string | null;
   mainState?: string | null;
   remoteAhead?: number;
+  ciStatus?: WtCiStatus | null;
+  ciUrl?: string | null;
+  ciStale?: boolean | null;
+  devUrl?: string | null;
+  devUrlActive?: boolean | null;
 }
 
 // --- GitHub ---
@@ -222,14 +238,8 @@ export interface DiscoveredRepo {
   id: string;
   path: string;
   workspaceId: string;
-  copyPaths: string[];
-  onStart: string[];
-  beforeRemove: string[];
-  fetchBefore: boolean;
-  configWarning?: string;
-  skills?: SkillOverrides;
-  models?: ModelOverrides;
   githubNwo?: string;
+  configWarning?: string;
 }
 
 export interface LinearOrgConfig {

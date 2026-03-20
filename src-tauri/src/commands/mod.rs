@@ -1,10 +1,8 @@
 pub mod config;
 pub mod github;
-pub mod hooks;
 pub mod oauth;
 pub mod skills;
 pub mod terminal;
 pub mod tmux;
 pub mod workspace;
-pub mod worktree;
 pub mod wt;
