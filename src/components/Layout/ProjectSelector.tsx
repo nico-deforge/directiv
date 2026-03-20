@@ -28,7 +28,12 @@ import {
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorkspaceRepos } from "../../hooks/useWorkspace";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import { wtList, tmuxKillSession, tmuxListSessions, cmuxCloseWorkspace } from "../../lib/tauri";
+import {
+  wtList,
+  tmuxKillSession,
+  tmuxListSessions,
+  cmuxCloseWorkspace,
+} from "../../lib/tauri";
 import { removeWorktreeFlow, BranchExistsError } from "../../lib/workflows";
 import type {
   StaleWorktree,

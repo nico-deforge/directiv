@@ -46,7 +46,12 @@ async fn run_cmux(
         .args(args)
         .output()
         .await
-        .map_err(|e| format!("cmux {operation}: failed to execute '{}': {e}", resolve_cmux_path()))?;
+        .map_err(|e| {
+            format!(
+                "cmux {operation}: failed to execute '{}': {e}",
+                resolve_cmux_path()
+            )
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -67,7 +72,9 @@ async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
         .output()
         .await
         .map_err(|e| {
-            format!("cmux is not installed ({e}). Please install cmux to use it as a terminal backend.")
+            format!(
+                "cmux is not installed ({e}). Please install cmux to use it as a terminal backend."
+            )
         })?;
 
     if !output.status.success() {
@@ -111,7 +118,11 @@ async fn list_cmux_workspaces(app: &tauri::AppHandle) -> Result<Vec<CmuxWorkspac
     let tree: CmuxTree = serde_json::from_str(&json)
         .map_err(|e| format!("cmux list_workspaces: failed to parse tree: {e}"))?;
 
-    Ok(tree.windows.into_iter().flat_map(|w| w.workspaces).collect())
+    Ok(tree
+        .windows
+        .into_iter()
+        .flat_map(|w| w.workspaces)
+        .collect())
 }
 
 /// Parse a workspace ref from `cmux new-workspace` output.
@@ -166,7 +177,13 @@ impl TerminalController for CmuxController {
         .await?;
 
         // Bring cmux app to the foreground
-        match app.shell().command("open").args(["-a", "cmux"]).output().await {
+        match app
+            .shell()
+            .command("open")
+            .args(["-a", "cmux"])
+            .output()
+            .await
+        {
             Ok(out) if !out.status.success() => {
                 let stderr = String::from_utf8_lossy(&out.stderr);
                 eprintln!("cmux focus: 'open -a cmux' failed: {stderr}");
@@ -203,7 +220,12 @@ impl TerminalController for CmuxController {
         // Rename the workspace to the task identifier (e.g., "ACQ-145")
         run_cmux(
             app,
-            &["rename-workspace", "--workspace", &ws_ref, &config.identifier],
+            &[
+                "rename-workspace",
+                "--workspace",
+                &ws_ref,
+                &config.identifier,
+            ],
             "create:rename",
         )
         .await?;
@@ -259,7 +281,10 @@ impl TerminalController for CmuxController {
 
         let workspaces = list_cmux_workspaces(app).await?;
 
-        Ok(workspaces.into_iter().map(|ws| (ws.ws_ref, ws.title)).collect())
+        Ok(workspaces
+            .into_iter()
+            .map(|ws| (ws.ws_ref, ws.title))
+            .collect())
     }
 }
 
@@ -585,7 +610,11 @@ mod tests {
             {"ref": "workspace:2", "title": "ACQ-146", "index": 1, "selected": false, "active": false, "pinned": false, "panes": []}
         ]}]}"#;
         let tree: CmuxTree = serde_json::from_str(json).unwrap();
-        let workspaces: Vec<CmuxWorkspace> = tree.windows.into_iter().flat_map(|w| w.workspaces).collect();
+        let workspaces: Vec<CmuxWorkspace> = tree
+            .windows
+            .into_iter()
+            .flat_map(|w| w.workspaces)
+            .collect();
         assert_eq!(workspaces.len(), 2);
         assert_eq!(workspaces[0].ws_ref, "workspace:1");
         assert_eq!(workspaces[0].title, "ACQ-145");
@@ -597,7 +626,11 @@ mod tests {
     fn test_parse_tree_json_empty() {
         let json = r#"{"windows": [{"workspaces": []}]}"#;
         let tree: CmuxTree = serde_json::from_str(json).unwrap();
-        let workspaces: Vec<CmuxWorkspace> = tree.windows.into_iter().flat_map(|w| w.workspaces).collect();
+        let workspaces: Vec<CmuxWorkspace> = tree
+            .windows
+            .into_iter()
+            .flat_map(|w| w.workspaces)
+            .collect();
         assert!(workspaces.is_empty());
     }
 

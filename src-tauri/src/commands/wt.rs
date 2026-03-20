@@ -259,7 +259,11 @@ pub async fn wt_list(
                 .main
                 .map(|m| (m.ahead.unwrap_or(0), m.behind.unwrap_or(0)))
                 .unwrap_or((0, 0));
-            let ci_status = entry.ci.as_ref().and_then(|c| c.status.as_deref()).map(WtCiStatus::from_str);
+            let ci_status = entry
+                .ci
+                .as_ref()
+                .and_then(|c| c.status.as_deref())
+                .map(WtCiStatus::from_str);
             let ci_url = entry.ci.as_ref().and_then(|c| c.url.clone());
             let ci_stale = entry.ci.as_ref().and_then(|c| c.stale);
             let dev_url = entry.url.clone();

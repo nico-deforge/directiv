@@ -100,7 +100,10 @@ async fn dispatch_terminal(
     controller.create(app, &config).await?;
 
     // After creation, find and focus the new session (brings the app to the foreground)
-    match controller.find_session(app, identifier, worktree_path).await {
+    match controller
+        .find_session(app, identifier, worktree_path)
+        .await
+    {
         Ok(Some(terminal_ref)) => {
             if let Err(e) = controller.focus(app, &terminal_ref).await {
                 eprintln!("post-create focus failed (non-fatal): {e}");
