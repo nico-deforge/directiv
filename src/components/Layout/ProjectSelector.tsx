@@ -40,7 +40,7 @@ import {
   useIsGitHubConnected,
 } from "../../hooks/useGitHub";
 import { useStartFreeTask } from "../../hooks/useStartTask";
-import { worktreeCreateExistingBranch } from "../../lib/tauri";
+import { wtSwitchCreate } from "../../lib/tauri";
 import { toSessionName } from "../../lib/tmux-utils";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { BranchSelector } from "../shared/BranchSelector";
@@ -284,18 +284,12 @@ function NewWorktreeSection() {
     );
   }
 
-  async function handleUseExisting(resetToBase: boolean) {
+  async function handleUseExisting() {
     if (!branchExistsPrompt) return;
-    const { repoPath, baseBranch: promptBase } = branchExistsPrompt;
+    const { repoPath } = branchExistsPrompt;
     setBranchExistsPrompt(null);
     try {
-      await worktreeCreateExistingBranch(
-        repoPath,
-        branchName.trim(),
-        undefined,
-        promptBase,
-        resetToBase,
-      );
+      await wtSwitchCreate(repoPath, branchName.trim());
       startFreeTask.mutate(
         {
           branchName: branchName.trim(),
@@ -411,16 +405,10 @@ function NewWorktreeSection() {
               </p>
               <div className="flex flex-col gap-1">
                 <button
-                  onClick={() => handleUseExisting(false)}
+                  onClick={() => handleUseExisting()}
                   className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-[10px] text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
                 >
                   Use existing
-                </button>
-                <button
-                  onClick={() => handleUseExisting(true)}
-                  className="rounded bg-[var(--accent-amber)]/20 px-2 py-1 text-[10px] text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30"
-                >
-                  Reset to base
                 </button>
                 <button
                   onClick={() => setBranchExistsPrompt(null)}

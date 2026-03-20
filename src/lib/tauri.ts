@@ -30,12 +30,6 @@ export async function scanWorkspace(
   }));
 }
 
-// --- Worktree commands ---
-
-export function worktreeList(repoPath: string): Promise<WorktreeInfo[]> {
-  return invoke<WorktreeInfo[]>("worktree_list", { repoPath });
-}
-
 // --- wt (Worktrunk) commands ---
 
 interface WtWorktreeInfoRaw {
@@ -54,13 +48,6 @@ export async function wtSwitchCreate(
   return invoke<{ path: string }>("wt_switch_create", { repoPath, branchName });
 }
 
-export async function wtRemove(
-  repoPath: string,
-  branchName: string,
-): Promise<void> {
-  return invoke<void>("wt_remove", { repoPath, branchName });
-}
-
 export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
   const raw = await invoke<WtWorktreeInfoRaw[]>("wt_list", { repoPath });
   return raw.map((entry) => ({
@@ -77,80 +64,6 @@ export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
     mainState: entry.mainState,
     remoteAhead: 0,
   }));
-}
-
-export function worktreeCreate(
-  repoPath: string,
-  issueId: string,
-  copyPaths?: string[],
-  baseBranch?: string,
-  fetchBefore?: boolean,
-): Promise<WorktreeInfo> {
-  return invoke<WorktreeInfo>("worktree_create", {
-    repoPath,
-    issueId,
-    copyPaths,
-    baseBranch,
-    fetchBefore,
-  });
-}
-
-export function worktreeRemove(
-  repoPath: string,
-  worktreePath: string,
-  branch?: string,
-  deleteBranch?: boolean,
-): Promise<void> {
-  return invoke<void>("worktree_remove", {
-    repoPath,
-    worktreePath,
-    branch,
-    deleteBranch,
-  });
-}
-
-export function worktreeCreateExistingBranch(
-  repoPath: string,
-  issueId: string,
-  copyPaths?: string[],
-  baseBranch?: string,
-  resetToBase?: boolean,
-  forceReset?: boolean,
-): Promise<WorktreeInfo> {
-  return invoke<WorktreeInfo>("worktree_create_existing_branch", {
-    repoPath,
-    issueId,
-    copyPaths,
-    baseBranch,
-    resetToBase: resetToBase ?? false,
-    forceReset: forceReset ?? false,
-  });
-}
-
-export function worktreeCheckBranchSynced(
-  repoPath: string,
-  branch: string,
-): Promise<boolean> {
-  return invoke<boolean>("worktree_check_branch_synced", {
-    repoPath,
-    branch,
-  });
-}
-
-export function worktreeCheckMerged(
-  repoPath: string,
-  branch: string,
-  baseBranch?: string,
-): Promise<boolean> {
-  return invoke<boolean>("worktree_check_merged", {
-    repoPath,
-    branch,
-    baseBranch,
-  });
-}
-
-export function gitFetchPrune(repoPath: string): Promise<void> {
-  return invoke<void>("git_fetch_prune", { repoPath });
 }
 
 // --- Tmux commands ---
@@ -183,15 +96,6 @@ export function tmuxWaitForReady(
   timeoutMs?: number,
 ): Promise<void> {
   return invoke<void>("tmux_wait_for_ready", { session, timeoutMs });
-}
-
-// --- Hook commands ---
-
-export function runHooks(
-  commands: string[],
-  workingDir: string,
-): Promise<void> {
-  return invoke<void>("run_hooks", { commands, workingDir });
 }
 
 // --- Terminal commands ---

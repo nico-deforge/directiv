@@ -42,11 +42,7 @@ import {
   openTerminalWithToast,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
-import {
-  openEditor,
-  tmuxKillSession,
-  worktreeCreateExistingBranch,
-} from "../../lib/tauri";
+import { openEditor, tmuxKillSession, wtSwitchCreate } from "../../lib/tauri";
 import { BranchSelector } from "../shared/BranchSelector";
 import { QuickPeek } from "./QuickPeek";
 
@@ -276,23 +272,16 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     );
   }
 
-  async function handleExistingBranch(resetToBase: boolean, force = false) {
+  async function handleExistingBranch() {
     if (!branchError) return;
-    const { repoPath, baseBranch } = branchError;
+    const { repoPath } = branchError;
     setBranchError(null);
     const { skill, usePlugin, model } = getRepoSkillParams(
       repoPath,
       pendingSkillKey,
     );
     try {
-      await worktreeCreateExistingBranch(
-        repoPath,
-        task.identifier,
-        undefined,
-        baseBranch,
-        resetToBase,
-        force,
-      );
+      await wtSwitchCreate(repoPath, task.identifier);
       const existingConfig = useSettingsStore.getState().config;
       startTask.mutate(
         {
@@ -693,16 +682,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                   </p>
                   <div className="flex flex-col gap-1.5">
                     <button
-                      onClick={() => handleExistingBranch(false)}
+                      onClick={() => handleExistingBranch()}
                       className="rounded bg-[var(--accent-blue)]/20 px-2 py-1 text-xs text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30"
                     >
                       Use existing branch
-                    </button>
-                    <button
-                      onClick={() => handleExistingBranch(true)}
-                      className="rounded bg-[var(--accent-amber)]/20 px-2 py-1 text-xs text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30"
-                    >
-                      Reset to base
                     </button>
                     <button
                       onClick={() => setBranchError(null)}
