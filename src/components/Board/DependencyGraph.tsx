@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { AlertCircle, Maximize2 } from "lucide-react";
+import { AlertCircle, ExternalLink, Maximize2 } from "lucide-react";
 import {
   useLinearProjectIssues,
   useLinearIssuesByBranches,
@@ -103,6 +103,11 @@ function DependencyGraphInner() {
   const repos = useWorkspaceRepos();
 
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
+  const projects = useProjectStore((s) => s.projects);
+  const selectedProjectUrl = useMemo(
+    () => projects.find((p) => p.id === selectedProjectId)?.url ?? null,
+    [projects, selectedProjectId],
+  );
 
   const { data: linearProjects } = useLinearMyProjects();
   const memberProjectIds = useMemo(
@@ -692,6 +697,20 @@ function DependencyGraphInner() {
         minZoom={0.3}
         maxZoom={1.5}
       >
+        {selectedProjectUrl && (
+          <div className="absolute top-3 right-3 z-10">
+            <a
+              href={selectedProjectUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg border border-[#5E6AD2]/30 bg-[#5E6AD2]/10 px-2.5 py-2 text-xs text-[#5E6AD2] shadow-sm transition-colors hover:bg-[#5E6AD2]/20"
+              title="Open project in Linear"
+            >
+              <ExternalLink size={14} />
+              <span>Linear</span>
+            </a>
+          </div>
+        )}
         <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
           {isPRsError && (
             <div

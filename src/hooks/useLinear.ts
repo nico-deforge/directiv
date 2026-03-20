@@ -102,6 +102,7 @@ export interface LinearProject {
   id: string;
   name: string;
   statusType: LinearProjectStatusType;
+  url: string;
 }
 
 export const LINEAR_PROJECT_STATUS_TYPE = {
@@ -162,6 +163,7 @@ export function useLinearMyProjects() {
         id: p.id,
         name: p.name,
         statusType: p.state as LinearProjectStatusType,
+        url: p.url,
       }));
     },
     enabled: isConnected,

@@ -86,6 +86,7 @@ export function useProjectsSync() {
         id: p.id,
         name: p.name,
         statusType: p.statusType,
+        url: p.url,
       }),
     );
   }, [linearProjects]);

@@ -78,7 +78,7 @@ export function ProjectSelector() {
   }
 
   return (
-    <aside className="flex w-[200px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-secondary)]">
+    <aside className="flex w-[240px] shrink-0 flex-col border-r border-[var(--border-default)] bg-[var(--bg-secondary)]">
       <WorkspaceSelector />
       <div className="shrink-0 border-b border-[var(--border-default)] px-4 py-3">
         <div className="flex items-center justify-between">
@@ -896,7 +896,9 @@ function ProjectItem({
       }`}
     >
       <Icon className={`size-4 shrink-0 ${isBacklog ? "opacity-50" : ""}`} />
-      <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
+      <span className="min-w-0 flex-1 truncate text-sm" title={project.name}>
+        {project.name}
+      </span>
     </button>
   );
 }
