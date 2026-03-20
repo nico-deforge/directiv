@@ -198,7 +198,12 @@ async function ensureWorktree(
 ): Promise<{ path: string }> {
   const worktrees = await wtList(repoPath);
   const existing = worktrees.find((w) => w.branch === branchName);
-  if (existing) return existing;
+  if (existing) {
+    if (worktrees.indexOf(existing) === 0) {
+      throw new BranchCheckedOutError(branchName, existing.path);
+    }
+    return existing;
+  }
   try {
     return await wtSwitchCreate(repoPath, branchName);
   } catch (err) {
