@@ -30,6 +30,8 @@ import type {
 } from "../../types";
 import { CI_STATUSES } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
+import { CiStatusBadge } from "./CiStatusBadge";
+import { WT_CI_STATUSES } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
 import {
   type SkillKey,
@@ -514,6 +516,15 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
               {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
               {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
+            </span>
+          )}
+          {worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI && (
+            <span className="ml-auto">
+              <CiStatusBadge
+                status={worktree.ciStatus}
+                url={worktree.ciUrl}
+                stale={worktree.ciStale}
+              />
             </span>
           )}
         </div>
