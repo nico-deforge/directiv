@@ -84,29 +84,26 @@ const SKILL_FIELD: Record<SkillKey, ActionKey> = {
 
 export function resolveSkill(
   key: SkillKey,
-  repoOverrides?: SkillOverrides,
   globalOverrides?: SkillOverrides,
 ): string {
   const field = SKILL_FIELD[key];
-  return repoOverrides?.[field] ?? globalOverrides?.[field] ?? SKILLS[key];
+  return globalOverrides?.[field] ?? SKILLS[key];
 }
 
 export function resolveModel(
   key: SkillKey,
-  repoOverrides?: ModelOverrides,
   globalOverrides?: ModelOverrides,
 ): ClaudeModel | undefined {
   const field = SKILL_FIELD[key];
-  return repoOverrides?.[field] ?? globalOverrides?.[field];
+  return globalOverrides?.[field];
 }
 
 export function isOverriddenSkill(
   key: SkillKey,
-  repoOverrides?: SkillOverrides,
   globalOverrides?: SkillOverrides,
 ): boolean {
   const field = SKILL_FIELD[key];
-  return !!(repoOverrides?.[field] ?? globalOverrides?.[field]);
+  return !!globalOverrides?.[field];
 }
 
 export async function sendSkillToSession(

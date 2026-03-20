@@ -26,10 +26,7 @@ import {
   openTerminal,
   openEditor,
 } from "../../lib/tauri";
-import {
-  buildClaudeCommand,
-  openTerminalWithToast,
-} from "../../lib/workflows";
+import { buildClaudeCommand, openTerminalWithToast } from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -302,7 +299,6 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           </button>
         )}
       </div>
-
     </div>
   );
 }

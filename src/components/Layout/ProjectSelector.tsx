@@ -28,15 +28,8 @@ import {
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorkspaceRepos } from "../../hooks/useWorkspace";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
-import {
-  wtList,
-  tmuxKillSession,
-  tmuxListSessions,
-} from "../../lib/tauri";
-import {
-  removeWorktreeFlow,
-  BranchExistsError,
-} from "../../lib/workflows";
+import { wtList, tmuxKillSession, tmuxListSessions } from "../../lib/tauri";
+import { removeWorktreeFlow, BranchExistsError } from "../../lib/workflows";
 import type {
   StaleWorktree,
   ReviewRequestedPR,
@@ -746,10 +739,7 @@ function CleanupSection() {
             const repoStale: StaleWorktree[] = [];
             // Skip main worktree (index 0), check mainState for merged/empty
             for (const wt of worktrees.slice(1)) {
-              if (
-                wt.mainState === "integrated" ||
-                wt.mainState === "empty"
-              ) {
+              if (wt.mainState === "integrated" || wt.mainState === "empty") {
                 repoStale.push({
                   worktree: wt,
                   repoId: repo.id,

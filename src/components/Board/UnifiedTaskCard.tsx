@@ -233,9 +233,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     model: ClaudeModel | undefined;
   } {
     return {
-      skill: resolveSkill(key, undefined, globalSkills),
-      usePlugin: !isOverriddenSkill(key, undefined, globalSkills),
-      model: resolveModel(key, undefined, globalModels),
+      skill: resolveSkill(key, globalSkills),
+      usePlugin: !isOverriddenSkill(key, globalSkills),
+      model: resolveModel(key, globalModels),
     };
   }
 
