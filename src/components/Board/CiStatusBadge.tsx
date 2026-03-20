@@ -48,8 +48,9 @@ export function CiStatusBadge({
   url?: string | null;
   stale?: boolean | null;
 }) {
-  const config = CI_BADGE_CONFIG[status];
-  const tooltip = CI_TOOLTIP[status];
+  const config =
+    CI_BADGE_CONFIG[status] ?? CI_BADGE_CONFIG[WT_CI_STATUSES.ERROR];
+  const tooltip = CI_TOOLTIP[status] ?? "CI unknown";
 
   const badge = (
     <span
