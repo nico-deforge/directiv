@@ -744,6 +744,7 @@ function OrphanSessionsSection() {
 function CleanupSection() {
   const repos = useWorkspaceRepos();
   const queryClient = useQueryClient();
+  const terminal = useSettingsStore((s) => s.config.terminal);
 
   const [staleWorktrees, setStaleWorktrees] = useState<StaleWorktree[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -816,6 +817,7 @@ function CleanupSection() {
           deleteBranch: true,
           sessionName: toSessionName(sw.worktree.branch),
           beforeRemove: repo?.beforeRemove,
+          terminal,
         };
         try {
           await removeWorktreeFlow(params);
@@ -838,7 +840,7 @@ function CleanupSection() {
     } finally {
       setCleaning(false);
     }
-  }, [staleWorktrees, selected, repos, queryClient]);
+  }, [staleWorktrees, selected, repos, queryClient, terminal]);
 
   function toggleSelection(key: string) {
     setSelected((prev) => {
