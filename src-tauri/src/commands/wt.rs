@@ -74,6 +74,8 @@ struct WtListEntry {
     main: Option<WtMain>,
     main_state: Option<String>, // top-level field from wt list JSON
     ci: Option<WtCi>,
+    url: Option<String>,
+    url_active: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,6 +111,8 @@ pub struct WtWorktreeInfo {
     pub ci_status: Option<String>,
     pub ci_url: Option<String>,
     pub ci_stale: Option<bool>,
+    pub dev_url: Option<String>,
+    pub dev_url_active: Option<bool>,
 }
 
 // --- Output types for wt_switch_create ---
@@ -177,6 +181,21 @@ pub async fn wt_remove(
     Ok(())
 }
 
+// --- wt_merge command ---
+
+/// Merge and clean up a worktree for `branch_name` using `wt merge --yes`.
+/// Runs squash + rebase + fast-forward + cleanup in one step.
+#[tauri::command]
+pub async fn wt_merge(
+    app: tauri::AppHandle,
+    repo_path: String,
+    branch_name: String,
+) -> Result<(), String> {
+    run_wt(&app, &["merge", "-C", &repo_path, "--yes", &branch_name]).await?;
+
+    Ok(())
+}
+
 // --- wt_list command ---
 
 #[tauri::command]
@@ -208,6 +227,8 @@ pub async fn wt_list(
             let ci_status = entry.ci.as_ref().and_then(|c| c.status.clone());
             let ci_url = entry.ci.as_ref().and_then(|c| c.url.clone());
             let ci_stale = entry.ci.as_ref().and_then(|c| c.stale);
+            let dev_url = entry.url.clone();
+            let dev_url_active = entry.url_active;
             Some(WtWorktreeInfo {
                 branch,
                 path: entry.path,
@@ -218,6 +239,8 @@ pub async fn wt_list(
                 ci_status,
                 ci_url,
                 ci_stale,
+                dev_url,
+                dev_url_active,
             })
         })
         .collect();

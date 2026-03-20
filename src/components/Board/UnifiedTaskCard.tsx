@@ -44,7 +44,12 @@ import {
   openTerminalWithToast,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { openEditor, tmuxKillSession, wtSwitchCreate } from "../../lib/tauri";
+import {
+  openEditor,
+  tmuxKillSession,
+  wtMerge,
+  wtSwitchCreate,
+} from "../../lib/tauri";
 import { BranchSelector } from "../shared/BranchSelector";
 import { QuickPeek } from "./QuickPeek";
 
@@ -148,6 +153,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   const [killingSession, setKillingSession] = useState(false);
   const [deletingWorktree, setDeletingWorktree] = useState(false);
+  const [mergingWorktree, setMergingWorktree] = useState(false);
+  const [confirmingMerge, setConfirmingMerge] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<DiscoveredRepo | null>(null);
@@ -163,7 +170,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
   const hasSession = session !== null;
   const isLoading =
-    startTask.isPending || killingSession || deletingWorktree || sendingSkill;
+    startTask.isPending ||
+    killingSession ||
+    deletingWorktree ||
+    mergingWorktree ||
+    sendingSkill;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
   const statusLabel = WORKFLOW_LABELS[workflowStatus];
   const claudeWaiting =
@@ -219,6 +230,25 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       toastError(err);
     } finally {
       setDeletingWorktree(false);
+    }
+  }
+
+  async function handleMerge() {
+    if (!worktree || !worktreeRepoPath) return;
+    setConfirmingMerge(false);
+    setMergingWorktree(true);
+    try {
+      // Kill tmux session before merging (wt merge removes the worktree)
+      if (session) {
+        await tmuxKillSession(session.name);
+      }
+      await wtMerge(worktreeRepoPath, worktree.branch);
+      queryClient.invalidateQueries({ queryKey: ["worktrees"] });
+      queryClient.invalidateQueries({ queryKey: ["tmux"] });
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setMergingWorktree(false);
     }
   }
 
@@ -530,6 +560,28 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         </div>
       )}
 
+      {/* Dev Server URL Section */}
+      {worktree?.devUrl && (
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+          <a
+            href={worktree.devUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center gap-1 min-w-0 text-xs ${
+              worktree.devUrlActive
+                ? "text-[var(--accent-blue)] hover:text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+            }`}
+            title={
+              worktree.devUrlActive ? "Dev server running" : "Dev server offline"
+            }
+          >
+            <ExternalLink className="size-3 shrink-0" />
+            <span className="truncate">{worktree.devUrl}</span>
+          </a>
+        </div>
+      )}
+
       {/* Actions */}
       {!isDisabled && (
         <div
@@ -592,6 +644,47 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <Code2 className="size-3.5" />
               Editor
             </button>
+          )}
+
+          {/* Merge button — shown on approved cards with a worktree */}
+          {workflowStatus === "to-deploy" &&
+            worktree &&
+            worktreeRepoPath &&
+            !confirmingDelete &&
+            !confirmingMerge && (
+              <button
+                onClick={() => setConfirmingMerge(true)}
+                disabled={isLoading}
+                className="flex items-center gap-1 rounded bg-[var(--accent-green)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-green)] hover:bg-[var(--accent-green)]/30 disabled:opacity-50"
+                title="Merge locally via wt merge"
+              >
+                {mergingWorktree ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  "Merge"
+                )}
+              </button>
+            )}
+
+          {/* Merge confirmation */}
+          {confirmingMerge && (
+            <span className="flex items-center gap-2 text-xs">
+              <span className="text-[var(--text-muted)]">Confirm merge?</span>
+              <button
+                onClick={handleMerge}
+                disabled={mergingWorktree}
+                className="text-[var(--accent-green)] hover:opacity-80 disabled:opacity-50"
+              >
+                {mergingWorktree ? "Merging..." : "Yes"}
+              </button>
+              <span className="text-[var(--text-muted)]">/</span>
+              <button
+                onClick={() => setConfirmingMerge(false)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                No
+              </button>
+            </span>
           )}
 
           {/* Kill Session button */}

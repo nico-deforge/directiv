@@ -102,6 +102,8 @@ export interface WorktreeInfo {
   ciStatus?: WtCiStatus | null;
   ciUrl?: string | null;
   ciStale?: boolean | null;
+  devUrl?: string | null;
+  devUrlActive?: boolean | null;
 }
 
 // --- GitHub ---

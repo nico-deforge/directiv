@@ -44,6 +44,15 @@ interface WtWorktreeInfoRaw {
   ciStatus: string | null;
   ciUrl: string | null;
   ciStale: boolean | null;
+  devUrl: string | null;
+  devUrlActive: boolean | null;
+}
+
+export async function wtMerge(
+  repoPath: string,
+  branchName: string,
+): Promise<void> {
+  return invoke<void>("wt_merge", { repoPath, branchName });
 }
 
 export async function wtSwitchCreate(
@@ -71,6 +80,8 @@ export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
     ciStatus: entry.ciStatus as WtCiStatus | null,
     ciUrl: entry.ciUrl,
     ciStale: entry.ciStale,
+    devUrl: entry.devUrl,
+    devUrlActive: entry.devUrlActive,
   }));
 }
 
