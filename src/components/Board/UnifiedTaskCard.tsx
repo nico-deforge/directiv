@@ -530,6 +530,28 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         </div>
       )}
 
+      {/* Dev Server URL Section */}
+      {worktree?.devUrl && (
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+          <a
+            href={worktree.devUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center gap-1 min-w-0 text-xs ${
+              worktree.devUrlActive
+                ? "text-[var(--accent-blue)] hover:text-[var(--text-primary)]"
+                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+            }`}
+            title={
+              worktree.devUrlActive ? "Dev server running" : "Dev server offline"
+            }
+          >
+            <ExternalLink className="size-3 shrink-0" />
+            <span className="truncate">{worktree.devUrl}</span>
+          </a>
+        </div>
+      )}
+
       {/* Actions */}
       {!isDisabled && (
         <div
