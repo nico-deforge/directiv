@@ -1,8 +1,10 @@
+pub mod cmux;
 pub mod controller;
 pub mod ghostty;
 pub mod iterm;
 pub mod types;
 
+use cmux::CmuxController;
 use controller::TerminalController;
 use ghostty::GhosttyController;
 use iterm::ITermController;
@@ -36,6 +38,17 @@ pub async fn open_terminal(
             dispatch_terminal(
                 &app,
                 ITermController,
+                &session,
+                &identifier,
+                &worktree_path,
+                layout,
+            )
+            .await
+        }
+        "cmux" => {
+            dispatch_terminal(
+                &app,
+                CmuxController,
                 &session,
                 &identifier,
                 &worktree_path,
@@ -114,6 +127,20 @@ pub async fn query_terminals(
     app: tauri::AppHandle,
     emulator: String,
 ) -> Result<Vec<TerminalStatus>, String> {
+    // cmux manages its own sessions — query them directly without tmux
+    if emulator == "cmux" {
+        let sessions = CmuxController.list_sessions(&app).await?;
+        let statuses = sessions
+            .into_iter()
+            .map(|(id, name)| TerminalStatus {
+                session_name: name.clone(),
+                identifier: id,
+                active: true,
+            })
+            .collect();
+        return Ok(statuses);
+    }
+
     // Get tmux sessions to know which Directiv sessions exist
     let tmux_output = app
         .shell()

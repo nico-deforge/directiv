@@ -22,6 +22,7 @@ pub struct TerminalConfig {
 pub enum Emulator {
     Ghostty,
     Iterm2,
+    Cmux,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
