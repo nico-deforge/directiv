@@ -6,6 +6,7 @@ import {
   tmuxKillSession,
   tmuxCapturePane,
   queryTerminals,
+  cmuxCloseWorkspace,
 } from "../lib/tauri";
 import { detectClaudeStates } from "../lib/claudeState";
 import { useSettingsStore } from "../stores/settingsStore";
@@ -28,7 +29,7 @@ export function useTmuxSessions() {
   const isCmux = terminal === "cmux";
 
   return useQuery<TmuxSession[]>({
-    queryKey: ["tmux", "sessions", terminal],
+    queryKey: ["terminal-sessions", terminal],
     queryFn: async () => {
       if (isCmux) {
         const statuses = await queryTerminals("cmux");
@@ -47,34 +48,61 @@ export function useTmuxSessions() {
 
 export function useTmuxCreateSession() {
   const queryClient = useQueryClient();
+  const terminal = useSettingsStore((s) => s.config.terminal);
+  const isCmux = terminal === "cmux";
+
   return useMutation({
-    mutationFn: ({ name, workingDir }: { name: string; workingDir?: string }) =>
-      tmuxCreateSession(name, workingDir),
+    mutationFn: async ({
+      name,
+      workingDir,
+    }: {
+      name: string;
+      workingDir?: string;
+    }) => {
+      // cmux creates sessions via CmuxController.create (open_terminal), not via tmux
+      if (isCmux) return;
+      await tmuxCreateSession(name, workingDir);
+    },
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] }),
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] }),
   });
 }
 
 export function useTmuxKillSession() {
   const queryClient = useQueryClient();
+  const terminal = useSettingsStore((s) => s.config.terminal);
+  const isCmux = terminal === "cmux";
+
   return useMutation({
-    mutationFn: (name: string) => tmuxKillSession(name),
+    mutationFn: (name: string) => {
+      if (isCmux) return cmuxCloseWorkspace(name);
+      return tmuxKillSession(name);
+    },
     onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["tmux", "sessions"] }),
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] }),
   });
 }
 
 export function useTmuxCapturePane(session: string | undefined) {
+  const terminal = useSettingsStore((s) => s.config.terminal);
+  const isCmux = terminal === "cmux";
+
   return useQuery<string>({
     queryKey: ["tmux", "capture", session],
-    queryFn: () => tmuxCapturePane(session!),
-    enabled: !!session,
+    queryFn: () => {
+      // cmux has no capture-pane equivalent; state detection is deferred to M2
+      if (isCmux) return Promise.resolve("");
+      return tmuxCapturePane(session!);
+    },
+    enabled: !!session && !isCmux,
     refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
 }
 
 export function useClaudeSessionStates(sessionNames: string[]) {
   const previousRef = useRef<Map<string, string> | null>(null);
+  const terminal = useSettingsStore((s) => s.config.terminal);
+  const isCmux = terminal === "cmux";
 
   const sorted = [...sessionNames].sort();
   const key = sorted.join(",");
@@ -82,6 +110,9 @@ export function useClaudeSessionStates(sessionNames: string[]) {
   return useQuery<Map<string, ClaudeSessionStatus>>({
     queryKey: ["tmux", "claude-states", key],
     queryFn: async () => {
+      // cmux has no capture-pane equivalent; skip polling and return empty state map
+      if (isCmux) return new Map<string, ClaudeSessionStatus>();
+
       const entries = await Promise.all(
         sorted.map(async (name) => {
           try {
@@ -102,7 +133,7 @@ export function useClaudeSessionStates(sessionNames: string[]) {
       previousRef.current = current;
       return states;
     },
-    enabled: sorted.length > 0,
+    enabled: sorted.length > 0 && !isCmux,
     refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
 }
