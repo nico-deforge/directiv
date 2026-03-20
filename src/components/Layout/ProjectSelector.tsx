@@ -36,7 +36,6 @@ import {
 import {
   removeWorktreeFlow,
   BranchExistsError,
-  BaseNotFoundError,
 } from "../../lib/workflows";
 import type {
   StaleWorktree,
@@ -284,8 +283,6 @@ function NewWorktreeSection() {
               repoPath: err.repoPath,
               baseBranch: err.baseBranch,
             });
-          } else if (err instanceof BaseNotFoundError) {
-            toastError(`Base branch '${err.baseName}' not found`);
           } else {
             toastError(err);
           }
