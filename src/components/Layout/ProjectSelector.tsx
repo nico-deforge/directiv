@@ -30,11 +30,9 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import { useWorkspaceRepos } from "../../hooks/useWorkspace";
 import { useWorkspaceStore } from "../../stores/workspaceStore";
 import {
-  worktreeList,
-  worktreeCheckMerged,
+  wtList,
   tmuxKillSession,
   tmuxListSessions,
-  gitFetchPrune,
 } from "../../lib/tauri";
 import {
   removeWorktreeFlow,
@@ -616,7 +614,7 @@ function OrphanSessionsSection() {
       const allBranches = new Set<string>();
       for (const repo of repos) {
         try {
-          const worktrees = await worktreeList(repo.path);
+          const worktrees = await wtList(repo.path);
           // Skip main worktree (index 0)
           for (const wt of worktrees.slice(1)) {
             allBranches.add(wt.branch.toLowerCase());
@@ -754,29 +752,20 @@ function CleanupSection() {
   const scanForStale = useCallback(async () => {
     setScanning(true);
     try {
-      // Fetch all repos in parallel
-      await Promise.allSettled(repos.map((repo) => gitFetchPrune(repo.path)));
-
-      // Check all repos and their worktrees in parallel
+      // Use wt list data directly — mainState reflects merge status
       const repoResults = await Promise.all(
         repos.map(async (repo) => {
           try {
-            const worktrees = await worktreeList(repo.path);
-            const mergeChecks = await Promise.allSettled(
-              worktrees.slice(1).map(async (wt) => {
-                const merged = await worktreeCheckMerged(
-                  repo.path,
-                  wt.branch,
-                  wt.baseBranch ?? undefined,
-                );
-                return { wt, merged };
-              }),
-            );
+            const worktrees = await wtList(repo.path);
             const repoStale: StaleWorktree[] = [];
-            for (const result of mergeChecks) {
-              if (result.status === "fulfilled" && result.value.merged) {
+            // Skip main worktree (index 0), check mainState for merged/empty
+            for (const wt of worktrees.slice(1)) {
+              if (
+                wt.mainState === "integrated" ||
+                wt.mainState === "empty"
+              ) {
                 repoStale.push({
-                  worktree: result.value.wt,
+                  worktree: wt,
                   repoId: repo.id,
                   repoPath: repo.path,
                 });

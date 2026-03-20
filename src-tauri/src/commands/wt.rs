@@ -72,6 +72,7 @@ struct WtListEntry {
     path: String,
     working_tree: Option<WtWorkingTree>,
     main: Option<WtMain>,
+    main_state: Option<String>, // top-level field from wt list JSON
 }
 
 #[derive(Debug, Deserialize)]
@@ -186,10 +187,13 @@ pub async fn wt_list(
                 .working_tree
                 .and_then(|wt| wt.is_dirty)
                 .unwrap_or(true);
-            let (ahead, behind, main_state) = entry
+            let main_state = entry
+                .main_state
+                .or_else(|| entry.main.as_ref().and_then(|m| m.state.clone()));
+            let (ahead, behind) = entry
                 .main
-                .map(|m| (m.ahead.unwrap_or(0), m.behind.unwrap_or(0), m.state))
-                .unwrap_or((0, 0, None));
+                .map(|m| (m.ahead.unwrap_or(0), m.behind.unwrap_or(0)))
+                .unwrap_or((0, 0));
             Some(WtWorktreeInfo {
                 branch,
                 path: entry.path,
