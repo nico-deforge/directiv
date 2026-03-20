@@ -129,7 +129,7 @@ Tokens are stored securely in your OS keyring (release builds) or in `~/Library/
 
 ### Per-repository configuration
 
-Worktree lifecycle (hooks, base branch, copy paths) is configured via `wt` — place a `.config/wt.toml` at the root of each repository. See the [wt documentation](https://github.com/nicodeforge/wt) for the full schema.
+Worktree lifecycle (hooks, base branch, copy paths) is configured via `wt` — place a `.config/wt.toml` at the root of each repository. See the [wt documentation](https://github.com/max-sixty/worktrunk) for the full schema.
 
 #### Skill overrides
 
@@ -177,7 +177,7 @@ Directiv requires several tools to be installed on your system.
 ```bash
 # macOS (Homebrew)
 brew install git tmux
-# Install wt: follow https://github.com/nicodeforge/wt instructions
+# Install wt: follow https://github.com/max-sixty/worktrunk instructions
 ```
 
 #### mise (recommended)
