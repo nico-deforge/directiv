@@ -17,13 +17,6 @@ pub fn run() {
 
     builder
         .invoke_handler(tauri::generate_handler![
-            commands::worktree::worktree_list,
-            commands::worktree::worktree_create,
-            commands::worktree::worktree_create_existing_branch,
-            commands::worktree::worktree_remove,
-            commands::worktree::worktree_check_merged,
-            commands::worktree::worktree_check_branch_synced,
-            commands::worktree::git_fetch_prune,
             commands::tmux::tmux_list_sessions,
             commands::tmux::tmux_create_session,
             commands::tmux::tmux_kill_session,
@@ -33,7 +26,6 @@ pub fn run() {
             commands::terminal::open_terminal,
             commands::terminal::query_terminals,
             commands::terminal::open_editor,
-            commands::hooks::run_hooks,
             commands::config::load_config,
             commands::config::save_config,
             commands::skills::get_plugin_dir,
