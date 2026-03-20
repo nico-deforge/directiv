@@ -215,14 +215,8 @@ export interface DiscoveredRepo {
   id: string;
   path: string;
   workspaceId: string;
-  copyPaths: string[];
-  onStart: string[];
-  beforeRemove: string[];
-  fetchBefore: boolean;
-  configWarning?: string;
-  skills?: SkillOverrides;
-  models?: ModelOverrides;
   githubNwo?: string;
+  configWarning?: string;
 }
 
 export interface LinearOrgConfig {

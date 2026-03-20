@@ -5,8 +5,6 @@ import type {
   PluginSkillInfo,
   ClaudeSkillEntry,
   DiscoveredRepo,
-  SkillOverrides,
-  ModelOverrides,
   TerminalStatus,
 } from "../types";
 
@@ -15,14 +13,8 @@ import type {
 interface RawDiscoveredRepo {
   id: string;
   path: string;
-  copyPaths: string[];
-  onStart: string[];
-  beforeRemove: string[];
-  fetchBefore: boolean;
-  configWarning?: string;
-  skills?: SkillOverrides;
-  models?: ModelOverrides;
   githubNwo?: string;
+  configWarning?: string;
 }
 
 export async function scanWorkspace(

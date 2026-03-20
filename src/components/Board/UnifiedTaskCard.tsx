@@ -225,18 +225,17 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   }
 
   function getRepoSkillParams(
-    repoPath: string,
+    _repoPath: string,
     key: SkillKey,
   ): {
     skill: string;
     usePlugin: boolean;
     model: ClaudeModel | undefined;
   } {
-    const repo = repos.find((r) => r.path === repoPath);
     return {
-      skill: resolveSkill(key, repo?.skills, globalSkills),
-      usePlugin: !isOverriddenSkill(key, repo?.skills, globalSkills),
-      model: resolveModel(key, repo?.models, globalModels),
+      skill: resolveSkill(key, undefined, globalSkills),
+      usePlugin: !isOverriddenSkill(key, undefined, globalSkills),
+      model: resolveModel(key, undefined, globalModels),
     };
   }
 
@@ -281,7 +280,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     if (!branchError) return;
     const { repoPath, baseBranch } = branchError;
     setBranchError(null);
-    const repo = repos.find((r) => r.path === repoPath);
     const { skill, usePlugin, model } = getRepoSkillParams(
       repoPath,
       pendingSkillKey,
@@ -290,7 +288,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       await worktreeCreateExistingBranch(
         repoPath,
         task.identifier,
-        repo?.copyPaths,
+        undefined,
         baseBranch,
         resetToBase,
         force,

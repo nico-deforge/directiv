@@ -1,65 +1,14 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::fs;
 use std::path::Path;
-
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct SkillOverrides {
-    pub code: Option<String>,
-    pub plan: Option<String>,
-    pub fix_ci: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum ClaudeModel {
-    Opus,
-    Sonnet,
-    Haiku,
-}
-
-#[derive(Debug, Deserialize, Serialize, Default, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelOverrides {
-    pub code: Option<ClaudeModel>,
-    pub plan: Option<ClaudeModel>,
-    pub fix_ci: Option<ClaudeModel>,
-}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredRepo {
     pub id: String,
     pub path: String,
-    pub copy_paths: Vec<String>,
-    pub on_start: Vec<String>,
-    pub before_remove: Vec<String>,
-    pub fetch_before: bool,
-    pub config_warning: Option<String>,
-    pub skills: Option<SkillOverrides>,
-    pub models: Option<ModelOverrides>,
     pub github_nwo: Option<String>,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-struct RepoConfig {
-    #[serde(default)]
-    copy_paths: Vec<String>,
-    #[serde(default)]
-    on_start: Vec<String>,
-    #[serde(default)]
-    before_remove: Vec<String>,
-    #[serde(default = "default_fetch_before")]
-    fetch_before: bool,
-    #[serde(default)]
-    skills: Option<SkillOverrides>,
-    #[serde(default)]
-    models: Option<ModelOverrides>,
-}
-
-fn default_fetch_before() -> bool {
-    true
+    pub config_warning: Option<String>,
 }
 
 fn parse_github_nwo(url: &str) -> Option<String> {
@@ -124,26 +73,14 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
 
         let repo_path = entry_path.to_str().unwrap_or("").to_string();
 
-        // Try to read .directiv.json from the repo
-        let config_path = entry_path.join(".directiv.json");
-        let (config, config_warning) = if config_path.exists() {
-            match fs::read_to_string(&config_path) {
-                Ok(content) => match serde_json::from_str(&content) {
-                    Ok(config) => (config, None),
-                    Err(e) => {
-                        let msg = format!("Failed to parse {}: {e}", config_path.display());
-                        log::warn!("{msg}");
-                        (RepoConfig::default(), Some(msg))
-                    }
-                },
-                Err(e) => {
-                    let msg = format!("Failed to read {}: {e}", config_path.display());
-                    log::warn!("{msg}");
-                    (RepoConfig::default(), Some(msg))
-                }
-            }
+        // Warn if a legacy .directiv.json exists so users know to migrate
+        let config_warning = if entry_path.join(".directiv.json").exists() {
+            Some(format!(
+                "{}: .directiv.json found — migrate to .config/wt.toml",
+                entry_path.display()
+            ))
         } else {
-            (RepoConfig::default(), None)
+            None
         };
 
         let github_nwo = get_github_nwo(&repo_path);
@@ -151,14 +88,8 @@ pub async fn scan_workspace(workspace_path: String) -> Result<Vec<DiscoveredRepo
         repos.push(DiscoveredRepo {
             id,
             path: repo_path,
-            copy_paths: config.copy_paths,
-            on_start: config.on_start,
-            before_remove: config.before_remove,
-            fetch_before: config.fetch_before,
-            config_warning,
-            skills: config.skills,
-            models: config.models,
             github_nwo,
+            config_warning,
         });
     }
 
