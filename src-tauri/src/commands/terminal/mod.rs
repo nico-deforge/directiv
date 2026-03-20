@@ -207,6 +207,18 @@ pub async fn query_terminals(
     Ok(statuses)
 }
 
+/// Check whether cmux is installed and running via `cmux ping`.
+/// Returns true if cmux is available, false if not installed or not running.
+#[tauri::command]
+pub async fn cmux_ping(app: tauri::AppHandle) -> Result<bool, String> {
+    let output = app.shell().command("cmux").args(["ping"]).output().await;
+
+    match output {
+        Ok(out) => Ok(out.status.success()),
+        Err(_) => Ok(false), // cmux not installed
+    }
+}
+
 #[tauri::command]
 pub async fn open_editor(
     app: tauri::AppHandle,

@@ -1,5 +1,7 @@
 import { Settings2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { cmuxPing } from "../../lib/tauri";
 import type { CodeEditor, Theme, TerminalEmulator } from "../../types";
 
 const EDITORS: { value: CodeEditor; label: string }[] = [
@@ -18,11 +20,19 @@ const THEMES: { value: Theme; label: string }[] = [
 const TERMINAL_EMULATORS: { value: TerminalEmulator; label: string }[] = [
   { value: "ghostty", label: "Ghostty" },
   { value: "iterm2", label: "iTerm2" },
+  { value: "cmux", label: "cmux" },
 ];
 
 export function GeneralSection() {
   const config = useSettingsStore((s) => s.config);
   const setConfig = useSettingsStore((s) => s.setConfig);
+
+  const { data: cmuxAvailable = false } = useQuery<boolean>({
+    queryKey: ["cmux-ping"],
+    queryFn: cmuxPing,
+    staleTime: 30_000,
+    retry: false,
+  });
 
   function handleEditorChange(editor: CodeEditor) {
     setConfig({ ...config, editor });
@@ -119,12 +129,23 @@ export function GeneralSection() {
             }
             className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
           >
-            {TERMINAL_EMULATORS.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
+            {TERMINAL_EMULATORS.map((t) => {
+              const disabled = t.value === "cmux" && !cmuxAvailable;
+              return (
+                <option key={t.value} value={t.value} disabled={disabled}>
+                  {t.value === "cmux" && !cmuxAvailable
+                    ? "cmux (not detected — install and launch cmux)"
+                    : t.label}
+                </option>
+              );
+            })}
           </select>
+          {config.terminal === "cmux" && !cmuxAvailable && (
+            <p className="mt-2 text-xs text-[var(--text-muted)]">
+              cmux is not detected. Install cmux and launch it before using it
+              as a terminal backend.
+            </p>
+          )}
         </div>
       </section>
     </div>

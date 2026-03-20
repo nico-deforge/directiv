@@ -210,6 +210,10 @@ export function queryTerminals(emulator: string): Promise<TerminalStatus[]> {
   return invoke<TerminalStatus[]>("query_terminals", { emulator });
 }
 
+export function cmuxPing(): Promise<boolean> {
+  return invoke<boolean>("cmux_ping");
+}
+
 // --- Editor commands ---
 
 export function openEditor(editor: string, path: string): Promise<void> {
