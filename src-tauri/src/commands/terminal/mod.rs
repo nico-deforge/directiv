@@ -91,6 +91,9 @@ async fn dispatch_terminal(
     let config = TerminalConfig {
         identifier: identifier.to_string(),
         session: session.to_string(),
+        // The session string doubles as a startup command for cmux workspaces.
+        // Other controllers (Ghostty, iTerm2) use the session field directly.
+        command: Some(session.to_string()),
         worktree_path: worktree_path.to_string(),
         env_vars,
     };
@@ -135,6 +138,8 @@ pub async fn query_terminals(
             .map(|(id, name)| TerminalStatus {
                 session_name: name.clone(),
                 identifier: id,
+                // cmux workspaces are always considered active: they persist until explicitly
+                // closed, unlike tmux sessions which can die without emulator cleanup.
                 active: true,
             })
             .collect();

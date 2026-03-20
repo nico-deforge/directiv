@@ -1,10 +1,11 @@
 use super::controller::TerminalController;
 use super::types::{Emulator, TerminalConfig, TerminalRef};
+use serde::Deserialize;
 use tauri_plugin_shell::ShellExt;
 
 pub struct CmuxController;
 
-/// Run a cmux CLI command and return (stdout, success).
+/// Run a cmux CLI command and return stdout trimmed.
 /// If cmux is not running, returns an Err with a clear message.
 async fn run_cmux(
     app: &tauri::AppHandle,
@@ -28,7 +29,7 @@ async fn run_cmux(
 }
 
 /// Check that cmux is installed and running via `cmux ping`.
-/// Used in `find_session`, `create`, and `list_sessions` to surface a clear error
+/// Used in `find_session`, `create`, `focus`, and `list_sessions` to surface a clear error
 /// instead of a cryptic "command not found".
 async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
     let output = app
@@ -52,85 +53,21 @@ async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Parse the output of `cmux list-workspaces --json`.
-///
-/// # Assumptions (CLI validation skipped — see design doc)
-/// Based on the cmux design doc, `cmux list-workspaces --json` returns a JSON array
-/// of workspace objects. Each object has at least:
-///   - `"id"`: UUID of the workspace
-///   - `"name"`: name given at creation time
-///   - `"workingDirectory"` or `"path"`: the working directory
-///
-/// The exact field names are documented assumptions. If cmux changes its JSON schema,
-/// update the field names in `parse_workspace_id_from_json` and `parse_workspaces_from_json`.
-fn parse_workspace_id_from_json(json: &str) -> Option<String> {
-    // Look for `"id": "..."` in the JSON output of `cmux new-workspace --json`.
-    // This handles simple single-object JSON. We avoid pulling in serde_json to
-    // keep the dependency surface minimal — cmux.rs is the only caller.
-    parse_json_string_field(json, "id")
+/// Shape of a single workspace returned by `cmux list-workspaces --json`.
+/// The `working_directory` field uses serde rename to handle the camelCase JSON key.
+/// cmux may use either "workingDirectory" or "path" for the working directory.
+#[derive(Deserialize)]
+struct CmuxWorkspace {
+    id: String,
+    name: String,
+    #[serde(alias = "workingDirectory", alias = "path", default)]
+    working_directory: String,
 }
 
-fn parse_json_string_field(json: &str, field: &str) -> Option<String> {
-    // Find `"<field>": "` and extract the value up to the closing `"`.
-    let needle = format!("\"{field}\": \"");
-    let start = json.find(&needle)? + needle.len();
-    let rest = &json[start..];
-    let end = rest.find('"')?;
-    Some(rest[..end].to_string())
-}
-
-/// Parse `cmux list-workspaces --json` output into a vec of (workspace_id, workspace_name, working_dir).
-fn parse_workspaces_from_json(json: &str) -> Vec<(String, String, String)> {
-    // The output is a JSON array: [{"id":"...","name":"...","workingDirectory":"..."}, ...]
-    // We parse it without serde_json by splitting on object boundaries.
-    let mut results = Vec::new();
-
-    // Split on `},{` to get individual objects (tolerating whitespace via trim)
-    // Works for flat JSON arrays of flat objects (no nested objects in the fields we care about).
-    let trimmed = json.trim().trim_start_matches('[').trim_end_matches(']');
-    for obj in split_json_objects(trimmed) {
-        let id = parse_json_string_field(obj, "id").unwrap_or_default();
-        let name = parse_json_string_field(obj, "name").unwrap_or_default();
-        // cmux may use "workingDirectory" or "path" — try both.
-        let working_dir = parse_json_string_field(obj, "workingDirectory")
-            .or_else(|| parse_json_string_field(obj, "path"))
-            .unwrap_or_default();
-
-        if !id.is_empty() {
-            results.push((id, name, working_dir));
-        }
-    }
-
-    results
-}
-
-/// Naive JSON object splitter: splits a JSON array body on `},{` boundaries.
-/// Does not handle nested objects — sufficient for flat cmux workspace objects.
-fn split_json_objects(s: &str) -> Vec<&str> {
-    // We need to split on `}` followed by `,` then `{` (with optional whitespace).
-    // Since cmux objects are flat, we can split on `},{` patterns.
-    let mut results = Vec::new();
-    let mut depth = 0i32;
-    let mut start = 0;
-
-    for (i, ch) in s.char_indices() {
-        match ch {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    let slice = s[start..=i].trim();
-                    if !slice.is_empty() {
-                        results.push(slice);
-                    }
-                    start = i + 1;
-                }
-            }
-            _ => {}
-        }
-    }
-
-    results
+/// Shape of a single workspace returned by `cmux new-workspace --json`.
+#[derive(Deserialize)]
+struct CmuxNewWorkspace {
+    id: String,
 }
 
 impl TerminalController for CmuxController {
@@ -161,25 +98,26 @@ impl TerminalController for CmuxController {
             return Ok(None);
         }
 
-        let workspaces = parse_workspaces_from_json(&json);
+        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(&json)
+            .map_err(|e| format!("cmux find_session: failed to parse workspace list: {e}"))?;
 
         // Match by name first (exact match with identifier)
-        for (id, name, _) in &workspaces {
-            if name == identifier {
+        for ws in &workspaces {
+            if ws.name == identifier {
                 return Ok(Some(TerminalRef {
-                    identifier: id.clone(),
+                    identifier: ws.id.clone(),
                     emulator: Emulator::Cmux,
                 }));
             }
         }
 
-        // Fallback: match by working directory
-        for (id, _, working_dir) in &workspaces {
-            if working_dir.starts_with(worktree_path)
-                || worktree_path.starts_with(working_dir.as_str())
-            {
+        // Fallback: match by working directory.
+        // Only check if the workspace's working dir starts with the target path,
+        // not the reverse — avoids matching parent directories of the worktree.
+        for ws in &workspaces {
+            if ws.working_directory.starts_with(worktree_path) {
                 return Ok(Some(TerminalRef {
-                    identifier: id.clone(),
+                    identifier: ws.id.clone(),
                     emulator: Emulator::Cmux,
                 }));
             }
@@ -194,6 +132,8 @@ impl TerminalController for CmuxController {
         app: &tauri::AppHandle,
         terminal_ref: &TerminalRef,
     ) -> Result<(), String> {
+        check_cmux_available(app).await?;
+
         run_cmux(
             app,
             &["select-workspace", "--workspace", &terminal_ref.identifier],
@@ -203,19 +143,18 @@ impl TerminalController for CmuxController {
         Ok(())
     }
 
-    /// Create a new cmux workspace, cd into the worktree, and launch Claude.
+    /// Create a new cmux workspace, cd into the worktree, and launch the startup command.
     ///
     /// Flow:
     /// 1. `cmux new-workspace --name <identifier> --json` → captures workspace ID
     /// 2. Wait 200ms for shell readiness (`.zshrc` etc.) — no cmux equivalent of `tmux wait-for`
     /// 3. `cmux send --workspace <id> "cd <worktree_path>\r"` → navigate to worktree
-    /// 4. `cmux send --workspace <id> "<claude_command>\r"` → launch Claude
+    /// 4. If `config.command` is set: `cmux send --workspace <id> "<command>\r"` → run it
     ///
     /// # Assumptions
     /// - `cmux new-workspace --name <name> --json` returns a JSON object with `"id"` field.
     /// - `cmux send --workspace <uuid>` correctly targets the named workspace.
     /// - 200ms is sufficient for shell readiness after workspace creation (configurable if needed).
-    /// - The `session` field in `TerminalConfig` contains the Claude command to run.
     async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
         check_cmux_available(app).await?;
 
@@ -227,23 +166,22 @@ impl TerminalController for CmuxController {
         )
         .await?;
 
-        // Extract workspace UUID from JSON output
-        // If `--json` is not supported or returns a plain UUID string, fall back to using the
-        // name for targeting (which works if cmux supports name-based --workspace targeting).
-        let workspace_id = parse_workspace_id_from_json(&json).unwrap_or_else(|| {
-            // Fallback: cmux may return the raw ID without JSON wrapping,
-            // or may not return anything. Use the identifier (name) as target.
-            let trimmed = json.trim().to_string();
-            if !trimmed.is_empty() && !trimmed.starts_with('{') {
-                trimmed
-            } else {
-                config.identifier.clone()
-            }
-        });
+        // Extract workspace UUID from JSON output.
+        // Fall back to the identifier (name) if the output is not valid JSON
+        // (e.g., cmux returns a raw ID string without JSON wrapping).
+        let workspace_id = serde_json::from_str::<CmuxNewWorkspace>(&json)
+            .map(|ws| ws.id)
+            .unwrap_or_else(|_| {
+                let trimmed = json.trim().to_string();
+                if !trimmed.is_empty() && !trimmed.starts_with('{') {
+                    trimmed
+                } else {
+                    config.identifier.clone()
+                }
+            });
 
         // Wait for shell readiness — cmux new-workspace is synchronous but the shell
         // (zsh/bash with .zshrc) needs a moment to finish initialization.
-        // 200ms default, per design doc (R3 mitigation).
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
         // Navigate to the worktree directory
@@ -255,32 +193,35 @@ impl TerminalController for CmuxController {
         )
         .await?;
 
-        // Build the Claude command from the session field.
-        // In the standard Directiv flow, workflows.ts passes the full claude invocation
-        // as the session parameter (consistent with how tmux.rs uses it).
-        // We send it with a carriage return to execute immediately.
-        let claude_cmd = format!("{}\r", config.session);
-        run_cmux(
-            app,
-            &["send", "--workspace", &workspace_id, &claude_cmd],
-            "create:claude",
-        )
-        .await?;
+        // Send the startup command if provided. The command is shell-escaped to prevent
+        // injection via untrusted input (e.g., a worktree path with special characters).
+        if let Some(cmd) = &config.command {
+            let escaped_cmd = format!("{}\r", shell_escape(cmd));
+            run_cmux(
+                app,
+                &["send", "--workspace", &workspace_id, &escaped_cmd],
+                "create:command",
+            )
+            .await?;
+        }
 
         Ok(())
     }
 
     /// Split a cmux workspace. cmux workspaces are single-pane by design — splits
-    /// are not supported. This is a no-op for cmux; the design doc does not list
-    /// split support as a cmux requirement (M1 scope).
+    /// are not supported. Log a message and succeed silently.
     async fn split(
         &self,
         _app: &tauri::AppHandle,
-        _terminal_ref: &TerminalRef,
+        terminal_ref: &TerminalRef,
         _worktree_path: &str,
     ) -> Result<(), String> {
         // cmux does not support pane splitting in its CLI as of the design doc.
-        // Silently succeed — dispatch_terminal handles the case where split is a no-op.
+        // Log and succeed — dispatch_terminal handles the case where split is a no-op.
+        eprintln!(
+            "cmux split: workspace {} does not support pane splitting, skipping",
+            terminal_ref.identifier
+        );
         Ok(())
     }
 
@@ -306,17 +247,16 @@ impl TerminalController for CmuxController {
             return Ok(vec![]);
         }
 
-        let workspaces = parse_workspaces_from_json(&json);
-        let sessions = workspaces
-            .into_iter()
-            .map(|(id, name, _)| (id, name))
-            .collect();
+        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(&json)
+            .map_err(|e| format!("cmux list_sessions: failed to parse workspace list: {e}"))?;
+
+        let sessions = workspaces.into_iter().map(|ws| (ws.id, ws.name)).collect();
 
         Ok(sessions)
     }
 }
 
-/// Shell-escape a path by wrapping it in single quotes and escaping internal single quotes.
+/// Shell-escape a string by wrapping it in single quotes and escaping internal single quotes.
 fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
@@ -328,41 +268,39 @@ mod tests {
     #[test]
     fn test_parse_workspace_id_from_json_standard() {
         let json = r#"{"id": "abc-123", "name": "ACQ-145"}"#;
-        assert_eq!(
-            parse_workspace_id_from_json(json),
-            Some("abc-123".to_string())
-        );
+        let ws: CmuxNewWorkspace = serde_json::from_str(json).unwrap();
+        assert_eq!(ws.id, "abc-123");
     }
 
     #[test]
     fn test_parse_workspace_id_from_json_uuid() {
         let json = r#"{"id": "550e8400-e29b-41d4-a716-446655440000", "name": "test"}"#;
-        assert_eq!(
-            parse_workspace_id_from_json(json),
-            Some("550e8400-e29b-41d4-a716-446655440000".to_string())
-        );
+        let ws: CmuxNewWorkspace = serde_json::from_str(json).unwrap();
+        assert_eq!(ws.id, "550e8400-e29b-41d4-a716-446655440000");
     }
 
     #[test]
     fn test_parse_workspace_id_from_json_missing() {
         let json = r#"{"name": "ACQ-145"}"#;
-        assert_eq!(parse_workspace_id_from_json(json), None);
+        let result: Result<CmuxNewWorkspace, _> = serde_json::from_str(json);
+        assert!(result.is_err());
     }
 
     #[test]
     fn test_parse_workspace_id_from_json_empty() {
-        assert_eq!(parse_workspace_id_from_json(""), None);
+        let result: Result<CmuxNewWorkspace, _> = serde_json::from_str("");
+        assert!(result.is_err());
     }
 
     #[test]
     fn test_parse_workspaces_from_json_single() {
         let json =
             r#"[{"id": "abc-123", "name": "ACQ-145", "workingDirectory": "/path/to/worktree"}]"#;
-        let result = parse_workspaces_from_json(json);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].0, "abc-123");
-        assert_eq!(result[0].1, "ACQ-145");
-        assert_eq!(result[0].2, "/path/to/worktree");
+        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(json).unwrap();
+        assert_eq!(workspaces.len(), 1);
+        assert_eq!(workspaces[0].id, "abc-123");
+        assert_eq!(workspaces[0].name, "ACQ-145");
+        assert_eq!(workspaces[0].working_directory, "/path/to/worktree");
     }
 
     #[test]
@@ -371,56 +309,28 @@ mod tests {
             {"id": "id-1", "name": "ACQ-145", "workingDirectory": "/path/a"},
             {"id": "id-2", "name": "ACQ-146", "workingDirectory": "/path/b"}
         ]"#;
-        let result = parse_workspaces_from_json(json);
-        assert_eq!(result.len(), 2);
-        assert_eq!(result[0].0, "id-1");
-        assert_eq!(result[0].1, "ACQ-145");
-        assert_eq!(result[1].0, "id-2");
-        assert_eq!(result[1].1, "ACQ-146");
+        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(json).unwrap();
+        assert_eq!(workspaces.len(), 2);
+        assert_eq!(workspaces[0].id, "id-1");
+        assert_eq!(workspaces[0].name, "ACQ-145");
+        assert_eq!(workspaces[1].id, "id-2");
+        assert_eq!(workspaces[1].name, "ACQ-146");
     }
 
     #[test]
     fn test_parse_workspaces_from_json_empty_array() {
         let json = "[]";
-        let result = parse_workspaces_from_json(json);
-        assert!(result.is_empty());
+        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(json).unwrap();
+        assert!(workspaces.is_empty());
     }
 
     #[test]
     fn test_parse_workspaces_from_json_fallback_path_field() {
         // cmux may use "path" instead of "workingDirectory"
         let json = r#"[{"id": "abc-123", "name": "ACQ-145", "path": "/alt/path"}]"#;
-        let result = parse_workspaces_from_json(json);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].2, "/alt/path");
-    }
-
-    #[test]
-    fn test_parse_json_string_field_basic() {
-        let json = r#"{"key": "value", "other": "stuff"}"#;
-        assert_eq!(
-            parse_json_string_field(json, "key"),
-            Some("value".to_string())
-        );
-        assert_eq!(
-            parse_json_string_field(json, "other"),
-            Some("stuff".to_string())
-        );
-        assert_eq!(parse_json_string_field(json, "missing"), None);
-    }
-
-    #[test]
-    fn test_split_json_objects_single() {
-        let input = r#"{"id": "1", "name": "a"}"#;
-        let result = split_json_objects(input);
-        assert_eq!(result.len(), 1);
-    }
-
-    #[test]
-    fn test_split_json_objects_multiple() {
-        let input = r#"{"id": "1"}, {"id": "2"}, {"id": "3"}"#;
-        let result = split_json_objects(input);
-        assert_eq!(result.len(), 3);
+        let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(json).unwrap();
+        assert_eq!(workspaces.len(), 1);
+        assert_eq!(workspaces[0].working_directory, "/alt/path");
     }
 
     #[test]
