@@ -71,7 +71,7 @@ mise run build             # Build production Tauri app
 
 ### Backend commands (`src-tauri/src/commands/`)
 
-- `worktree.rs` — git worktree add/remove/list/check-merged/check-synced, git fetch prune
+- `wt.rs` — Worktrunk CLI wrapper: `wt_version`, `wt_list`, `wt_switch_create`, `wt_remove`. All worktree operations delegate to the `wt` CLI binary.
 - `tmux.rs` — session create/kill/list/send-keys/capture-pane/wait-for-ready
 - `terminal/` — external terminal module:
   - `mod.rs` — `open_terminal`, `query_terminals`, `open_editor` commands
@@ -80,8 +80,7 @@ mise run build             # Build production Tauri app
   - `iterm.rs` — iTerm2 integration via AppleScript
   - `types.rs` — `TerminalConfig`, `TerminalRef`, `TerminalLayout`
 - `config.rs` — `load_config` / `save_config` commands. Config lives at `~/Library/Application Support/directiv/config.json` (release) or `config.dev.json` (dev), using the same `#[cfg(debug_assertions)]` pattern as `shared.rs`. On first load, auto-migrates from legacy project-root `directiv.config.json` if found.
-- `hooks.rs` — execute `.directiv.json` onStart/beforeRemove scripts
-- `workspace.rs` — scan workspace directories, discover git repos
+- `workspace.rs` — scan workspace directories, discover git repos. Returns `DiscoveredRepo { id, path, github_nwo, config_warning }`. Emits a `config_warning` if a legacy `.directiv.json` is found (migrate to `.config/wt.toml`).
 - `skills.rs` — `get_plugin_dir`, `list_plugin_skills`, `read_plugin_skill_file`, `list_all_claude_skills`
 - `github.rs` — GitHub integration via `gh` CLI: `gh_auth_status`, `gh_list_my_open_prs`, `gh_list_review_requests`, `gh_check_repo_access`
 - `oauth/` — OAuth module directory (Linear only):
@@ -100,12 +99,11 @@ Terminal display is fully delegated to external emulators. The `TerminalControll
 ### Core workflow: "Start Task"
 
 Triggered by clicking [Start] on a backlog card:
-1. Create git worktree → `git worktree add ../repo-worktrees/ACQ-145 -b ACQ-145 origin/main` (+ copy paths from `.directiv.json`)
-2. Run onStart hooks (if defined in `.directiv.json`)
-3. Create tmux session → `tmux new-session -d -s ACQ-145 -c /path/to/worktree`
-4. Launch Claude with context → `tmux send-keys -t ACQ-145 "claude '/directiv:linear-code ACQ-145' --plugin-dir '<resource>/directiv-plugin'" Enter`
-5. Open external terminal → Ghostty/iTerm2 attaches to tmux session
-6. Update Linear → status to "In Progress", card moves to "In Dev"
+1. Create git worktree → `wt switch --create ACQ-145` (delegated to the `wt` CLI; lifecycle config in `.config/wt.toml`)
+2. Create tmux session → `tmux new-session -d -s ACQ-145 -c /path/to/worktree`
+3. Launch Claude with context → `tmux send-keys -t ACQ-145 "claude '/directiv:linear-code ACQ-145' --plugin-dir '<resource>/directiv-plugin'" Enter`
+4. Open external terminal → Ghostty/iTerm2 attaches to tmux session
+5. Update Linear → status to "In Progress", card moves to "In Dev"
 
 Claude Code starts in interactive mode with `/directiv:linear-code <issue_id>` as the initial prompt, executing the skill immediately then remaining available for interaction.
 
@@ -158,13 +156,9 @@ User config lives at `~/Library/Application Support/directiv/config.json` (relea
 - `skills`: optional skill overrides per action (`code`, `plan`, `fixCi`)
 - `models`: optional model overrides per action (`code`, `plan`, `fixCi`)
 
-**Per-repo config** (`.directiv.json` at repo root):
-- `copyPaths`: files/dirs to copy into worktrees on creation
-- `onStart`: hook commands to run after worktree creation
-- `beforeRemove`: hook commands to run before worktree deletion
-- `baseBranch`: base branch for worktrees (default: `"main"`)
-- `fetchBefore`: whether to `git fetch` before creating worktree
-- `skills` / `models`: per-repo overrides (same shape as global config)
+**Per-repo worktree config** (`.config/wt.toml` at repo root, managed by the `wt` CLI):
+- Lifecycle hooks (`onStart`, `beforeRemove`), `baseBranch`, `fetchBefore`, `copyPaths` — all delegated to `wt`. See `wt` documentation for schema details.
+- Legacy `.directiv.json` files are no longer read by Directiv. If one is found during workspace scanning, a `configWarning` is surfaced in the UI to prompt migration to `.config/wt.toml`.
 
 ### UI layout
 

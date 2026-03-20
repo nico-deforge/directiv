@@ -129,36 +129,11 @@ Tokens are stored securely in your OS keyring (release builds) or in `~/Library/
 
 ### Per-repository configuration
 
-Create `.directiv.json` at the root of each repository:
-
-```jsonc
-{
-  "copyPaths": [           // Files/folders to copy into new worktrees
-    ".claude/settings.local.json",
-    ".env.local",
-    "node_modules"
-  ],
-  "onStart": ["bun install"],  // Commands to run after worktree creation
-  "beforeRemove": [],          // Commands to run before worktree deletion
-  "baseBranch": "main" | "master" | "develop",
-  "fetchBefore": true | false,
-  "skills": {              // Override Claude Code skills (optional)
-    "code": "my-org:implementation-skill",
-    "plan": "my-org:planning-skill",
-    "fixCi": "my-org:fix-ci-skill"
-  }
-}
-```
-
-> **Note:** Hooks (`onStart`, `beforeRemove`) run in the user's login shell (`$SHELL -lc`), so your full PATH from `.zshrc` / `.bashrc` is available. Commands like `psql`, `mise`, or Homebrew-installed tools will work as expected.
->
-> `beforeRemove` hooks run while the worktree directory still exists, so you can use them to save state, backup files, or run cleanup scripts. If a hook fails, the removal is aborted.
+Worktree lifecycle (hooks, base branch, copy paths) is configured via `wt` — place a `.config/wt.toml` at the root of each repository. See the [wt documentation](https://github.com/nicodeforge/wt) for the full schema.
 
 #### Skill overrides
 
-By default, the **Code**, **Plan**, and **Fix CI** buttons launch Claude Code with the bundled Directiv plugin (`--plugin-dir`) and built-in skills (`directiv:linear-code`, `directiv:linear-plan`, `directiv:fix-ci`). You can override skills at two levels:
-
-**Global overrides** — in global config, apply to all repos:
+By default, the **Code**, **Plan**, and **Fix CI** buttons launch Claude Code with the bundled Directiv plugin (`--plugin-dir`) and built-in skills (`directiv:linear-code`, `directiv:linear-plan`, `directiv:fix-ci`). You can override skills globally in the app config:
 
 ```jsonc
 {
@@ -170,21 +145,7 @@ By default, the **Code**, **Plan**, and **Fix CI** buttons launch Claude Code wi
 }
 ```
 
-**Per-repo overrides** — in `.directiv.json`, apply to a single repo:
-
-```jsonc
-{
-  "skills": {
-    "code": "my-org:repo-specific-skill",
-    "plan": "my-org:repo-specific-plan",
-    "fixCi": "my-org:repo-specific-fix-ci"
-  }
-}
-```
-
-**Priority chain:** repo `.directiv.json` > global config > bundled plugin defaults.
-
-When `skills` is present with at least one override (at either level), the bundled `--plugin-dir` flag is omitted — Claude Code will rely on the repo's own plugin/skill setup instead. All fields (`code`, `plan`, `fixCi`) are optional; omit any to keep the default skill name (but still without `--plugin-dir`). An empty `"skills": {}` is a no-op and the bundled plugin is still used.
+When `skills` is present with at least one override, the bundled `--plugin-dir` flag is omitted — Claude Code will rely on the repo's own plugin/skill setup instead. All fields (`code`, `plan`, `fixCi`) are optional; omit any to keep the default skill name. An empty `"skills": {}` is a no-op and the bundled plugin is still used.
 
 ## Deployment
 
@@ -211,10 +172,12 @@ Directiv requires several tools to be installed on your system.
 - **macOS** (Linux and Windows support planned)
 - **git** (2.20+)
 - **tmux** (3.0+)
+- **wt** (Worktrunk CLI — manages git worktrees)
 
 ```bash
 # macOS (Homebrew)
 brew install git tmux
+# Install wt: follow https://github.com/nicodeforge/wt instructions
 ```
 
 #### mise (recommended)
@@ -357,10 +320,9 @@ directiv/
 │   └── types/            # TypeScript types
 ├── src-tauri/            # Rust backend
 │   └── src/
-│       ├── commands/     # Tauri commands (worktree, tmux, pty, terminal, oauth)
+│       ├── commands/     # Tauri commands (wt, tmux, terminal, oauth, workspace, skills)
 │       │   └── oauth/    # OAuth module (shared keyring, Linear Web Flow, GitHub Device Flow)
 │       └── lib.rs        # Main entry point
-└── .directiv.json        # Per-repo configuration
 ```
 
 ## License
