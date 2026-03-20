@@ -272,10 +272,6 @@ function NewWorktreeSection() {
         repoPath: repo.path,
         terminal,
         terminalLayout,
-        copyPaths: repo.copyPaths,
-        onStart: repo.onStart,
-        baseBranch,
-        fetchBefore: repo.fetchBefore,
       },
       {
         onSuccess: () => {
@@ -319,10 +315,6 @@ function NewWorktreeSection() {
           repoPath,
           terminal,
           terminalLayout,
-          copyPaths: repo?.copyPaths,
-          onStart: repo?.onStart,
-          baseBranch: promptBase,
-          fetchBefore: false,
         },
         {
           onSuccess: () => {

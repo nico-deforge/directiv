@@ -55,6 +55,20 @@ interface WtWorktreeInfoRaw {
   mainState: string | null;
 }
 
+export async function wtSwitchCreate(
+  repoPath: string,
+  branchName: string,
+): Promise<{ path: string }> {
+  return invoke<{ path: string }>("wt_switch_create", { repoPath, branchName });
+}
+
+export async function wtRemove(
+  repoPath: string,
+  branchName: string,
+): Promise<void> {
+  return invoke<void>("wt_remove", { repoPath, branchName });
+}
+
 export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
   const raw = await invoke<WtWorktreeInfoRaw[]>("wt_list", { repoPath });
   return raw.map((entry) => ({
