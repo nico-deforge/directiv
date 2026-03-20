@@ -373,9 +373,9 @@ pub struct CmuxNotification {
 
 impl From<RawCmuxNotification> for CmuxNotification {
     fn from(raw: RawCmuxNotification) -> Self {
-        let category = raw.category.unwrap_or_else(|| {
-            NotificationCategory::from_text(&raw.title, raw.body.as_deref())
-        });
+        let category = raw
+            .category
+            .unwrap_or_else(|| NotificationCategory::from_text(&raw.title, raw.body.as_deref()));
         CmuxNotification {
             title: raw.title,
             subtitle: raw.subtitle,
@@ -394,30 +394,64 @@ impl From<RawCmuxNotification> for CmuxNotification {
 pub async fn list_notifications(app: &tauri::AppHandle) -> Result<Vec<CmuxNotification>, String> {
     check_cmux_available(app).await?;
 
-    let json =
-        match run_cmux(app, &["list-notifications", "--json"], "list_notifications").await {
-            Ok(s) => s,
-            Err(e) => {
-                // No notifications or empty list is not an error
-                if e.contains("no notifications")
-                    || e.contains("empty")
-                    || e.contains("not found")
-                {
-                    return Ok(vec![]);
-                }
-                return Err(e);
+    let json = match run_cmux(app, &["list-notifications", "--json"], "list_notifications").await {
+        Ok(s) => s,
+        Err(e) => {
+            // No notifications or empty list is not an error
+            if e.contains("no notifications") || e.contains("empty") || e.contains("not found") {
+                return Ok(vec![]);
             }
-        };
+            return Err(e);
+        }
+    };
 
     if json.is_empty() || json == "[]" || json == "null" {
         return Ok(vec![]);
     }
 
-    let raw: Vec<RawCmuxNotification> = serde_json::from_str(&json).map_err(|e| {
-        format!("cmux list_notifications: failed to parse notification list: {e}")
-    })?;
+    let raw: Vec<RawCmuxNotification> = serde_json::from_str(&json)
+        .map_err(|e| format!("cmux list_notifications: failed to parse notification list: {e}"))?;
 
     Ok(raw.into_iter().map(CmuxNotification::from).collect())
+}
+
+/// Set a sidebar status pill in a cmux workspace.
+///
+/// Calls `cmux set-status --workspace <workspace_name> <key> <value>`.
+///
+/// # Assumptions
+/// - cmux set-status accepts: `--workspace <name_or_id> <key> <value>`
+/// - Errors are surfaced to the caller but treated as best-effort by the Tauri command layer.
+/// - Workspace is targeted by name (the identifier / issue ID used at workspace creation).
+pub async fn set_status(
+    app: &tauri::AppHandle,
+    workspace_name: &str,
+    key: &str,
+    value: &str,
+) -> Result<(), String> {
+    // If cmux is not available, skip silently — sidebar status is best-effort.
+    let available = app
+        .shell()
+        .command("cmux")
+        .args(["ping"])
+        .output()
+        .await
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    if !available {
+        return Ok(());
+    }
+
+    // `cmux set-status --workspace <name> <key> <value>`
+    run_cmux(
+        app,
+        &["set-status", "--workspace", workspace_name, key, value],
+        "set_status",
+    )
+    .await?;
+
+    Ok(())
 }
 
 /// Shell-escape a string by wrapping it in single quotes and escaping internal single quotes.

@@ -230,6 +230,27 @@ pub async fn cmux_list_notifications(
     cmux::list_notifications(&app).await
 }
 
+/// Set a sidebar status pill in a cmux workspace.
+///
+/// Calls `cmux set-status --workspace <workspace_id> <key> <value>`.
+/// The key identifies the pill (e.g. "linear", "pr", "ci") and value is the display text.
+/// This is a best-effort call — errors are silently swallowed so the app never crashes
+/// due to a sidebar update failure. If cmux is not running, this is a no-op.
+///
+/// # Assumed CLI syntax
+/// `cmux set-status --workspace <id> <key> <value>`
+/// The workspace is targeted by ID (UUID returned by new-workspace) or by name.
+/// We use the workspace name (= identifier / issue ID) for simplicity.
+#[tauri::command]
+pub async fn cmux_set_status(
+    app: tauri::AppHandle,
+    workspace_name: String,
+    key: String,
+    value: String,
+) -> Result<(), String> {
+    cmux::set_status(&app, &workspace_name, &key, &value).await
+}
+
 /// Check whether cmux is installed and running via `cmux ping`.
 /// Returns true if cmux is available, false if not installed or not running.
 #[tauri::command]
