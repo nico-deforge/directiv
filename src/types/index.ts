@@ -186,7 +186,7 @@ export const TERMINAL_LAYOUTS = {
 export type TerminalLayout =
   (typeof TERMINAL_LAYOUTS)[keyof typeof TERMINAL_LAYOUTS];
 
-export type TerminalEmulator = "ghostty" | "iterm2";
+export type TerminalEmulator = "ghostty" | "iterm2" | "cmux";
 export type CodeEditor = "zed" | "cursor" | "vscode" | "code";
 export type Theme = "light" | "dark" | "system";
 

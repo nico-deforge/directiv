@@ -32,6 +32,7 @@ pub fn run() {
             commands::tmux::tmux_wait_for_ready,
             commands::terminal::open_terminal,
             commands::terminal::query_terminals,
+            commands::terminal::cmux_close_workspace,
             commands::terminal::open_editor,
             commands::terminal::cmux_close_workspace,
             commands::hooks::run_hooks,

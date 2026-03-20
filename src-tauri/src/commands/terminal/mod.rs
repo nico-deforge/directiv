@@ -238,6 +238,11 @@ pub async fn cmux_close_workspace(app: tauri::AppHandle, name: String) -> Result
 }
 
 #[tauri::command]
+pub async fn cmux_close_workspace(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    cmux::close_workspace(&app, &name).await
+}
+
+#[tauri::command]
 pub async fn open_editor(
     app: tauri::AppHandle,
     editor: String,

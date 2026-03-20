@@ -184,6 +184,17 @@ impl TerminalController for CmuxController {
         // (zsh/bash with .zshrc) needs a moment to finish initialization.
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
+        // Inject DIRECTIV env vars before cd/claude so the shell has them set.
+        for (key, value) in &config.env_vars {
+            let export_cmd = format!("export {}={}\r", shell_escape(key), shell_escape(value));
+            run_cmux(
+                app,
+                &["send", "--workspace", &workspace_id, &export_cmd],
+                "create:env",
+            )
+            .await?;
+        }
+
         // Navigate to the worktree directory
         let cd_cmd = format!("cd {}\r", shell_escape(&config.worktree_path));
         run_cmux(
@@ -254,6 +265,39 @@ impl TerminalController for CmuxController {
 
         Ok(sessions)
     }
+}
+
+/// Close a cmux workspace by name. Finds the workspace by name and closes it.
+/// Used by the `cmux_close_workspace` Tauri command as the cmux equivalent of tmux kill-session.
+pub async fn close_workspace(app: &tauri::AppHandle, name: &str) -> Result<(), String> {
+    check_cmux_available(app).await?;
+
+    let json = run_cmux(app, &["list-workspaces", "--json"], "close_workspace").await?;
+
+    if json.is_empty() || json == "[]" || json == "null" {
+        return Ok(());
+    }
+
+    let workspaces: Vec<CmuxWorkspace> = serde_json::from_str(&json)
+        .map_err(|e| format!("cmux close_workspace: failed to parse workspace list: {e}"))?;
+
+    let workspace_id = workspaces
+        .into_iter()
+        .find(|ws| ws.name == name)
+        .map(|ws| ws.id);
+
+    let Some(id) = workspace_id else {
+        return Ok(());
+    };
+
+    run_cmux(
+        app,
+        &["close-workspace", "--workspace", &id],
+        "close_workspace",
+    )
+    .await?;
+
+    Ok(())
 }
 
 /// Shell-escape a string by wrapping it in single quotes and escaping internal single quotes.
