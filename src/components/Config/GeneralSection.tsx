@@ -172,8 +172,7 @@ export function GeneralSection() {
                   key={l.value}
                   onClick={() => handleTerminalLayoutChange(l.value)}
                   className={`flex-1 rounded px-3 py-1.5 text-sm transition-colors ${
-                    (config.terminalLayout ?? TERMINAL_LAYOUTS.SIDE_BY_SIDE) ===
-                    l.value
+                    config.terminalLayout === l.value
                       ? "bg-[var(--bg-elevated)] font-medium text-[var(--text-primary)]"
                       : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                   }`}

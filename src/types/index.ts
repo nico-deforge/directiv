@@ -280,7 +280,7 @@ export interface LinearOrgConfig {
 
 export interface DirectivConfig {
   terminal: TerminalEmulator;
-  terminalLayout?: TerminalLayout;
+  terminalLayout: TerminalLayout;
   editor: CodeEditor;
   workspaces: WorkspaceConfig[];
   linear: Record<string, LinearOrgConfig>;
