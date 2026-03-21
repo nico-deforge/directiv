@@ -1,12 +1,17 @@
 import { CircleCheck, CircleX, Loader2 } from "lucide-react";
-import { CI_STATUSES, type CIStatus } from "../../types";
+import { CI_STATUSES, type CIStatus, type TerminalEmulator } from "../../types";
+import { CmuxLink } from "../shared/CmuxLink";
 
 export function CIStatusIcon({
   status,
   url,
+  workspaceName,
+  terminal,
 }: {
   status: CIStatus;
   url: string | null;
+  workspaceName?: string | null;
+  terminal?: TerminalEmulator;
 }) {
   if (!status) return null;
 
@@ -36,6 +41,19 @@ export function CIStatusIcon({
   }
 
   if (url) {
+    if (workspaceName && terminal) {
+      return (
+        <CmuxLink
+          href={url}
+          workspaceName={workspaceName}
+          terminal={terminal}
+          title={tooltip}
+          className="shrink-0 hover:opacity-80"
+        >
+          {icon}
+        </CmuxLink>
+      );
+    }
     return (
       <a
         href={url}

@@ -26,6 +26,7 @@ pub fn run() {
             commands::terminal::open_terminal,
             commands::terminal::query_terminals,
             commands::terminal::cmux_close_workspace,
+            commands::terminal::cmux_browser_open,
             commands::terminal::cmux_set_status,
             commands::terminal::cmux_set_progress,
             commands::terminal::cmux_log,

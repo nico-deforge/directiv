@@ -35,6 +35,7 @@ import type {
 import { CI_STATUSES } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
 import { CiStatusBadge } from "./CiStatusBadge";
+import { CmuxLink } from "../shared/CmuxLink";
 import { WT_CI_STATUSES } from "../../types";
 import { useStartTask } from "../../hooks/useStartTask";
 import {
@@ -553,15 +554,15 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       {/* Linear Section */}
       <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
         <SquareKanban className="size-4 shrink-0 text-[#5E6AD2]" />
-        <a
+        <CmuxLink
           href={task.url}
-          target="_blank"
-          rel="noopener noreferrer"
+          workspaceName={task.identifier}
+          terminal={terminal}
           className="flex items-center gap-1 min-w-0 text-sm text-[#5E6AD2] hover:text-[#7C85E3]"
         >
           <span className="truncate">{task.identifier}</span>
           <ExternalLink className="size-3 shrink-0" />
-        </a>
+        </CmuxLink>
         <span className="ml-auto text-xs text-[var(--text-tertiary)]">
           {task.status}
         </span>
@@ -571,16 +572,21 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       {pullRequest && (
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
           <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
-          <a
+          <CmuxLink
             href={pullRequest.url}
-            target="_blank"
-            rel="noopener noreferrer"
+            workspaceName={task.identifier}
+            terminal={terminal}
             className="flex items-center gap-1 min-w-0 flex-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             <span className="truncate">PR #{pullRequest.number}</span>
             <ExternalLink className="size-3 shrink-0" />
-          </a>
-          <CIStatusIcon status={pullRequest.ciStatus} url={pullRequest.ciUrl} />
+          </CmuxLink>
+          <CIStatusIcon
+            status={pullRequest.ciStatus}
+            url={pullRequest.ciUrl}
+            workspaceName={task.identifier}
+            terminal={terminal}
+          />
           {!isDisabled &&
             worktree &&
             (pullRequest.ciStatus === CI_STATUSES.FAILURE ||
@@ -645,6 +651,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                 status={worktree.ciStatus}
                 url={worktree.ciUrl}
                 stale={worktree.ciStale}
+                workspaceName={task.identifier}
+                terminal={terminal}
               />
             </span>
           )}
@@ -654,10 +662,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       {/* Dev Server URL Section */}
       {worktree?.devUrl && (
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <a
+          <CmuxLink
             href={worktree.devUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+            workspaceName={task.identifier}
+            terminal={terminal}
             className={`flex items-center gap-1 min-w-0 text-xs ${
               worktree.devUrlActive
                 ? "text-[var(--accent-blue)] hover:text-[var(--text-primary)]"
@@ -671,7 +679,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           >
             <ExternalLink className="size-3 shrink-0" />
             <span className="truncate">{worktree.devUrl}</span>
-          </a>
+          </CmuxLink>
         </div>
       )}
 
