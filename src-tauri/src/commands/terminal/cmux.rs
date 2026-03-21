@@ -312,7 +312,12 @@ impl TerminalController for CmuxController {
         check_cmux_available(app).await?;
         run_cmux(
             app,
-            &["new-split", "right", "--workspace", &terminal_ref.identifier],
+            &[
+                "new-split",
+                "right",
+                "--workspace",
+                &terminal_ref.identifier,
+            ],
             "split",
         )
         .await?;
