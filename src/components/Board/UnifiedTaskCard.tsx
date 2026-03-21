@@ -67,7 +67,8 @@ type WorkflowStatus =
   | "in-dev"
   | "personal-review"
   | "in-review"
-  | "to-deploy";
+  | "to-deploy"
+  | "done";
 
 type StatusBadge = { label: string; style: React.CSSProperties };
 
@@ -109,7 +110,10 @@ function getStatusBadge(
 function getWorkflowStatus(
   session: TmuxSession | null,
   pr: PullRequestInfo | null,
+  linearStatusType: string | null,
 ): WorkflowStatus {
+  if (linearStatusType === "completed") return "done";
+
   if (!pr) {
     return session ? "in-dev" : "todo";
   }
@@ -214,7 +218,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     onDragStart,
     isBeingTargeted,
   } = data;
-  const isDisabled = !task.isAssignedToMe;
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
   const globalSkills = useSettingsStore((s) => s.config.skills);
@@ -247,7 +250,12 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     deletingWorktree ||
     mergingWorktree ||
     sendingSkill;
-  const workflowStatus = getWorkflowStatus(session, pullRequest);
+  const workflowStatus = getWorkflowStatus(
+    session,
+    pullRequest,
+    task.linearStatusType,
+  );
+  const isDisabled = workflowStatus === "done" || !task.isAssignedToMe;
   const statusBadge = getStatusBadge(
     workflowStatus,
     task.status,

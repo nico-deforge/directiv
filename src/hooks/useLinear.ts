@@ -202,7 +202,9 @@ export function useLinearProjectIssues(
         filter: {
           project: { id: { eq: projectId } },
           team: { id: { in: resolvedIds } },
-          state: { type: { in: ["triage", "unstarted", "started"] } },
+          state: {
+            type: { in: ["triage", "unstarted", "started", "completed"] },
+          },
         },
         first: LINEAR_FETCH_LIMIT,
       });

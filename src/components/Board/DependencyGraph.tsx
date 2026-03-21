@@ -584,11 +584,12 @@ function DependencyGraphInner() {
         height: 1,
       });
 
-      // Filter out source node and find valid target
+      // Filter out source node, completed tasks, and find valid target
       const validTarget = intersecting.find(
         (n) =>
           n.id !== dragStateRef.current?.sourceNodeId &&
-          n.type === "unifiedTask",
+          n.type === "unifiedTask" &&
+          taskByIdRef.current.get(n.id)?.linearStatusType !== "completed",
       );
 
       const newState: DragState = {
