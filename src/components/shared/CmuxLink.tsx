@@ -26,14 +26,31 @@ export function CmuxLink({
   onClick,
   ...rest
 }: CmuxLinkProps) {
+  const isCmux = terminal === TERMINAL_EMULATORS.CMUX && !!workspaceName;
+
   function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
     onClick?.(e);
     if (e.defaultPrevented) return;
 
-    if (terminal === TERMINAL_EMULATORS.CMUX && workspaceName) {
+    if (isCmux) {
       e.preventDefault();
-      openDirectivLink(href, workspaceName).catch(() => {});
+      openDirectivLink(href, workspaceName!).catch(() => {});
     }
+  }
+
+  // When cmux is active, render without href to prevent Tauri's webview
+  // from also opening the link in the system browser alongside cmux.
+  if (isCmux) {
+    return (
+      <a
+        role="link"
+        onClick={handleClick}
+        style={{ cursor: "pointer" }}
+        {...rest}
+      >
+        {children}
+      </a>
+    );
   }
 
   return (
