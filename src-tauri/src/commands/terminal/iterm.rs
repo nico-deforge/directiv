@@ -1,4 +1,5 @@
 use super::controller::TerminalController;
+use super::format_display_name;
 use super::types::{TerminalConfig, TerminalRef};
 use tauri_plugin_shell::ShellExt;
 
@@ -95,7 +96,7 @@ fn build_env_string(env_vars: &std::collections::HashMap<String, String>) -> Str
 /// cds into the worktree path, attaches to the tmux session, and names the session.
 /// If env_vars are present, they are injected via the `env` command wrapper.
 fn build_create_script(config: &TerminalConfig) -> String {
-    let display_name = format!("{} — {}", config.identifier, config.session);
+    let display_name = format_display_name(&config.identifier, config.title.as_deref());
     let worktree_path = escape_applescript(&config.worktree_path);
     let session = escape_applescript(&config.session);
     let display_name = escape_applescript(&display_name);
@@ -339,6 +340,7 @@ mod tests {
             identifier: "ACQ-145".to_string(),
             session: "acq-145".to_string(),
             command: None,
+            title: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::new(),
         };
@@ -347,7 +349,7 @@ mod tests {
         assert!(script.contains(
             r#"cd /path/to/worktree && tmux -CC set-option allow-rename off \\; attach -t acq-145"#
         ));
-        assert!(script.contains(r#"set name to "ACQ-145 — acq-145""#));
+        assert!(script.contains(r#"set name to "ACQ-145""#));
         // No env command when env_vars is empty
         assert!(!script.contains("env "));
     }
@@ -365,6 +367,7 @@ mod tests {
             identifier: "ACQ-145".to_string(),
             session: "acq-145".to_string(),
             command: None,
+            title: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars,
         };
@@ -372,7 +375,7 @@ mod tests {
         assert!(script.contains("create window with default profile"));
         // env vars are shell-quoted and sorted alphabetically
         assert!(script.contains("env DIRECTIV_SESSION='acq-145' DIRECTIV_TASK='ACQ-145' DIRECTIV_WORKTREE='/path/to/worktree' tmux -CC set-option allow-rename off"));
-        assert!(script.contains(r#"set name to "ACQ-145 — acq-145""#));
+        assert!(script.contains(r#"set name to "ACQ-145""#));
         // set name must come AFTER the write text (tmux command)
         let write_pos = script.find("write text").unwrap();
         let name_pos = script.find("set name to").unwrap();
@@ -390,6 +393,7 @@ mod tests {
             identifier: "ACQ-145".to_string(),
             session: "acq-145".to_string(),
             command: None,
+            title: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars,
         };
@@ -434,6 +438,7 @@ mod tests {
             identifier: r#"id"inject"#.to_string(),
             session: r#"sess"inject"#.to_string(),
             command: None,
+            title: None,
             worktree_path: r#"/path/"inject"#.to_string(),
             env_vars: HashMap::new(),
         };
@@ -442,7 +447,7 @@ mod tests {
         assert!(
             script.contains(r#"tmux -CC set-option allow-rename off \\; attach -t sess\"inject"#)
         );
-        assert!(script.contains(r#"set name to "id\"inject — sess\"inject""#));
+        assert!(script.contains(r#"set name to "id\"inject""#));
     }
 
     #[test]
@@ -469,5 +474,22 @@ mod tests {
         assert!(script.contains("count of windows"));
         assert!(script.contains("count of tabs"));
         assert!(script.contains("count of sessions"));
+    }
+
+    #[test]
+    fn test_build_create_script_with_title() {
+        let config = TerminalConfig {
+            identifier: "ACQ-145".to_string(),
+            session: "acq-145".to_string(),
+            command: None,
+            title: Some("Fix login timeout".to_string()),
+            worktree_path: "/path/to/worktree".to_string(),
+            env_vars: HashMap::new(),
+        };
+        let script = build_create_script(&config);
+        assert!(
+            script.contains(r#"set name to "ACQ-145 — Fix login timeout""#),
+            "Display name should include the task title"
+        );
     }
 }

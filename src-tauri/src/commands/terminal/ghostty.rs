@@ -370,6 +370,7 @@ mod tests {
             identifier: "ACQ-145".to_string(),
             session: "ACQ-145".to_string(),
             command: None,
+            title: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::from([
                 ("DIRECTIV_TASK".to_string(), "ACQ-145".to_string()),
@@ -403,6 +404,7 @@ mod tests {
             identifier: "ACQ-145".to_string(),
             session: "ACQ-145".to_string(),
             command: None,
+            title: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::new(),
         };
@@ -420,6 +422,7 @@ mod tests {
             identifier: "ACQ-145".to_string(),
             session: "ACQ-145".to_string(),
             command: None,
+            title: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::from([
                 (
@@ -444,6 +447,7 @@ mod tests {
             identifier: r#"task "special""#.to_string(),
             session: "session-1".to_string(),
             command: None,
+            title: None,
             worktree_path: r#"/path/with "quotes""#.to_string(),
             env_vars: HashMap::new(),
         };

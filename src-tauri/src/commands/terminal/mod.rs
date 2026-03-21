@@ -11,6 +11,31 @@ use iterm::ITermController;
 use tauri_plugin_shell::ShellExt;
 use types::{Emulator, TerminalConfig, TerminalStatus};
 
+/// Build a human-readable display name from an identifier and optional task title.
+///
+/// Returns `"ACQ-145 — Fix login timeout"` when a title is provided,
+/// or just `"ACQ-145"` when it is `None` or empty.
+/// Titles are sanitized (control chars stripped) and truncated to 50 chars.
+pub fn format_display_name(identifier: &str, title: Option<&str>) -> String {
+    match title {
+        Some(t) if !t.is_empty() => {
+            let sanitized: String = t.chars().filter(|c| !c.is_control()).collect();
+            let truncated = if sanitized.len() > 50 {
+                let end = sanitized
+                    .char_indices()
+                    .nth(50)
+                    .map(|(i, _)| i)
+                    .unwrap_or(sanitized.len());
+                format!("{}…", &sanitized[..end])
+            } else {
+                sanitized
+            };
+            format!("{identifier} — {truncated}")
+        }
+        _ => identifier.to_string(),
+    }
+}
+
 #[tauri::command]
 pub async fn open_terminal(
     app: tauri::AppHandle,
@@ -18,6 +43,7 @@ pub async fn open_terminal(
     session: String,
     identifier: String,
     worktree_path: String,
+    title: Option<String>,
     layout: Option<types::TerminalLayout>,
 ) -> Result<bool, String> {
     let layout = layout.unwrap_or_default();
@@ -30,6 +56,7 @@ pub async fn open_terminal(
                 &session,
                 &identifier,
                 &worktree_path,
+                title.as_deref(),
                 layout,
             )
             .await
@@ -41,6 +68,7 @@ pub async fn open_terminal(
                 &session,
                 &identifier,
                 &worktree_path,
+                title.as_deref(),
                 layout,
             )
             .await
@@ -52,6 +80,7 @@ pub async fn open_terminal(
                 &session,
                 &identifier,
                 &worktree_path,
+                title.as_deref(),
                 layout,
             )
             .await
@@ -65,6 +94,7 @@ async fn dispatch_terminal(
     session: &str,
     identifier: &str,
     worktree_path: &str,
+    title: Option<&str>,
     layout: types::TerminalLayout,
 ) -> Result<bool, String> {
     if let Some(terminal_ref) = controller
@@ -93,6 +123,7 @@ async fn dispatch_terminal(
         // The session string doubles as a startup command for cmux workspaces.
         // Other controllers (Ghostty, iTerm2) use the session field directly.
         command: Some(session.to_string()),
+        title: title.map(|t| t.to_string()),
         worktree_path: worktree_path.to_string(),
         env_vars,
     };
@@ -378,4 +409,47 @@ pub async fn open_editor(
         _ => return Err(format!("Unknown editor: {editor}")),
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_display_name_with_title() {
+        assert_eq!(
+            format_display_name("ACQ-145", Some("Fix login timeout")),
+            "ACQ-145 — Fix login timeout"
+        );
+    }
+
+    #[test]
+    fn test_format_display_name_no_title() {
+        assert_eq!(format_display_name("ACQ-145", None), "ACQ-145");
+    }
+
+    #[test]
+    fn test_format_display_name_empty_title() {
+        assert_eq!(format_display_name("ACQ-145", Some("")), "ACQ-145");
+    }
+
+    #[test]
+    fn test_format_display_name_strips_control_chars() {
+        assert_eq!(
+            format_display_name("ACQ-145", Some("Fix\x00bug\nhere")),
+            "ACQ-145 — Fixbughere"
+        );
+    }
+
+    #[test]
+    fn test_format_display_name_truncates_long_title() {
+        let long_title = "a".repeat(60);
+        let result = format_display_name("ACQ-145", Some(&long_title));
+        // 50 chars + ellipsis
+        assert!(result.starts_with("ACQ-145 — "));
+        assert!(result.ends_with('…'));
+        // "ACQ-145 — " (10 chars) + 50 'a's + '…' (1 char)
+        let suffix = &result["ACQ-145 — ".len()..];
+        assert_eq!(suffix.chars().count(), 51); // 50 + ellipsis
+    }
 }
