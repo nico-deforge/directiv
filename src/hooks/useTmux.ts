@@ -89,11 +89,8 @@ export function useTmuxCapturePane(session: string | undefined) {
 
   return useQuery<string>({
     queryKey: ["tmux", "capture", session],
-    queryFn: () => {
-      // cmux has no capture-pane equivalent; state detection is deferred to M2
-      if (isCmux) return Promise.resolve("");
-      return tmuxCapturePane(session!);
-    },
+    queryFn: () => tmuxCapturePane(session!),
+    // cmux uses notifications for state detection, not capture-pane
     enabled: !!session && !isCmux,
     refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
@@ -110,9 +107,6 @@ export function useClaudeSessionStates(sessionNames: string[]) {
   return useQuery<Map<string, ClaudeSessionStatus>>({
     queryKey: ["tmux", "claude-states", key],
     queryFn: async () => {
-      // cmux has no capture-pane equivalent; skip polling and return empty state map
-      if (isCmux) return new Map<string, ClaudeSessionStatus>();
-
       const entries = await Promise.all(
         sorted.map(async (name) => {
           try {
@@ -133,6 +127,7 @@ export function useClaudeSessionStates(sessionNames: string[]) {
       previousRef.current = current;
       return states;
     },
+    // cmux uses notifications for state detection, not capture-pane
     enabled: sorted.length > 0 && !isCmux,
     refetchInterval: LOCAL_REFRESH_INTERVAL,
   });

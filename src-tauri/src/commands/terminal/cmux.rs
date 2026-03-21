@@ -63,8 +63,8 @@ async fn run_cmux(
 }
 
 /// Check that cmux is installed and running via `cmux ping`.
-/// Used in `find_session`, `create`, `focus`, and `list_sessions` to surface a clear error
-/// instead of a cryptic "command not found".
+/// Used as a precondition guard in TerminalController methods and cmux commands
+/// to surface a clear error instead of a cryptic "command not found".
 async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
     let output = app
         .shell()
@@ -88,13 +88,18 @@ async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Shape of a workspace from `cmux tree --all --json`.
-/// Workspaces use `ref` (e.g. "workspace:18") and `title` (the display name).
+/// Shape of a workspace from `cmux --id-format both tree --all --json`.
+/// Workspaces have `ref` (e.g. "workspace:18"), `title` (display name),
+/// and `id` (UUID, present when `--id-format both` is passed).
 #[derive(Deserialize)]
 struct CmuxWorkspace {
     #[serde(rename = "ref")]
     ws_ref: String,
     title: String,
+    /// UUID of the workspace, present when `--id-format both` is used.
+    /// Needed to map notification workspace UUIDs back to workspace titles.
+    #[serde(default)]
+    id: Option<String>,
 }
 
 /// Top-level structure of `cmux tree --all --json`.
@@ -108,9 +113,16 @@ struct CmuxWindow {
     workspaces: Vec<CmuxWorkspace>,
 }
 
-/// List all workspaces via `cmux tree --all --json`.
+/// List all workspaces via `cmux --id-format both tree --all --json`.
+/// Uses `--id-format both` to include UUIDs alongside refs, which is needed
+/// to map notification workspace UUIDs back to workspace titles.
 async fn list_cmux_workspaces(app: &tauri::AppHandle) -> Result<Vec<CmuxWorkspace>, String> {
-    let json = run_cmux(app, &["tree", "--all", "--json"], "list_workspaces").await?;
+    let json = run_cmux(
+        app,
+        &["--id-format", "both", "tree", "--all", "--json"],
+        "list_workspaces",
+    )
+    .await?;
 
     if json.is_empty() {
         return Ok(vec![]);
@@ -175,7 +187,7 @@ fn parse_workspace_ref(output: &str) -> Option<String> {
 impl TerminalController for CmuxController {
     /// Find an existing cmux workspace by identifier.
     ///
-    /// Strategy: list all workspaces via `cmux tree --all --json` and search
+    /// Strategy: list all workspaces via `list_cmux_workspaces` and search
     /// for a match by title prefix (supports both "ACQ-145" and "ACQ-145 — Title").
     async fn find_session(
         &self,
@@ -290,20 +302,25 @@ impl TerminalController for CmuxController {
         Ok(())
     }
 
-    /// Split a cmux workspace. cmux workspaces are single-pane by design — splits
-    /// are not supported. Log a message and succeed silently.
+    /// Split a cmux workspace by creating a new pane to the right.
     async fn split(
         &self,
-        _app: &tauri::AppHandle,
+        app: &tauri::AppHandle,
         terminal_ref: &TerminalRef,
         _worktree_path: &str,
     ) -> Result<(), String> {
-        // cmux does not support pane splitting in its CLI as of the design doc.
-        // Log and succeed — dispatch_terminal handles the case where split is a no-op.
-        eprintln!(
-            "cmux split: workspace {} does not support pane splitting, skipping",
-            terminal_ref.identifier
-        );
+        check_cmux_available(app).await?;
+        run_cmux(
+            app,
+            &[
+                "new-split",
+                "right",
+                "--workspace",
+                &terminal_ref.identifier,
+            ],
+            "split",
+        )
+        .await?;
         Ok(())
     }
 
@@ -369,10 +386,10 @@ pub enum NotificationCategory {
 }
 
 impl NotificationCategory {
-    /// Derive category from notification title/body when cmux does not expose it structurally.
-    /// Mirrors the keyword classification logic used by cmux internally.
-    /// Note: `Attention` is never produced by this method — it can only come from cmux's
-    /// structured category field. Text-based fallback defaults to `Waiting`.
+    /// Derive category from notification title/body via keyword matching.
+    /// Mirrors the classification logic used by cmux internally.
+    /// Note: `Attention` is not produced by this method and is currently unreachable —
+    /// it is retained for forward compatibility if cmux adds structured category output.
     fn from_text(title: &str, body: Option<&str>) -> Self {
         let text = format!(
             "{} {}",
@@ -393,76 +410,135 @@ impl NotificationCategory {
     }
 }
 
-/// A notification returned by `cmux list-notifications --json`.
-///
-/// The `category` field may or may not be present in the JSON depending on the cmux version.
-/// When absent, it is derived from `title` and `body` using keyword matching.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RawCmuxNotification {
-    #[serde(default)]
-    title: String,
-    subtitle: Option<String>,
-    body: Option<String>,
-    #[serde(alias = "workspaceId", default)]
-    workspace_id: String,
-    /// Structured category from cmux — present only if cmux exposes it.
-    category: Option<NotificationCategory>,
-}
-
 /// Parsed notification ready for the frontend.
+///
+/// The `workspace_name` field contains the resolved task identifier (e.g. "ACQ-145"),
+/// not the raw UUID. This matches the frontend convention where lookups use session name.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CmuxNotification {
     pub title: String,
-    pub subtitle: Option<String>,
     pub body: Option<String>,
-    pub workspace_id: String,
+    pub workspace_name: String,
     pub category: NotificationCategory,
 }
 
-impl From<RawCmuxNotification> for CmuxNotification {
-    fn from(raw: RawCmuxNotification) -> Self {
-        let category = raw
-            .category
-            .unwrap_or_else(|| NotificationCategory::from_text(&raw.title, raw.body.as_deref()));
-        CmuxNotification {
-            title: raw.title,
-            subtitle: raw.subtitle,
-            body: raw.body,
-            workspace_id: raw.workspace_id,
-            category,
-        }
-    }
+/// Parsed fields from a single `cmux list-notifications` line.
+/// Format: `index:windowUUID|workspaceUUID|surfaceUUID|read_status|source|title|body`
+struct ParsedNotificationLine {
+    workspace_uuid: String,
+    title: String,
+    body: String,
 }
 
-/// Query `cmux list-notifications --json` and return structured notifications.
+/// Parse a single line from `cmux list-notifications` output.
+///
+/// Expected format: `index:windowUUID|workspaceUUID|surfaceUUID|read_status|source|title|body`
+/// The body field may contain `|` characters, so we use `splitn(7, ...)` to avoid splitting it.
+fn parse_notification_line(line: &str) -> Option<ParsedNotificationLine> {
+    let after_colon = line.split_once(':')?.1;
+    let parts: Vec<&str> = after_colon.splitn(7, '|').collect();
+    if parts.len() < 7 || parts[1].is_empty() {
+        return None;
+    }
+    Some(ParsedNotificationLine {
+        workspace_uuid: parts[1].to_string(),
+        title: parts[5].to_string(),
+        body: parts[6].to_string(),
+    })
+}
+
+/// Extract the task identifier from a workspace title.
+///
+/// Supports: "ACQ-145 — Fix login timeout" → "ACQ-145", or just "ACQ-145" → "ACQ-145".
+fn extract_identifier_from_title(title: &str) -> String {
+    title
+        .split_once(" \u{2014} ")
+        .map(|(ident, _)| ident.to_string())
+        .unwrap_or_else(|| title.to_string())
+}
+
+/// Query `cmux list-notifications` and return structured notifications.
 ///
 /// Returns an empty vec if cmux is not running, not installed, or there are no notifications.
-/// The JSON format assumption: cmux returns a JSON array of notification objects.
-/// Category is parsed structurally if present, otherwise derived via keyword matching.
+/// The output is pipe-separated text (not JSON). Each line:
+/// `index:windowUUID|workspaceUUID|surfaceUUID|read_status|source|title|body`
+///
+/// Workspace UUIDs are resolved to workspace titles via `list_cmux_workspaces`.
+/// Category is derived from title/body via keyword matching.
 pub async fn list_notifications(app: &tauri::AppHandle) -> Result<Vec<CmuxNotification>, String> {
     check_cmux_available(app).await?;
 
-    let json = match run_cmux(app, &["list-notifications", "--json"], "list_notifications").await {
+    let output = match run_cmux(app, &["list-notifications"], "list_notifications").await {
         Ok(s) => s,
         Err(e) => {
-            // No notifications or empty list is not an error
-            if e.contains("no notifications") || e.contains("empty") || e.contains("not found") {
+            // cmux returns a non-zero exit code when there are no notifications.
+            if e.contains("no notifications") {
                 return Ok(vec![]);
             }
             return Err(e);
         }
     };
 
-    if json.is_empty() || json == "[]" || json == "null" {
+    if output.is_empty() {
         return Ok(vec![]);
     }
 
-    let raw: Vec<RawCmuxNotification> = serde_json::from_str(&json)
-        .map_err(|e| format!("cmux list_notifications: failed to parse notification list: {e}"))?;
+    // Build UUID → title map from workspace list
+    let workspaces = match list_cmux_workspaces(app).await {
+        Ok(ws) => ws,
+        Err(e) => {
+            eprintln!("cmux list_notifications: failed to list workspaces for UUID mapping, notifications will use raw UUIDs: {e}");
+            vec![]
+        }
+    };
+    let uuid_to_identifier: std::collections::HashMap<&str, String> = workspaces
+        .iter()
+        .filter_map(|ws| {
+            ws.id
+                .as_deref()
+                .map(|id| (id, extract_identifier_from_title(&ws.title)))
+        })
+        .collect();
 
-    Ok(raw.into_iter().map(CmuxNotification::from).collect())
+    let mut notifications = Vec::new();
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Some(parsed) = parse_notification_line(line) {
+            let workspace_name = uuid_to_identifier
+                .get(parsed.workspace_uuid.as_str())
+                .cloned()
+                .unwrap_or(parsed.workspace_uuid);
+
+            let category = NotificationCategory::from_text(
+                &parsed.title,
+                if parsed.body.is_empty() {
+                    None
+                } else {
+                    Some(parsed.body.as_str())
+                },
+            );
+            let body = if parsed.body.is_empty() {
+                None
+            } else {
+                Some(parsed.body)
+            };
+
+            notifications.push(CmuxNotification {
+                title: parsed.title,
+                body,
+                workspace_name,
+                category,
+            });
+        } else {
+            eprintln!("cmux list_notifications: skipping malformed line: {line}");
+        }
+    }
+
+    Ok(notifications)
 }
 
 /// Set a sidebar status pill in a cmux workspace.
@@ -749,84 +825,145 @@ mod tests {
         assert_eq!(shell_escape("/path/it's/dir"), "'/path/it'\\''s/dir'");
     }
 
-    // --- Notification tests ---
+    // --- Notification line parsing tests ---
 
     #[test]
-    fn test_parse_notification_with_structured_category() {
-        let json = r#"[{
-            "title": "Permission Request",
-            "body": "Allow bash command?",
-            "workspaceId": "ws-123",
-            "category": "permission"
-        }]"#;
-        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
-        let notifications: Vec<CmuxNotification> =
-            raw.into_iter().map(CmuxNotification::from).collect();
-        assert_eq!(notifications.len(), 1);
-        assert_eq!(notifications[0].category, NotificationCategory::Permission);
-        assert_eq!(notifications[0].workspace_id, "ws-123");
+    fn test_parse_notification_line_standard() {
+        let line = "0:AAAA|BBBB|CCCC|read|Claude Code|Waiting|Claude is waiting for your input";
+        let parsed = parse_notification_line(line).unwrap();
+        assert_eq!(parsed.workspace_uuid, "BBBB");
+        assert_eq!(parsed.title, "Waiting");
+        assert_eq!(parsed.body, "Claude is waiting for your input");
     }
 
     #[test]
-    fn test_parse_notification_category_fallback_permission() {
-        let json = r#"[{
-            "title": "Tool permission needed",
-            "body": "approve this?",
-            "workspaceId": "ws-1"
-        }]"#;
-        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
-        let n = CmuxNotification::from(raw.into_iter().next().unwrap());
-        assert_eq!(n.category, NotificationCategory::Permission);
+    fn test_parse_notification_line_with_pipes_in_body() {
+        let line = "1:AAAA|BBBB|CCCC|read|Claude Code|Completed|Done. PR #123 | merged | clean";
+        let parsed = parse_notification_line(line).unwrap();
+        assert_eq!(parsed.title, "Completed");
+        assert_eq!(parsed.body, "Done. PR #123 | merged | clean");
     }
 
     #[test]
-    fn test_parse_notification_category_fallback_error() {
-        let json = r#"[{
-            "title": "Task failed",
-            "body": "An error occurred",
-            "workspaceId": "ws-2"
-        }]"#;
-        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
-        let n = CmuxNotification::from(raw.into_iter().next().unwrap());
-        assert_eq!(n.category, NotificationCategory::Error);
+    fn test_parse_notification_line_empty_body() {
+        let line = "2:AAAA|BBBB|CCCC|read|Claude Code|Waiting|";
+        let parsed = parse_notification_line(line).unwrap();
+        assert_eq!(parsed.title, "Waiting");
+        assert_eq!(parsed.body, "");
     }
 
     #[test]
-    fn test_parse_notification_category_fallback_completed() {
-        let json = r#"[{
-            "title": "Task complete",
-            "workspaceId": "ws-3"
-        }]"#;
-        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
-        let n = CmuxNotification::from(raw.into_iter().next().unwrap());
-        assert_eq!(n.category, NotificationCategory::Completed);
+    fn test_parse_notification_line_malformed() {
+        assert!(parse_notification_line("garbage").is_none());
+        assert!(parse_notification_line("0:only|three|parts").is_none());
+        assert!(parse_notification_line("").is_none());
     }
 
     #[test]
-    fn test_parse_notification_category_fallback_waiting() {
-        let json = r#"[{
-            "title": "Awaiting input",
-            "workspaceId": "ws-4"
-        }]"#;
-        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
-        let n = CmuxNotification::from(raw.into_iter().next().unwrap());
-        assert_eq!(n.category, NotificationCategory::Waiting);
+    fn test_notification_category_from_text_permission() {
+        assert_eq!(
+            NotificationCategory::from_text("Permission needed", None),
+            NotificationCategory::Permission
+        );
+        assert_eq!(
+            NotificationCategory::from_text("Tool", Some("approve this?")),
+            NotificationCategory::Permission
+        );
     }
 
     #[test]
-    fn test_parse_notification_empty_array() {
-        let json = "[]";
-        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
-        assert!(raw.is_empty());
+    fn test_notification_category_from_text_error() {
+        assert_eq!(
+            NotificationCategory::from_text("Task failed", Some("An error occurred")),
+            NotificationCategory::Error
+        );
     }
 
     #[test]
-    fn test_parse_notification_optional_fields() {
-        let json = r#"[{"title": "hello", "workspaceId": "ws-5"}]"#;
-        let raw: Vec<RawCmuxNotification> = serde_json::from_str(json).unwrap();
-        let n = CmuxNotification::from(raw.into_iter().next().unwrap());
-        assert!(n.subtitle.is_none());
-        assert!(n.body.is_none());
+    fn test_notification_category_from_text_completed() {
+        assert_eq!(
+            NotificationCategory::from_text("Completed in branch-name", None),
+            NotificationCategory::Completed
+        );
+    }
+
+    #[test]
+    fn test_notification_category_from_text_question() {
+        assert_eq!(
+            NotificationCategory::from_text("Question for you", None),
+            NotificationCategory::Question
+        );
+        // The "?" match is broad — any question mark triggers it
+        assert_eq!(
+            NotificationCategory::from_text("Ready", Some("Need help?")),
+            NotificationCategory::Question
+        );
+    }
+
+    #[test]
+    fn test_notification_category_from_text_waiting() {
+        assert_eq!(
+            NotificationCategory::from_text("Awaiting input", None),
+            NotificationCategory::Waiting
+        );
+    }
+
+    #[test]
+    fn test_notification_category_priority_permission_over_error() {
+        // "Permission" is checked before "Error", so this should be Permission
+        assert_eq!(
+            NotificationCategory::from_text("Permission error", None),
+            NotificationCategory::Permission
+        );
+    }
+
+    #[test]
+    fn test_parse_tree_json_with_id() {
+        let json = r#"{"windows": [{"workspaces": [
+            {"ref": "workspace:1", "id": "UUID-1", "title": "ACQ-145", "index": 0, "selected": true, "active": true, "pinned": false, "panes": []}
+        ]}]}"#;
+        let tree: CmuxTree = serde_json::from_str(json).unwrap();
+        let ws: Vec<CmuxWorkspace> = tree
+            .windows
+            .into_iter()
+            .flat_map(|w| w.workspaces)
+            .collect();
+        assert_eq!(ws[0].id.as_deref(), Some("UUID-1"));
+    }
+
+    // --- Identifier extraction ---
+
+    #[test]
+    fn test_extract_identifier_with_separator() {
+        assert_eq!(
+            extract_identifier_from_title("ACQ-145 \u{2014} Fix login timeout"),
+            "ACQ-145"
+        );
+    }
+
+    #[test]
+    fn test_extract_identifier_plain() {
+        assert_eq!(extract_identifier_from_title("ACQ-145"), "ACQ-145");
+    }
+
+    #[test]
+    fn test_extract_identifier_multiple_separators() {
+        assert_eq!(
+            extract_identifier_from_title("ACQ-145 \u{2014} Fix \u{2014} timeout"),
+            "ACQ-145"
+        );
+    }
+
+    #[test]
+    fn test_extract_identifier_empty() {
+        assert_eq!(extract_identifier_from_title(""), "");
+    }
+
+    #[test]
+    fn test_parse_notification_line_empty_uuid() {
+        // Empty workspace UUID should be rejected
+        let line = "0:AAAA||CCCC|read|Claude Code|Permission|body";
+        assert!(parse_notification_line(line).is_none());
     }
 
     // --- Title matching tests ---

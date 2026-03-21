@@ -259,9 +259,8 @@ export type NotificationCategory =
 
 export interface CmuxNotification {
   title: string;
-  subtitle: string | null;
   body: string | null;
-  workspaceId: string;
+  workspaceName: string;
   category: NotificationCategory;
 }
 
