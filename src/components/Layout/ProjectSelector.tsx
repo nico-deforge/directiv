@@ -52,8 +52,8 @@ import { BranchSelector } from "../shared/BranchSelector";
 
 export function ProjectSelector() {
   const projects = useProjectStore((s) => s.projects);
-  const hasOrphans = useProjectStore((s) => s.hasOrphans);
-  const hasOtherIssues = useProjectStore((s) => s.hasOtherIssues);
+  const orphanCount = useProjectStore((s) => s.orphanCount);
+  const otherIssuesCount = useProjectStore((s) => s.otherIssuesCount);
   const connectionStatus = useProjectStore((s) => s.connectionStatus);
   const selectedProjectId = useProjectStore((s) => s.selectedProjectId);
   const selectProject = useProjectStore((s) => s.selectProject);
@@ -145,8 +145,8 @@ export function ProjectSelector() {
         {connectionStatus.status === "connected" &&
           startedProjects.length === 0 &&
           backlogProjects.length === 0 &&
-          !hasOtherIssues &&
-          !hasOrphans && (
+          otherIssuesCount === 0 &&
+          orphanCount === 0 && (
             <p className="px-4 py-2 text-sm text-[var(--text-muted)]">
               No active projects found
             </p>
@@ -186,37 +186,41 @@ export function ProjectSelector() {
               ))}
           </>
         )}
-        {(hasOtherIssues || hasOrphans) && projects.length > 0 && (
+        {projects.length > 0 && (
           <div className="mx-3 my-2 border-t border-[var(--border-default)]" />
         )}
-        {hasOtherIssues && (
-          <button
-            onClick={() => selectProject(OTHER_ISSUES_PROJECT_ID)}
-            className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
-              selectedProjectId === OTHER_ISSUES_PROJECT_ID
-                ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            <Kanban className="size-4 shrink-0" />
-            <span className="truncate text-sm">Other issues</span>
-          </button>
-        )}
-        {hasOrphans && (
-          <button
-            onClick={() => selectProject(ORPHAN_PROJECT_ID)}
-            className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors ${
-              selectedProjectId === ORPHAN_PROJECT_ID
-                ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
-                : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            <GitBranch className="size-4 shrink-0" />
-            <span className="truncate text-sm">Other worktrees</span>
-          </button>
-        )}
+        <button
+          onClick={() => selectProject(OTHER_ISSUES_PROJECT_ID)}
+          disabled={otherIssuesCount === 0}
+          className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors disabled:pointer-events-none disabled:opacity-40 ${
+            selectedProjectId === OTHER_ISSUES_PROJECT_ID
+              ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+              : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          <Kanban className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate text-sm">Other issues</span>
+          <span className="shrink-0 text-[10px] tabular-nums opacity-60">
+            {otherIssuesCount}
+          </span>
+        </button>
+        <button
+          onClick={() => selectProject(ORPHAN_PROJECT_ID)}
+          disabled={orphanCount === 0}
+          className={`flex w-full items-center gap-2 px-4 py-2 text-left transition-colors disabled:pointer-events-none disabled:opacity-40 ${
+            selectedProjectId === ORPHAN_PROJECT_ID
+              ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]"
+              : "text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          <GitBranch className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate text-sm">Other worktrees</span>
+          <span className="shrink-0 text-[10px] tabular-nums opacity-60">
+            {orphanCount}
+          </span>
+        </button>
+        <ReviewRequestsSection />
       </div>
-      <ReviewRequestsSection />
       <NewWorktreeSection />
       <CleanupSection />
       <OrphanSessionsSection />
@@ -518,13 +522,13 @@ function ReviewRequestsSection() {
     <div className="shrink-0 border-t border-[var(--border-default)]">
       <div className="flex items-center justify-between px-4 py-2">
         <div className="flex items-center gap-1.5">
-          <GitPullRequest className="size-3.5 text-[var(--accent-purple)]" />
+          <GitPullRequest className="size-3.5 text-[var(--accent-blue)]" />
           <span className="text-xs font-medium text-[var(--text-secondary)]">
             Review Requests
           </span>
         </div>
         {reviewRequests.length > 0 && (
-          <span className="shrink-0 rounded-full bg-[var(--accent-purple)]/20 px-1.5 py-0.5 text-xs text-[var(--accent-purple)]">
+          <span className="shrink-0 rounded-full bg-[var(--accent-blue)]/20 px-1.5 py-0.5 text-xs text-[var(--accent-blue)]">
             {reviewRequests.length}
           </span>
         )}

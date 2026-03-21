@@ -92,29 +92,33 @@ export function useProjectsSync() {
     );
   }, [linearProjects]);
 
-  const hasOrphans = useMemo(() => {
-    if (!identifiersLoaded) return false;
+  const orphanCount = useMemo(() => {
+    if (!identifiersLoaded) return 0;
     const knownIdentifiers = myActiveIdentifiers ?? new Set<string>();
-    return (allWorktrees ?? []).some((rw) =>
-      rw.worktrees
-        .slice(1)
-        .some((wt) => !knownIdentifiers.has(wt.branch.toLowerCase())),
+    return (allWorktrees ?? []).reduce(
+      (count, rw) =>
+        count +
+        rw.worktrees
+          .slice(1)
+          .filter((wt) => !knownIdentifiers.has(wt.branch.toLowerCase()))
+          .length,
+      0,
     );
   }, [identifiersLoaded, myActiveIdentifiers, allWorktrees]);
 
-  const hasOtherIssues = (otherIssues ?? []).length > 0;
+  const otherIssuesCount = (otherIssues ?? []).length;
 
   useEffect(() => {
     setProjectsData({
       projects: projectList,
-      hasOrphans,
-      hasOtherIssues,
+      orphanCount,
+      otherIssuesCount,
       connectionStatus,
     });
   }, [
     projectList,
-    hasOrphans,
-    hasOtherIssues,
+    orphanCount,
+    otherIssuesCount,
     connectionStatus,
     setProjectsData,
   ]);
