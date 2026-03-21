@@ -568,6 +568,68 @@ pub async fn clear_log(app: &tauri::AppHandle, workspace_name: &str) -> Result<(
     Ok(())
 }
 
+/// Open a URL in the cmux browser pane of a workspace identified by name.
+///
+/// Flow:
+/// 1. Check cmux is available
+/// 2. Find the workspace by title (name match)
+/// 3. Open the URL in its browser pane via `cmux browser open <url> --workspace <ref>`
+/// 4. Focus the workspace and bring cmux to the foreground
+///
+/// Returns `Ok(true)` if the URL was opened in cmux, `Ok(false)` if no matching workspace
+/// was found (caller should fall back to the system browser).
+pub async fn browser_open(
+    app: &tauri::AppHandle,
+    workspace_name: &str,
+    url: &str,
+) -> Result<bool, String> {
+    if !is_cmux_available(app).await {
+        eprintln!("cmux browser_open: cmux not available, deferring to system browser");
+        return Ok(false);
+    }
+
+    let workspaces = list_cmux_workspaces(app).await?;
+    let Some(ws) = workspaces.into_iter().find(|ws| ws.title == workspace_name) else {
+        eprintln!(
+            "cmux browser_open: no workspace named '{workspace_name}', deferring to system browser"
+        );
+        return Ok(false);
+    };
+    let r = ws.ws_ref;
+
+    run_cmux(
+        app,
+        &["browser", "open", url, "--workspace", &r],
+        "browser_open",
+    )
+    .await?;
+
+    // Focus the workspace and bring cmux to the foreground
+    run_cmux(
+        app,
+        &["select-workspace", "--workspace", &r],
+        "browser_open:focus",
+    )
+    .await?;
+
+    match app
+        .shell()
+        .command("open")
+        .args(["-a", "cmux"])
+        .output()
+        .await
+    {
+        Ok(out) if !out.status.success() => {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            eprintln!("cmux browser_open: 'open -a cmux' failed: {stderr}");
+        }
+        Err(e) => eprintln!("cmux browser_open: failed to run 'open': {e}"),
+        _ => {}
+    }
+
+    Ok(true)
+}
+
 /// Shell-escape a string by wrapping it in single quotes and escaping internal single quotes.
 fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))

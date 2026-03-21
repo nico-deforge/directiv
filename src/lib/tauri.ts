@@ -188,6 +188,13 @@ export function cmuxPing(): Promise<boolean> {
   return invoke<boolean>("cmux_ping");
 }
 
+export function cmuxBrowserOpen(
+  workspaceName: string,
+  url: string,
+): Promise<boolean> {
+  return invoke<boolean>("cmux_browser_open", { workspaceName, url });
+}
+
 export function cmuxListNotifications(): Promise<CmuxNotification[]> {
   return invoke<CmuxNotification[]>("cmux_list_notifications");
 }

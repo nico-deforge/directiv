@@ -1,4 +1,9 @@
-import { WT_CI_STATUSES, type WtCiStatus } from "../../types";
+import {
+  WT_CI_STATUSES,
+  type WtCiStatus,
+  type TerminalEmulator,
+} from "../../types";
+import { CmuxLink } from "../shared/CmuxLink";
 
 const CI_BADGE_CONFIG: Record<
   WtCiStatus,
@@ -43,10 +48,14 @@ export function CiStatusBadge({
   status,
   url,
   stale,
+  workspaceName,
+  terminal,
 }: {
   status: WtCiStatus;
   url?: string | null;
   stale?: boolean | null;
+  workspaceName?: string | null;
+  terminal?: TerminalEmulator;
 }) {
   const config =
     CI_BADGE_CONFIG[status] ?? CI_BADGE_CONFIG[WT_CI_STATUSES.ERROR];
@@ -63,15 +72,15 @@ export function CiStatusBadge({
 
   if (url) {
     return (
-      <a
+      <CmuxLink
         href={url}
-        target="_blank"
-        rel="noopener noreferrer"
+        workspaceName={workspaceName}
+        terminal={terminal}
         className="shrink-0 hover:opacity-80"
         onClick={(e) => e.stopPropagation()}
       >
         {badge}
-      </a>
+      </CmuxLink>
     );
   }
 

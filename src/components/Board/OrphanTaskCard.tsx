@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import type { WorktreeInfo, TmuxSession, PullRequestInfo } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
+import { CmuxLink } from "../shared/CmuxLink";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { LinearIssueStub } from "../../hooks/useLinear";
 import { useWorktreeRemove } from "../../hooks/useWorktrees";
@@ -174,15 +175,15 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       {linearIssue && (
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
           <SquareKanban className="size-4 shrink-0 text-[#5E6AD2]" />
-          <a
+          <CmuxLink
             href={linearIssue.url}
-            target="_blank"
-            rel="noopener noreferrer"
+            workspaceName={linearIssue.identifier ?? worktree.branch}
+            terminal={terminal}
             className="flex items-center gap-1 min-w-0 text-sm text-[#5E6AD2] hover:text-[#7C85E3]"
           >
             <span className="truncate">{linearIssue.identifier}</span>
             <ExternalLink className="size-3 shrink-0" />
-          </a>
+          </CmuxLink>
           <span className="ml-auto text-xs text-[var(--text-tertiary)]">
             {linearIssue.status}
           </span>
@@ -218,16 +219,21 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       {pullRequest && (
         <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
           <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
-          <a
+          <CmuxLink
             href={pullRequest.url}
-            target="_blank"
-            rel="noopener noreferrer"
+            workspaceName={linearIssue?.identifier ?? worktree.branch}
+            terminal={terminal}
             className="flex items-center gap-1 min-w-0 flex-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             <span className="truncate">PR #{pullRequest.number}</span>
             <ExternalLink className="size-3 shrink-0" />
-          </a>
-          <CIStatusIcon status={pullRequest.ciStatus} url={pullRequest.ciUrl} />
+          </CmuxLink>
+          <CIStatusIcon
+            status={pullRequest.ciStatus}
+            url={pullRequest.ciUrl}
+            workspaceName={linearIssue?.identifier ?? worktree.branch}
+            terminal={terminal}
+          />
         </div>
       )}
 

@@ -234,6 +234,19 @@ pub async fn cmux_close_workspace(app: tauri::AppHandle, name: String) -> Result
     cmux::close_workspace(&app, &name).await
 }
 
+/// Open a URL in the cmux browser pane of a workspace identified by name.
+///
+/// Returns `true` if the URL was opened in cmux, `false` if no matching workspace
+/// was found (the frontend should fall back to the system browser).
+#[tauri::command]
+pub async fn cmux_browser_open(
+    app: tauri::AppHandle,
+    workspace_name: String,
+    url: String,
+) -> Result<bool, String> {
+    cmux::browser_open(&app, &workspace_name, &url).await
+}
+
 /// List all pending cmux notifications returned by `cmux list-notifications --json`.
 ///
 /// Each notification includes title, subtitle, body, workspace_id, and a parsed category.
