@@ -14,12 +14,7 @@ import {
   SquareKanban,
   ExternalLink,
   Code2,
-  AlertTriangle,
   ClipboardList,
-  CheckCircle,
-  HelpCircle,
-  XCircle,
-  Clock,
   RefreshCw,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -58,6 +53,7 @@ import {
   type CmuxNotification,
   NOTIFICATION_CATEGORIES,
 } from "../../lib/tauri";
+import type { NotificationCategory } from "../../types";
 import { useFetchRemote } from "../../hooks/useWorktrees";
 import { BranchSelector } from "../shared/BranchSelector";
 import { DiffBadge } from "../shared/DiffBadge";
@@ -138,50 +134,47 @@ function getWorkflowStatus(
   return "personal-review";
 }
 
-/** Map a cmux notification to a badge style, label, and icon for display on the card. */
-function getCmuxBadgeConfig(n: CmuxNotification): {
-  className: string;
-  label: string;
-  Icon: React.ElementType;
+/** Map a cmux notification category to a short status text and color. */
+function getCmuxStatusText(category: NotificationCategory): {
+  text: string;
+  colorClass: string;
+  animate?: boolean;
 } {
-  const label = n.body ?? n.title;
-  switch (n.category) {
+  switch (category) {
     case NOTIFICATION_CATEGORIES.PERMISSION:
       return {
-        className:
-          "animate-pulse bg-[var(--accent-orange)]/20 text-[var(--accent-orange)] hover:bg-[var(--accent-orange)]/30",
-        label,
-        Icon: AlertTriangle,
+        text: "Claude needs approval",
+        colorClass: "text-[var(--accent-orange)]",
+        animate: true,
       };
     case NOTIFICATION_CATEGORIES.ERROR:
       return {
-        className:
-          "bg-[var(--accent-red)]/20 text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30",
-        label,
-        Icon: XCircle,
+        text: "Claude hit an error",
+        colorClass: "text-[var(--accent-red)]",
       };
     case NOTIFICATION_CATEGORIES.COMPLETED:
       return {
-        className:
-          "bg-[var(--accent-green)]/20 text-[var(--accent-green)] hover:bg-[var(--accent-green)]/30",
-        label: "Completed",
-        Icon: CheckCircle,
+        text: "Claude has finished",
+        colorClass: "text-[var(--accent-green)]",
       };
     case NOTIFICATION_CATEGORIES.QUESTION:
+      return {
+        text: "Claude has a question",
+        colorClass: "text-[var(--accent-blue)]",
+        animate: true,
+      };
     case NOTIFICATION_CATEGORIES.WAITING:
       return {
-        className:
-          "bg-[var(--accent-blue)]/20 text-[var(--accent-blue)] hover:bg-[var(--accent-blue)]/30",
-        label,
-        Icon: HelpCircle,
+        text: "Claude is waiting",
+        colorClass: "text-[var(--accent-blue)]",
+        animate: true,
       };
     case NOTIFICATION_CATEGORIES.ATTENTION:
     default:
       return {
-        className:
-          "bg-[var(--accent-amber)]/20 text-[var(--accent-amber)] hover:bg-[var(--accent-amber)]/30",
-        label,
-        Icon: Clock,
+        text: "Claude needs attention",
+        colorClass: "text-[var(--accent-amber)]",
+        animate: true,
       };
   }
 }
@@ -265,9 +258,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
 
-  // Enriched badge config when cmux is the backend
-  const cmuxBadge = cmuxNotification
-    ? getCmuxBadgeConfig(cmuxNotification)
+  // cmux status text for the header
+  const cmuxStatus = cmuxNotification
+    ? getCmuxStatusText(cmuxNotification.category)
     : null;
 
   useEffect(() => {
@@ -534,35 +527,20 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               {task.assigneeName}
             </span>
           )}
-          {/* cmux enriched badge — shown in header for non-completed states */}
-          {cmuxBadge &&
-            cmuxNotification?.category !== NOTIFICATION_CATEGORIES.COMPLETED && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleOpenTerminal();
-                }}
-                title={cmuxNotification?.body ?? cmuxNotification?.title}
-                className={`ml-auto flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${cmuxBadge.className}`}
-              >
-                <cmuxBadge.Icon className="size-3 shrink-0" />
-                <span className="max-w-[120px] truncate">
-                  {cmuxBadge.label}
-                </span>
-              </button>
-            )}
-          {/* Fallback badge for Ghostty/iTerm2 — shown when no cmux notification */}
-          {!cmuxBadge && claudeWaiting && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenTerminal();
-              }}
-              className="ml-auto flex cursor-pointer items-center gap-1 animate-pulse rounded px-1.5 py-0.5 text-[10px] font-medium bg-[var(--accent-orange)]/20 text-[var(--accent-orange)] hover:bg-[var(--accent-orange)]/30 transition-colors"
+          {/* cmux status text — right-aligned like CI status */}
+          {cmuxStatus && (
+            <span
+              className={`ml-auto text-[10px] font-medium ${cmuxStatus.colorClass} ${cmuxStatus.animate ? "animate-pulse" : ""}`}
+              title={cmuxNotification?.body ?? cmuxNotification?.title}
             >
-              <AlertTriangle className="size-3" />
-              Needs Claude Input
-            </button>
+              {cmuxStatus.text}
+            </span>
+          )}
+          {/* Fallback for Ghostty/iTerm2 */}
+          {!cmuxStatus && claudeWaiting && (
+            <span className="ml-auto animate-pulse text-[10px] font-medium text-[var(--accent-orange)]">
+              Claude is waiting
+            </span>
           )}
           {hasSession &&
             terminalActive !== null &&
@@ -766,15 +744,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <Terminal className="size-3.5" />
               Terminal
             </button>
-          )}
-
-          {/* cmux Completed indicator */}
-          {cmuxNotification?.category ===
-            NOTIFICATION_CATEGORIES.COMPLETED && (
-            <span className="flex items-center gap-1 rounded bg-[var(--accent-green)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-green)]">
-              <CheckCircle className="size-3.5" />
-              Completed
-            </span>
           )}
 
           {/* Editor button */}
