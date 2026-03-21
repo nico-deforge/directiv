@@ -214,7 +214,9 @@ export function ProjectSelector() {
           }`}
         >
           <GitBranch className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1 truncate text-sm">Other worktrees</span>
+          <span className="min-w-0 flex-1 truncate text-sm">
+            Other worktrees
+          </span>
           <span className="shrink-0 text-[10px] tabular-nums opacity-60">
             {orphanCount}
           </span>

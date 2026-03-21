@@ -617,7 +617,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           <span className="truncate text-sm text-[var(--text-secondary)]">
             {worktree.branch}
           </span>
-          <DiffBadge added={worktree.diffAdded} deleted={worktree.diffDeleted} />
+          <DiffBadge
+            added={worktree.diffAdded}
+            deleted={worktree.diffDeleted}
+          />
           {(worktree.ahead > 0 || worktree.behind > 0) && (
             <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
               {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
@@ -631,7 +634,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
               title="Fetch remote"
             >
-              <RefreshCw className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`}
+              />
             </button>
           )}
           {worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI && (
