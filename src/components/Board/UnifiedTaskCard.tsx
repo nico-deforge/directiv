@@ -94,6 +94,12 @@ function getStatusBadge(
       className: "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)]",
     };
   }
+  if (workflowStatus === "in-review" || workflowStatus === "to-deploy") {
+    return {
+      label: linearStatus,
+      className: "bg-[var(--accent-green)]/20 text-[var(--accent-green)]",
+    };
+  }
   return {
     label: linearStatus,
     className: linearStatusType
