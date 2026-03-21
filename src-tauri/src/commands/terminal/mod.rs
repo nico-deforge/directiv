@@ -15,12 +15,14 @@ use types::{Emulator, TerminalConfig, TerminalStatus};
 ///
 /// Returns `"ACQ-145 — Fix login timeout"` when a title is provided,
 /// or just `"ACQ-145"` when it is `None` or empty.
-/// Titles are sanitized (control chars stripped) and truncated to 50 chars.
+/// Titles are sanitized (control chars stripped) and truncated to 50 characters
+/// (with an ellipsis appended when truncated).
 pub fn format_display_name(identifier: &str, title: Option<&str>) -> String {
     match title {
         Some(t) if !t.is_empty() => {
             let sanitized: String = t.chars().filter(|c| !c.is_control()).collect();
-            let truncated = if sanitized.len() > 50 {
+            let char_count = sanitized.chars().count();
+            let truncated = if char_count > 50 {
                 let end = sanitized
                     .char_indices()
                     .nth(50)
@@ -293,15 +295,9 @@ pub async fn cmux_list_notifications(
 
 /// Set a sidebar status pill in a cmux workspace.
 ///
-/// Calls `cmux set-status --workspace <workspace_id> <key> <value>`.
 /// The key identifies the pill (e.g. "linear", "pr", "ci") and value is the display text.
-/// This is a best-effort call — errors are silently swallowed so the app never crashes
-/// due to a sidebar update failure. If cmux is not running, this is a no-op.
-///
-/// # Assumed CLI syntax
-/// `cmux set-status --workspace <id> <key> <value>`
-/// The workspace is targeted by ID (UUID returned by new-workspace) or by name.
-/// We use the workspace name (= identifier / issue ID) for simplicity.
+/// Accepts the task identifier — the inner function resolves it to the workspace ref
+/// via prefix matching on workspace titles. If cmux is not running, this is a no-op.
 #[tauri::command]
 pub async fn cmux_set_status(
     app: tauri::AppHandle,
@@ -312,10 +308,10 @@ pub async fn cmux_set_status(
     cmux::set_status(&app, &workspace_name, &key, &value).await
 }
 
-/// Set the progress bar value in a cmux workspace.
+/// Set the progress bar value in a cmux workspace (0.0–1.0).
 ///
-/// Calls `cmux set-progress --workspace <workspace_name> <value>` where value is 0.0–1.0.
-/// Best-effort — silently no-ops when cmux is not running.
+/// Accepts the task identifier — resolved to workspace ref internally.
+/// Best-effort — no-ops when cmux is not running.
 #[tauri::command]
 pub async fn cmux_set_progress(
     app: tauri::AppHandle,
@@ -451,5 +447,21 @@ mod tests {
         // "ACQ-145 — " (10 chars) + 50 'a's + '…' (1 char)
         let suffix = &result["ACQ-145 — ".len()..];
         assert_eq!(suffix.chars().count(), 51); // 50 + ellipsis
+    }
+
+    #[test]
+    fn test_format_display_name_unicode_not_truncated() {
+        // 30 CJK characters — should NOT be truncated (under 50 char limit)
+        let title = "\u{3042}".repeat(30);
+        let result = format_display_name("ACQ-145", Some(&title));
+        assert!(!result.contains('…'), "30-char Unicode title should not be truncated");
+    }
+
+    #[test]
+    fn test_format_display_name_unicode_truncated() {
+        // 60 CJK characters — should be truncated to 50 + ellipsis
+        let title = "\u{3042}".repeat(60);
+        let result = format_display_name("ACQ-145", Some(&title));
+        assert!(result.ends_with('…'), "60-char Unicode title should be truncated");
     }
 }

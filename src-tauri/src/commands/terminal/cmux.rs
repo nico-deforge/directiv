@@ -143,7 +143,15 @@ async fn resolve_workspace_ref_by_identifier(
     app: &tauri::AppHandle,
     identifier: &str,
 ) -> Option<String> {
-    let workspaces = list_cmux_workspaces(app).await.ok()?;
+    let workspaces = match list_cmux_workspaces(app).await {
+        Ok(ws) => ws,
+        Err(e) => {
+            eprintln!(
+                "resolve_workspace_ref_by_identifier: failed to list workspaces for '{identifier}': {e}"
+            );
+            return None;
+        }
+    };
     workspaces
         .into_iter()
         .find(|ws| title_matches_identifier(&ws.title, identifier))
@@ -224,7 +232,7 @@ impl TerminalController for CmuxController {
     ///
     /// Flow:
     /// 1. `cmux new-workspace --cwd <worktree_path>` → returns "OK workspace:N"
-    /// 2. `cmux rename-workspace --workspace <ref> <identifier>` → set the display name
+    /// 2. `cmux rename-workspace --workspace <ref> <display_name>` → set display name (identifier + optional title)
     /// 3. Inject env vars via `cmux send`
     /// 4. If `config.command` is set: `cmux send --workspace <ref> "<command>\r"` → run it
     async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
@@ -489,7 +497,9 @@ async fn is_cmux_available(app: &tauri::AppHandle) -> bool {
 
 /// Set the progress bar in a cmux workspace.
 ///
+/// Value is a float 0.0–1.0 (e.g. 0.4 = 40%).
 /// Accepts the task identifier and resolves it to the workspace ref.
+/// Best-effort: no-ops when cmux is not running.
 pub async fn set_progress(
     app: &tauri::AppHandle,
     workspace_name: &str,
@@ -516,7 +526,9 @@ pub async fn set_progress(
 
 /// Append a log entry to the cmux workspace log panel.
 ///
+/// Level is one of: info, success, warning, error.
 /// Accepts the task identifier and resolves it to the workspace ref.
+/// Best-effort: no-ops when cmux is not running.
 pub async fn log_entry(
     app: &tauri::AppHandle,
     workspace_name: &str,
@@ -544,6 +556,7 @@ pub async fn log_entry(
 /// Clear the progress bar in a cmux workspace.
 ///
 /// Accepts the task identifier and resolves it to the workspace ref.
+/// Best-effort: no-ops when cmux is not running.
 pub async fn clear_progress(app: &tauri::AppHandle, workspace_name: &str) -> Result<(), String> {
     if !is_cmux_available(app).await {
         return Ok(());
@@ -566,6 +579,7 @@ pub async fn clear_progress(app: &tauri::AppHandle, workspace_name: &str) -> Res
 /// Clear the log panel in a cmux workspace.
 ///
 /// Accepts the task identifier and resolves it to the workspace ref.
+/// Best-effort: no-ops when cmux is not running.
 pub async fn clear_log(app: &tauri::AppHandle, workspace_name: &str) -> Result<(), String> {
     if !is_cmux_available(app).await {
         return Ok(());
