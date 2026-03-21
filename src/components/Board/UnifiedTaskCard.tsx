@@ -53,11 +53,12 @@ import {
   tmuxKillSession,
   cmuxCloseWorkspace,
   wtMerge,
-  gitFetch,
   type CmuxNotification,
   NOTIFICATION_CATEGORIES,
 } from "../../lib/tauri";
+import { useFetchRemote } from "../../hooks/useWorktrees";
 import { BranchSelector } from "../shared/BranchSelector";
+import { DiffBadge } from "../shared/DiffBadge";
 import { QuickPeek } from "./QuickPeek";
 
 type WorkflowStatus =
@@ -224,7 +225,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     repoPath: string;
   } | null>(null);
   const [sendingSkill, setSendingSkill] = useState(false);
-  const [fetchingRemote, setFetchingRemote] = useState(false);
+  const { fetching: fetchingRemote, fetchRemote: handleFetchRemote } =
+    useFetchRemote(worktreeRepoPath);
 
   const hasSession = session !== null;
   const isLoading =
@@ -428,19 +430,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     }
   }
 
-  async function handleFetchRemote() {
-    if (!worktreeRepoPath) return;
-    setFetchingRemote(true);
-    try {
-      await gitFetch(worktreeRepoPath);
-      await queryClient.refetchQueries({ queryKey: ["worktrees"] });
-    } catch (err) {
-      toastError(err);
-    } finally {
-      setFetchingRemote(false);
-    }
-  }
-
   async function handleFixCI() {
     if (!worktree || !worktreeRepoPath) return;
     const { skill } = getRepoSkillParams("FIX_CI");
@@ -628,16 +617,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           <span className="truncate text-sm text-[var(--text-secondary)]">
             {worktree.branch}
           </span>
-          {(worktree.diffAdded > 0 || worktree.diffDeleted > 0) && (
-            <span className="flex items-center gap-0.5 text-[10px] font-medium" title="Uncommitted changes">
-              {worktree.diffAdded > 0 && (
-                <span className="text-[var(--accent-green)]">+{worktree.diffAdded}</span>
-              )}
-              {worktree.diffDeleted > 0 && (
-                <span className="text-[var(--accent-red)]">-{worktree.diffDeleted}</span>
-              )}
-            </span>
-          )}
+          <DiffBadge added={worktree.diffAdded} deleted={worktree.diffDeleted} />
           {(worktree.ahead > 0 || worktree.behind > 0) && (
             <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
               {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}

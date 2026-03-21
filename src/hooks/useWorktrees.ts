@@ -1,5 +1,7 @@
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { wtList } from "../lib/tauri";
+import { wtList, gitFetch } from "../lib/tauri";
+import { toastError } from "../lib/toast";
 import {
   removeWorktreeFlow,
   type RemoveWorktreeFlowParams,
@@ -56,4 +58,24 @@ export function useWorktreeRemove() {
       queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
     },
   });
+}
+
+export function useFetchRemote(repoPath: string | null) {
+  const [fetching, setFetching] = useState(false);
+  const queryClient = useQueryClient();
+
+  const fetchRemote = useCallback(async () => {
+    if (!repoPath) return;
+    setFetching(true);
+    try {
+      await gitFetch(repoPath);
+      await queryClient.refetchQueries({ queryKey: ["worktrees"] });
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setFetching(false);
+    }
+  }, [repoPath, queryClient]);
+
+  return { fetching, fetchRemote };
 }

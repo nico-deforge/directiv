@@ -26,8 +26,9 @@ import {
   openTerminal,
   openEditor,
   cmuxCloseWorkspace,
-  gitFetch,
 } from "../../lib/tauri";
+import { useFetchRemote } from "../../hooks/useWorktrees";
+import { DiffBadge } from "../shared/DiffBadge";
 import { buildClaudeCommand, openTerminalWithToast } from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -54,7 +55,8 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [killingSession, setKillingSession] = useState(false);
   const [launchingSession, setLaunchingSession] = useState(false);
-  const [fetchingRemote, setFetchingRemote] = useState(false);
+  const { fetching: fetchingRemote, fetchRemote: handleFetchRemote } =
+    useFetchRemote(repoPath);
 
   const hasSession = session !== null;
   const isDeleting = removeWorktree.isPending;
@@ -64,18 +66,6 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     const timer = setTimeout(() => setConfirmingDelete(false), 5000);
     return () => clearTimeout(timer);
   }, [confirmingDelete]);
-
-  async function handleFetchRemote() {
-    setFetchingRemote(true);
-    try {
-      await gitFetch(repoPath);
-      await queryClient.refetchQueries({ queryKey: ["worktrees"] });
-    } catch (err) {
-      toastError(err);
-    } finally {
-      setFetchingRemote(false);
-    }
-  }
 
   async function handleLaunchSession() {
     const sessionName = toSessionName(worktree.branch);
@@ -205,16 +195,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         <span className="truncate text-sm text-[var(--text-secondary)]">
           {worktree.branch}
         </span>
-        {(worktree.diffAdded > 0 || worktree.diffDeleted > 0) && (
-          <span className="flex items-center gap-0.5 text-[10px] font-medium" title="Uncommitted changes">
-            {worktree.diffAdded > 0 && (
-              <span className="text-[var(--accent-green)]">+{worktree.diffAdded}</span>
-            )}
-            {worktree.diffDeleted > 0 && (
-              <span className="text-[var(--accent-red)]">-{worktree.diffDeleted}</span>
-            )}
-          </span>
-        )}
+        <DiffBadge added={worktree.diffAdded} deleted={worktree.diffDeleted} />
         {(worktree.ahead > 0 || worktree.behind > 0) && (
           <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
             {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}

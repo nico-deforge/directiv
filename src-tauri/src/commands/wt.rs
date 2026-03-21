@@ -240,7 +240,8 @@ pub async fn wt_merge(
 
 // --- git_fetch command ---
 
-/// Run `git fetch origin` inside `repo_path` to refresh remote tracking state.
+/// Fetch from the remote to update tracking refs (ahead/behind counts).
+/// Calls git directly because the wt CLI does not expose a standalone fetch command.
 #[tauri::command]
 pub async fn git_fetch(app: tauri::AppHandle, repo_path: String) -> Result<(), String> {
     let output = app

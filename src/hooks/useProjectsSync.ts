@@ -95,15 +95,9 @@ export function useProjectsSync() {
   const orphanCount = useMemo(() => {
     if (!identifiersLoaded) return 0;
     const knownIdentifiers = myActiveIdentifiers ?? new Set<string>();
-    return (allWorktrees ?? []).reduce(
-      (count, rw) =>
-        count +
-        rw.worktrees
-          .slice(1)
-          .filter((wt) => !knownIdentifiers.has(wt.branch.toLowerCase()))
-          .length,
-      0,
-    );
+    return (allWorktrees ?? [])
+      .flatMap((rw) => rw.worktrees.slice(1))
+      .filter((wt) => !knownIdentifiers.has(wt.branch.toLowerCase())).length;
   }, [identifiersLoaded, myActiveIdentifiers, allWorktrees]);
 
   const otherIssuesCount = (otherIssues ?? []).length;
