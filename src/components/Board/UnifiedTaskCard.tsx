@@ -226,11 +226,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const isPersonalReview = workflowStatus === "personal-review";
   const statusClassName = isPersonalReview
     ? "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)]"
-    : workflowStatus === "in-review" || workflowStatus === "to-deploy"
-      ? "bg-[var(--accent-green)]/20 text-[var(--accent-green)]"
-      : task.linearStatusType
-        ? LINEAR_STATUS_STYLES[task.linearStatusType]
-        : DEFAULT_STATUS_STYLE;
+    : task.linearStatusType
+      ? LINEAR_STATUS_STYLES[task.linearStatusType]
+      : DEFAULT_STATUS_STYLE;
   const statusLabel = isPersonalReview ? "Personal Review" : task.status;
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
