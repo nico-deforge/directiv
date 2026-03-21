@@ -184,9 +184,6 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             <span className="truncate">{linearIssue.identifier}</span>
             <ExternalLink className="size-3 shrink-0" />
           </CmuxLink>
-          <span className="ml-auto text-xs text-[var(--text-tertiary)]">
-            {linearIssue.status}
-          </span>
         </div>
       )}
 

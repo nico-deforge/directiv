@@ -85,6 +85,7 @@ async function mapIssueToEnrichedTask(
     priority: issue.priority,
     status: state?.name ?? "Unknown",
     linearStatusType: (state?.type as LinearStatusType) ?? null,
+    statusColor: state?.color ?? null,
     assigneeId: assignee?.id ?? null,
     projectId: project?.id ?? null,
     projectName: project?.name ?? null,
@@ -233,6 +234,7 @@ export interface LinearIssueStub {
   url: string;
   status: string;
   statusType: LinearStatusType | null;
+  statusColor: string | null;
 }
 
 export function useLinearMyActiveIdentifiers() {
@@ -321,6 +323,7 @@ export function useLinearIssuesByBranches(branchNames: string[]) {
             url: issue.url,
             status: state?.name ?? "Unknown",
             statusType: (state?.type as LinearStatusType) ?? null,
+            statusColor: state?.color ?? null,
           });
         }),
       );

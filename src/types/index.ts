@@ -48,6 +48,7 @@ export interface EnrichedTask {
   priority: number;
   status: string;
   linearStatusType: LinearStatusType | null;
+  statusColor: string | null;
   assigneeId: string | null;
   projectId: string | null;
   projectName: string | null;
