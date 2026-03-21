@@ -534,20 +534,23 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               {task.assigneeName}
             </span>
           )}
-          {/* cmux enriched badge — shown when cmux is the backend */}
-          {cmuxBadge && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOpenTerminal();
-              }}
-              title={cmuxNotification?.body ?? cmuxNotification?.title}
-              className={`ml-auto flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${cmuxBadge.className}`}
-            >
-              <cmuxBadge.Icon className="size-3 shrink-0" />
-              <span className="max-w-[120px] truncate">{cmuxBadge.label}</span>
-            </button>
-          )}
+          {/* cmux enriched badge — shown in header for non-completed states */}
+          {cmuxBadge &&
+            cmuxNotification?.category !== NOTIFICATION_CATEGORIES.COMPLETED && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenTerminal();
+                }}
+                title={cmuxNotification?.body ?? cmuxNotification?.title}
+                className={`ml-auto flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${cmuxBadge.className}`}
+              >
+                <cmuxBadge.Icon className="size-3 shrink-0" />
+                <span className="max-w-[120px] truncate">
+                  {cmuxBadge.label}
+                </span>
+              </button>
+            )}
           {/* Fallback badge for Ghostty/iTerm2 — shown when no cmux notification */}
           {!cmuxBadge && claudeWaiting && (
             <button
@@ -763,6 +766,15 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <Terminal className="size-3.5" />
               Terminal
             </button>
+          )}
+
+          {/* cmux Completed indicator */}
+          {cmuxNotification?.category ===
+            NOTIFICATION_CATEGORIES.COMPLETED && (
+            <span className="flex items-center gap-1 rounded bg-[var(--accent-green)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-green)]">
+              <CheckCircle className="size-3.5" />
+              Completed
+            </span>
           )}
 
           {/* Editor button */}
