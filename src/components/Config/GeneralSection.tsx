@@ -2,8 +2,13 @@ import { Settings2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { cmuxPing } from "../../lib/tauri";
-import { TERMINAL_EMULATORS } from "../../types";
-import type { CodeEditor, Theme, TerminalEmulator } from "../../types";
+import { TERMINAL_EMULATORS, TERMINAL_LAYOUTS } from "../../types";
+import type {
+  CodeEditor,
+  Theme,
+  TerminalEmulator,
+  TerminalLayout,
+} from "../../types";
 
 const EDITORS: { value: CodeEditor; label: string }[] = [
   { value: "zed", label: "Zed" },
@@ -22,6 +27,11 @@ const TERMINAL_OPTIONS: { value: TerminalEmulator; label: string }[] = [
   { value: TERMINAL_EMULATORS.GHOSTTY, label: "Ghostty" },
   { value: TERMINAL_EMULATORS.ITERM2, label: "iTerm2" },
   { value: TERMINAL_EMULATORS.CMUX, label: "cmux" },
+];
+
+const LAYOUT_OPTIONS: { value: TerminalLayout; label: string }[] = [
+  { value: TERMINAL_LAYOUTS.SIDE_BY_SIDE, label: "Side by side" },
+  { value: TERMINAL_LAYOUTS.FOCUS, label: "Focus" },
 ];
 
 export function GeneralSection() {
@@ -45,6 +55,10 @@ export function GeneralSection() {
 
   function handleTerminalEmulatorChange(terminal: TerminalEmulator) {
     setConfig({ ...config, terminal });
+  }
+
+  function handleTerminalLayoutChange(terminalLayout: TerminalLayout) {
+    setConfig({ ...config, terminalLayout });
   }
 
   return (
@@ -148,6 +162,26 @@ export function GeneralSection() {
               as a terminal backend.
             </p>
           )}
+          <div className="mt-3">
+            <label className="mb-1 block text-sm text-[var(--text-muted)]">
+              Layout
+            </label>
+            <div className="flex gap-1 rounded-md bg-[var(--bg-primary)] p-1">
+              {LAYOUT_OPTIONS.map((l) => (
+                <button
+                  key={l.value}
+                  onClick={() => handleTerminalLayoutChange(l.value)}
+                  className={`flex-1 rounded px-3 py-1.5 text-sm transition-colors ${
+                    config.terminalLayout === l.value
+                      ? "bg-[var(--bg-elevated)] font-medium text-[var(--text-primary)]"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
     </div>

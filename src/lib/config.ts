@@ -4,10 +4,11 @@ import type {
   LinearOrgConfig,
   WorkspaceConfig,
 } from "../types";
-import { TERMINAL_EMULATORS } from "../types";
+import { TERMINAL_EMULATORS, TERMINAL_LAYOUTS } from "../types";
 
 export const defaultConfig: DirectivConfig = {
   terminal: TERMINAL_EMULATORS.GHOSTTY,
+  terminalLayout: TERMINAL_LAYOUTS.SIDE_BY_SIDE,
   editor: "zed",
   workspaces: [],
   linear: {},
@@ -69,6 +70,7 @@ export function validateConfig(
       }),
     ),
     linear: isValidLinearRecord(config.linear) ? config.linear : {},
+    terminalLayout: config.terminalLayout ?? defaultConfig.terminalLayout,
     theme: config.theme ?? defaultConfig.theme,
     skills: config.skills,
     models: config.models,
