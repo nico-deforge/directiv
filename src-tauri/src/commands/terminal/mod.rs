@@ -463,7 +463,10 @@ mod tests {
         // 30 CJK characters — should NOT be truncated (under 50 char limit)
         let title = "\u{3042}".repeat(30);
         let result = format_display_name("ACQ-145", Some(&title));
-        assert!(!result.contains('…'), "30-char Unicode title should not be truncated");
+        assert!(
+            !result.contains('…'),
+            "30-char Unicode title should not be truncated"
+        );
     }
 
     #[test]
@@ -471,6 +474,9 @@ mod tests {
         // 60 CJK characters — should be truncated to 50 + ellipsis
         let title = "\u{3042}".repeat(60);
         let result = format_display_name("ACQ-145", Some(&title));
-        assert!(result.ends_with('…'), "60-char Unicode title should be truncated");
+        assert!(
+            result.ends_with('…'),
+            "60-char Unicode title should be truncated"
+        );
     }
 }
