@@ -81,6 +81,27 @@ const LINEAR_STATUS_STYLES: Record<LinearStatusType, string> = {
   canceled: DEFAULT_STATUS_STYLE,
 };
 
+type StatusBadge = { label: string; className: string };
+
+function getStatusBadge(
+  workflowStatus: WorkflowStatus,
+  linearStatus: string,
+  linearStatusType: LinearStatusType | null,
+): StatusBadge {
+  if (workflowStatus === "personal-review") {
+    return {
+      label: "Personal Review",
+      className: "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)]",
+    };
+  }
+  return {
+    label: linearStatus,
+    className: linearStatusType
+      ? LINEAR_STATUS_STYLES[linearStatusType]
+      : DEFAULT_STATUS_STYLE,
+  };
+}
+
 function getWorkflowStatus(
   session: TmuxSession | null,
   pr: PullRequestInfo | null,
@@ -223,13 +244,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     mergingWorktree ||
     sendingSkill;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
-  const isPersonalReview = workflowStatus === "personal-review";
-  const statusClassName = isPersonalReview
-    ? "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)]"
-    : task.linearStatusType
-      ? LINEAR_STATUS_STYLES[task.linearStatusType]
-      : DEFAULT_STATUS_STYLE;
-  const statusLabel = isPersonalReview ? "Personal Review" : task.status;
+  const statusBadge = getStatusBadge(
+    workflowStatus,
+    task.status,
+    task.linearStatusType,
+  );
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
 
@@ -487,9 +506,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       <div className="border-b border-[var(--border-default)] px-3 py-2">
         <div className="flex items-center gap-2">
           <span
-            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusClassName}`}
+            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusBadge.className}`}
           >
-            {statusLabel}
+            {statusBadge.label}
           </span>
           <span className="text-xs font-medium text-[var(--text-secondary)]">
             {task.identifier}
