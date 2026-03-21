@@ -7,7 +7,6 @@ import {
   Loader2,
   GitBranch,
   Github,
-  Circle,
   SquareKanban,
   ExternalLink,
   X,
@@ -191,9 +190,14 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         <span className="truncate text-sm text-[var(--text-secondary)]">
           {worktree.branch}
         </span>
-        {worktree.isDirty && (
-          <span title="Uncommitted changes">
-            <Circle className="size-2 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
+        {(worktree.diffAdded > 0 || worktree.diffDeleted > 0) && (
+          <span className="flex items-center gap-0.5 text-[10px] font-medium" title="Uncommitted changes">
+            {worktree.diffAdded > 0 && (
+              <span className="text-[var(--accent-green)]">+{worktree.diffAdded}</span>
+            )}
+            {worktree.diffDeleted > 0 && (
+              <span className="text-[var(--accent-red)]">-{worktree.diffDeleted}</span>
+            )}
           </span>
         )}
         {(worktree.ahead > 0 || worktree.behind > 0) && (

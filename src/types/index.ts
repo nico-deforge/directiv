@@ -93,7 +93,8 @@ export interface WorktreeInfo {
   branch: string;
   path: string;
   issueId: string | null;
-  isDirty: boolean;
+  diffAdded: number;
+  diffDeleted: number;
   ahead: number;
   behind: number;
   baseBranch: string | null;
