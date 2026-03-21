@@ -34,7 +34,9 @@ export function CmuxLink({
 
     if (isCmux) {
       e.preventDefault();
-      openDirectivLink(href, workspaceName!).catch(() => {});
+      openDirectivLink(href, workspaceName!).catch((err) => {
+        console.error("[CmuxLink] openDirectivLink failed:", err);
+      });
     }
   }
 
@@ -44,7 +46,14 @@ export function CmuxLink({
     return (
       <a
         role="link"
+        tabIndex={0}
         onClick={handleClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleClick(e as unknown as React.MouseEvent<HTMLAnchorElement>);
+          }
+        }}
         style={{ cursor: "pointer" }}
         {...rest}
       >
