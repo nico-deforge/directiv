@@ -81,8 +81,9 @@ function getStatusBadge(
       label: "Personal Review",
       style: {
         backgroundColor:
-          "color-mix(in srgb, var(--accent-purple) 20%, transparent)",
-        color: "var(--accent-purple)",
+          "color-mix(in srgb, var(--accent-purple) 15%, var(--bg-tertiary))",
+        color:
+          "color-mix(in oklch, var(--accent-purple) 70%, var(--text-primary))",
       },
     };
   }
@@ -91,7 +92,7 @@ function getStatusBadge(
       label: linearStatus,
       style: {
         backgroundColor:
-          "color-mix(in srgb, var(--text-muted) 20%, transparent)",
+          "color-mix(in srgb, var(--text-muted) 15%, var(--bg-tertiary))",
         color: "var(--text-muted)",
       },
     };
@@ -99,8 +100,8 @@ function getStatusBadge(
   return {
     label: linearStatus,
     style: {
-      backgroundColor: `color-mix(in srgb, ${statusColor} 20%, transparent)`,
-      color: statusColor,
+      backgroundColor: `color-mix(in srgb, ${statusColor} 15%, var(--bg-tertiary))`,
+      color: `color-mix(in oklch, ${statusColor} 70%, var(--text-primary))`,
     },
   };
 }
