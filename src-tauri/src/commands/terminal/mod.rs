@@ -60,6 +60,7 @@ pub async fn open_terminal(
                 &worktree_path,
                 title.as_deref(),
                 layout,
+                &emulator,
             )
             .await
         }
@@ -72,6 +73,7 @@ pub async fn open_terminal(
                 &worktree_path,
                 title.as_deref(),
                 layout,
+                &emulator,
             )
             .await
         }
@@ -84,12 +86,14 @@ pub async fn open_terminal(
                 &worktree_path,
                 title.as_deref(),
                 layout,
+                &emulator,
             )
             .await
         }
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn dispatch_terminal(
     app: &tauri::AppHandle,
     controller: impl TerminalController,
@@ -98,6 +102,7 @@ async fn dispatch_terminal(
     worktree_path: &str,
     title: Option<&str>,
     layout: types::TerminalLayout,
+    emulator: &Emulator,
 ) -> Result<bool, String> {
     if let Some(terminal_ref) = controller
         .find_session(app, identifier, worktree_path)
@@ -151,8 +156,11 @@ async fn dispatch_terminal(
     }
 
     if should_split {
-        // Give the terminal time to register before looking it up
-        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        // Ghostty/iTerm2 need time for the emulator to register the session.
+        // cmux's new-workspace is synchronous — the workspace is ready immediately.
+        if !matches!(emulator, Emulator::Cmux) {
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        }
 
         match controller
             .find_session(app, identifier, worktree_path)
@@ -164,7 +172,7 @@ async fn dispatch_terminal(
                 }
             }
             Ok(None) => {
-                eprintln!("split: session not found after delay, skipping for {identifier}");
+                eprintln!("split: session not found, skipping for {identifier}");
             }
             Err(e) => {
                 eprintln!("split: find_session failed (non-fatal): {e}");
@@ -289,12 +297,10 @@ pub async fn cmux_browser_open(
     cmux::browser_open(&app, &workspace_name, &url).await
 }
 
-/// List all pending cmux notifications returned by `cmux list-notifications --json`.
+/// List all pending cmux notifications from `cmux list-notifications`.
 ///
-/// Each notification includes title, subtitle, body, workspace_id, and a parsed category.
-/// If no notifications exist or cmux is not running, returns an empty array.
-/// The category is parsed structurally from the JSON; if absent, it is derived via keyword
-/// matching on title/body (mirrors cmux's internal classification logic).
+/// Parses the pipe-separated output, maps workspace UUIDs to titles, and derives
+/// notification categories via keyword matching on title/body.
 #[tauri::command]
 pub async fn cmux_list_notifications(
     app: tauri::AppHandle,
@@ -364,6 +370,18 @@ pub async fn cmux_clear_progress(
 #[tauri::command]
 pub async fn cmux_clear_log(app: tauri::AppHandle, workspace_name: String) -> Result<(), String> {
     cmux::clear_log(&app, &workspace_name).await
+}
+
+/// Read the terminal pane content for a cmux workspace.
+///
+/// Looks up the workspace by name, then reads the last 50 lines via `cmux read-screen`.
+/// Returns empty string if cmux is not running or the workspace is not found.
+#[tauri::command]
+pub async fn cmux_capture_pane(
+    app: tauri::AppHandle,
+    workspace_name: String,
+) -> Result<String, String> {
+    cmux::capture_pane(&app, &workspace_name).await
 }
 
 /// Check whether cmux is installed and running via `cmux ping`.
