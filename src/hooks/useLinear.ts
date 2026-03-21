@@ -1,6 +1,9 @@
 import { PaginationOrderBy } from "@linear/sdk";
 import { useQuery } from "@tanstack/react-query";
-import { EXTERNAL_API_REFRESH_INTERVAL } from "../constants/intervals";
+import {
+  EXTERNAL_API_REFRESH_INTERVAL,
+  LINEAR_FETCH_LIMIT,
+} from "../constants/intervals";
 import { getLinearClient } from "../lib/linear";
 import { useAuthStore, AUTH_PROVIDER_STATUS } from "../stores/authStore";
 import {
@@ -156,7 +159,7 @@ export function useLinearMyProjects() {
           status: { type: { in: ["started", "backlog"] } },
         },
         orderBy: PaginationOrderBy.CreatedAt,
-        first: 100,
+        first: LINEAR_FETCH_LIMIT,
       });
 
       return result.nodes.map((p) => ({
@@ -200,7 +203,7 @@ export function useLinearProjectIssues(
           team: { id: { in: resolvedIds } },
           state: { type: { in: ["triage", "unstarted", "started"] } },
         },
-        first: 250,
+        first: LINEAR_FETCH_LIMIT,
       });
 
       const results = await Promise.allSettled(
@@ -245,7 +248,7 @@ export function useLinearMyActiveIdentifiers() {
           assignee: { isMe: { eq: true } },
           state: { type: { in: ["triage", "unstarted", "started"] } },
         },
-        first: 500,
+        first: LINEAR_FETCH_LIMIT,
       });
       return new Set(issues.nodes.map((i) => i.identifier.toLowerCase()));
     },
@@ -272,7 +275,7 @@ export function useLinearOtherIssues(memberProjectIds: string[] | undefined) {
           assignee: { isMe: { eq: true } },
           state: { type: { in: ["triage", "unstarted", "started"] } },
         },
-        first: 250,
+        first: LINEAR_FETCH_LIMIT,
       });
 
       // Filter before expensive mapping: keep issues with no project or project not in member list

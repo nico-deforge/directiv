@@ -131,16 +131,18 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     }
     setConfirmingDelete(false);
 
-    removeWorktree.mutate(
-      {
+    try {
+      await removeWorktree.mutateAsync({
         repoPath,
         branch: worktree.branch,
         sessionName: session ? toSessionName(worktree.branch) : undefined,
-      },
-      {
-        onError: (err) => toastError(err),
-      },
-    );
+      });
+    } catch (err) {
+      toastError(err);
+      return;
+    }
+    await queryClient.refetchQueries({ queryKey: ["worktrees"] });
+    queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
   }
 
   return (
