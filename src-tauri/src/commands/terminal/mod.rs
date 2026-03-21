@@ -185,12 +185,21 @@ pub async fn query_terminals(
         let sessions = CmuxController.list_sessions(&app).await?;
         let statuses = sessions
             .into_iter()
-            .map(|(id, name)| TerminalStatus {
-                session_name: name.clone(),
-                identifier: id,
-                // cmux workspaces are always considered active: they persist until explicitly
-                // closed, unlike tmux sessions which can die without emulator cleanup.
-                active: true,
+            .map(|(id, name)| {
+                // Extract the identifier from the display name.
+                // Display names follow the format "ACQ-145 — Fix login timeout";
+                // split on the em-dash separator to get the identifier part.
+                let session_name = name
+                    .split_once(" \u{2014} ")
+                    .map(|(ident, _)| ident.to_string())
+                    .unwrap_or(name);
+                TerminalStatus {
+                    session_name,
+                    identifier: id,
+                    // cmux workspaces are always considered active: they persist until explicitly
+                    // closed, unlike tmux sessions which can die without emulator cleanup.
+                    active: true,
+                }
             })
             .collect();
         return Ok(statuses);
