@@ -143,7 +143,7 @@ function getCmuxStatusText(category: NotificationCategory): {
   switch (category) {
     case NOTIFICATION_CATEGORIES.PERMISSION:
       return {
-        text: "Claude needs approval",
+        text: "Claude needs input",
         colorClass: "text-[var(--accent-orange)]",
         animate: true,
       };
