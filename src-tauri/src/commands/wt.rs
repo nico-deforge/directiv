@@ -85,7 +85,13 @@ struct WtListEntry {
 
 #[derive(Debug, Deserialize)]
 struct WtWorkingTree {
-    is_dirty: Option<bool>,
+    diff: Option<WtDiff>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WtDiff {
+    added: Option<u32>,
+    deleted: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -138,7 +144,8 @@ impl WtCiStatus {
 pub struct WtWorktreeInfo {
     pub branch: String,
     pub path: String,
-    pub is_dirty: bool,
+    pub diff_added: u32,
+    pub diff_deleted: u32,
     pub ahead: u32,
     pub behind: u32,
     pub main_state: Option<String>,
@@ -231,6 +238,28 @@ pub async fn wt_merge(
     Ok(())
 }
 
+// --- git_fetch command ---
+
+/// Fetch from the remote to update tracking refs (ahead/behind counts).
+/// Calls git directly because the wt CLI does not expose a standalone fetch command.
+#[tauri::command]
+pub async fn git_fetch(app: tauri::AppHandle, repo_path: String) -> Result<(), String> {
+    let output = app
+        .shell()
+        .command("git")
+        .args(["-C", &repo_path, "fetch", "origin"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run git fetch in {repo_path}: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git fetch failed in {repo_path}: {stderr}"));
+    }
+
+    Ok(())
+}
+
 // --- wt_list command ---
 
 #[tauri::command]
@@ -248,10 +277,11 @@ pub async fn wt_list(
         .filter_map(|entry| {
             // Filter out detached HEAD worktrees (no branch)
             let branch = entry.branch?;
-            let is_dirty = entry
+            let (diff_added, diff_deleted) = entry
                 .working_tree
-                .and_then(|wt| wt.is_dirty)
-                .unwrap_or(true);
+                .and_then(|wt| wt.diff)
+                .map(|d| (d.added.unwrap_or(0), d.deleted.unwrap_or(0)))
+                .unwrap_or((0, 0));
             let main_state = entry
                 .main_state
                 .or_else(|| entry.main.as_ref().and_then(|m| m.state.clone()));
@@ -271,7 +301,8 @@ pub async fn wt_list(
             Some(WtWorktreeInfo {
                 branch,
                 path: entry.path,
-                is_dirty,
+                diff_added,
+                diff_deleted,
                 ahead,
                 behind,
                 main_state,

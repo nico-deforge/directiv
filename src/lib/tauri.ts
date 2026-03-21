@@ -41,7 +41,8 @@ export async function scanWorkspace(
 interface WtWorktreeInfoRaw {
   branch: string;
   path: string;
-  isDirty: boolean;
+  diffAdded: number;
+  diffDeleted: number;
   ahead: number;
   behind: number;
   mainState: string | null;
@@ -57,6 +58,10 @@ export async function wtMerge(
   branchName: string,
 ): Promise<void> {
   return invoke<void>("wt_merge", { repoPath, branchName });
+}
+
+export async function gitFetch(repoPath: string): Promise<void> {
+  return invoke<void>("git_fetch", { repoPath });
 }
 
 export async function wtSwitchCreate(
@@ -75,7 +80,8 @@ export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
     issueId: entry.branch.match(/^[A-Z]+-\d+(\.\d+)?$/i)
       ? entry.branch.toUpperCase()
       : null,
-    isDirty: entry.isDirty,
+    diffAdded: entry.diffAdded,
+    diffDeleted: entry.diffDeleted,
     ahead: entry.ahead,
     behind: entry.behind,
     baseBranch: null,

@@ -7,11 +7,11 @@ import {
   Loader2,
   GitBranch,
   Github,
-  Circle,
   SquareKanban,
   ExternalLink,
   X,
   Code2,
+  RefreshCw,
 } from "lucide-react";
 import type { WorktreeInfo, TmuxSession, PullRequestInfo } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
@@ -27,6 +27,8 @@ import {
   openEditor,
   cmuxCloseWorkspace,
 } from "../../lib/tauri";
+import { useFetchRemote } from "../../hooks/useWorktrees";
+import { DiffBadge } from "../shared/DiffBadge";
 import { buildClaudeCommand, openTerminalWithToast } from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -53,6 +55,8 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [killingSession, setKillingSession] = useState(false);
   const [launchingSession, setLaunchingSession] = useState(false);
+  const { fetching: fetchingRemote, fetchRemote: handleFetchRemote } =
+    useFetchRemote(repoPath);
 
   const hasSession = session !== null;
   const isDeleting = removeWorktree.isPending;
@@ -191,17 +195,23 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         <span className="truncate text-sm text-[var(--text-secondary)]">
           {worktree.branch}
         </span>
-        {worktree.isDirty && (
-          <span title="Uncommitted changes">
-            <Circle className="size-2 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
-          </span>
-        )}
+        <DiffBadge added={worktree.diffAdded} deleted={worktree.diffDeleted} />
         {(worktree.ahead > 0 || worktree.behind > 0) && (
           <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
             {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
             {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
           </span>
         )}
+        <button
+          onClick={handleFetchRemote}
+          disabled={fetchingRemote}
+          className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
+          title="Fetch remote"
+        >
+          <RefreshCw
+            className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`}
+          />
+        </button>
       </div>
 
       {/* PR Section */}

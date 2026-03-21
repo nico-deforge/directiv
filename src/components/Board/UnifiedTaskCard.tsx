@@ -11,7 +11,6 @@ import {
   ChevronDown,
   GitBranch,
   Github,
-  Circle,
   SquareKanban,
   ExternalLink,
   Code2,
@@ -21,6 +20,7 @@ import {
   HelpCircle,
   XCircle,
   Clock,
+  RefreshCw,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -56,7 +56,9 @@ import {
   type CmuxNotification,
   NOTIFICATION_CATEGORIES,
 } from "../../lib/tauri";
+import { useFetchRemote } from "../../hooks/useWorktrees";
 import { BranchSelector } from "../shared/BranchSelector";
+import { DiffBadge } from "../shared/DiffBadge";
 import { QuickPeek } from "./QuickPeek";
 
 type WorkflowStatus =
@@ -223,6 +225,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     repoPath: string;
   } | null>(null);
   const [sendingSkill, setSendingSkill] = useState(false);
+  const { fetching: fetchingRemote, fetchRemote: handleFetchRemote } =
+    useFetchRemote(worktreeRepoPath);
 
   const hasSession = session !== null;
   const isLoading =
@@ -613,16 +617,27 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           <span className="truncate text-sm text-[var(--text-secondary)]">
             {worktree.branch}
           </span>
-          {worktree.isDirty && (
-            <span title="Uncommitted changes">
-              <Circle className="size-2 fill-[var(--accent-yellow)] text-[var(--accent-yellow)]" />
-            </span>
-          )}
+          <DiffBadge
+            added={worktree.diffAdded}
+            deleted={worktree.diffDeleted}
+          />
           {(worktree.ahead > 0 || worktree.behind > 0) && (
             <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
               {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
               {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
             </span>
+          )}
+          {worktreeRepoPath && (
+            <button
+              onClick={handleFetchRemote}
+              disabled={fetchingRemote}
+              className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
+              title="Fetch remote"
+            >
+              <RefreshCw
+                className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`}
+              />
+            </button>
           )}
           {worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI && (
             <span className="ml-auto">

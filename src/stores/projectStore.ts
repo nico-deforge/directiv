@@ -22,15 +22,15 @@ export interface Project {
 
 interface ProjectState {
   projects: Project[];
-  hasOrphans: boolean;
-  hasOtherIssues: boolean;
+  orphanCount: number;
+  otherIssuesCount: number;
   connectionStatus: LinearConnectionStatus;
   selectedProjectId: string | null;
   showBacklogProjects: boolean;
   setProjectsData: (data: {
     projects: Project[];
-    hasOrphans: boolean;
-    hasOtherIssues: boolean;
+    orphanCount: number;
+    otherIssuesCount: number;
     connectionStatus: LinearConnectionStatus;
   }) => void;
   selectProject: (projectId: string | null) => void;
@@ -39,16 +39,16 @@ interface ProjectState {
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
   projects: [],
-  hasOrphans: false,
-  hasOtherIssues: false,
+  orphanCount: 0,
+  otherIssuesCount: 0,
   connectionStatus: { status: "loading" },
   selectedProjectId: null,
   showBacklogProjects: false,
 
   setProjectsData: ({
     projects,
-    hasOrphans,
-    hasOtherIssues,
+    orphanCount,
+    otherIssuesCount,
     connectionStatus,
   }) => {
     const { selectedProjectId } = get();
@@ -57,17 +57,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (autoSelect === null && projects.length > 0) {
       autoSelect = projects[0].id;
     }
-    if (autoSelect === OTHER_ISSUES_PROJECT_ID && !hasOtherIssues) {
+    if (autoSelect === OTHER_ISSUES_PROJECT_ID && otherIssuesCount === 0) {
       autoSelect = projects.length > 0 ? projects[0].id : null;
     }
-    if (autoSelect === ORPHAN_PROJECT_ID && !hasOrphans) {
+    if (autoSelect === ORPHAN_PROJECT_ID && orphanCount === 0) {
       autoSelect = projects.length > 0 ? projects[0].id : null;
     }
 
     set({
       projects,
-      hasOrphans,
-      hasOtherIssues,
+      orphanCount,
+      otherIssuesCount,
       connectionStatus,
       selectedProjectId: autoSelect,
     });
