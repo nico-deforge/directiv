@@ -73,11 +73,11 @@ type WorkflowStatus =
 const DEFAULT_STATUS_STYLE = "bg-neutral-500/20 text-[var(--text-muted)]";
 
 const LINEAR_STATUS_STYLES: Record<LinearStatusType, string> = {
-  triage: "bg-[#F2994A]/20 text-[#F2994A]",
+  triage: "bg-[var(--linear-triage)]/20 text-[var(--linear-triage)]",
   backlog: DEFAULT_STATUS_STYLE,
   unstarted: DEFAULT_STATUS_STYLE,
-  started: "bg-[#F2C94C]/20 text-[#F2C94C]",
-  completed: "bg-[#5E6AD2]/20 text-[#5E6AD2]",
+  started: "bg-[var(--linear-started)]/20 text-[var(--linear-started)]",
+  completed: "bg-[var(--linear-completed)]/20 text-[var(--linear-completed)]",
   canceled: DEFAULT_STATUS_STYLE,
 };
 
