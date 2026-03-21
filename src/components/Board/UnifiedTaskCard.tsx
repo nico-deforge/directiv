@@ -25,6 +25,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   EnrichedTask,
+  LinearStatusType,
   PullRequestInfo,
   WorktreeInfo,
   TmuxSession,
@@ -69,30 +70,15 @@ type WorkflowStatus =
   | "in-review"
   | "to-deploy";
 
-const WORKFLOW_LABELS: Record<
-  WorkflowStatus,
-  { label: string; className: string }
-> = {
-  todo: {
-    label: "To Do",
-    className: "bg-neutral-500/20 text-[var(--text-muted)]",
-  },
-  "in-dev": {
-    label: "In Dev",
-    className: "bg-[var(--accent-blue)]/20 text-[var(--accent-blue)]",
-  },
-  "personal-review": {
-    label: "Personal Review",
-    className: "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)]",
-  },
-  "in-review": {
-    label: "In Review",
-    className: "bg-[var(--accent-amber)]/20 text-[var(--accent-amber)]",
-  },
-  "to-deploy": {
-    label: "To Deploy",
-    className: "bg-[var(--accent-green)]/20 text-[var(--accent-green)]",
-  },
+const DEFAULT_STATUS_STYLE = "bg-neutral-500/20 text-[var(--text-muted)]";
+
+const LINEAR_STATUS_STYLES: Record<LinearStatusType, string> = {
+  triage: "bg-[#F2994A]/20 text-[#F2994A]",
+  backlog: DEFAULT_STATUS_STYLE,
+  unstarted: DEFAULT_STATUS_STYLE,
+  started: "bg-[#F2C94C]/20 text-[#F2C94C]",
+  completed: "bg-[#5E6AD2]/20 text-[#5E6AD2]",
+  canceled: DEFAULT_STATUS_STYLE,
 };
 
 function getWorkflowStatus(
@@ -237,7 +223,9 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     mergingWorktree ||
     sendingSkill;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
-  const statusLabel = WORKFLOW_LABELS[workflowStatus];
+  const statusClassName = task.linearStatusType
+    ? LINEAR_STATUS_STYLES[task.linearStatusType]
+    : DEFAULT_STATUS_STYLE;
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
 
@@ -491,13 +479,13 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         className="!opacity-0 !pointer-events-none"
       />
 
-      {/* Header: Task info with workflow status */}
+      {/* Header: Task info with Linear status */}
       <div className="border-b border-[var(--border-default)] px-3 py-2">
         <div className="flex items-center gap-2">
           <span
-            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusLabel.className}`}
+            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusClassName}`}
           >
-            {statusLabel.label}
+            {task.status}
           </span>
           <span className="text-xs font-medium text-[var(--text-secondary)]">
             {task.identifier}
@@ -566,9 +554,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           <span className="truncate">{task.identifier}</span>
           <ExternalLink className="size-3 shrink-0" />
         </CmuxLink>
-        <span className="ml-auto text-xs text-[var(--text-tertiary)]">
-          {task.status}
-        </span>
       </div>
 
       {/* PR Section */}
