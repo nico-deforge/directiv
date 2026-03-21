@@ -186,10 +186,6 @@ export function cmuxClearLog(workspaceName: string): Promise<void> {
   return invoke<void>("cmux_clear_log", { workspaceName });
 }
 
-export function cmuxCapturePane(workspaceName: string): Promise<string> {
-  return invoke<string>("cmux_capture_pane", { workspaceName });
-}
-
 export function cmuxPing(): Promise<boolean> {
   return invoke<boolean>("cmux_ping");
 }

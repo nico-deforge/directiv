@@ -734,29 +734,6 @@ pub async fn browser_open(
     Ok(true)
 }
 
-/// Capture the terminal pane content for a cmux workspace identified by name.
-///
-/// Looks up the workspace ref by title, then calls `cmux read-screen --workspace <ref> --lines 50`.
-/// Returns empty string if cmux is not available or the workspace is not found.
-pub async fn capture_pane(app: &tauri::AppHandle, workspace_name: &str) -> Result<String, String> {
-    if !is_cmux_available(app).await {
-        return Ok(String::new());
-    }
-
-    let workspaces = list_cmux_workspaces(app).await?;
-    let Some(ws) = workspaces.into_iter().find(|ws| title_matches_identifier(&ws.title, workspace_name)) else {
-        eprintln!("cmux capture_pane: workspace '{workspace_name}' not found");
-        return Ok(String::new());
-    };
-
-    run_cmux(
-        app,
-        &["read-screen", "--workspace", &ws.ws_ref, "--lines", "50"],
-        "capture_pane",
-    )
-    .await
-}
-
 /// Shell-escape a string by wrapping it in single quotes and escaping internal single quotes.
 fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))

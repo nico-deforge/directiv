@@ -5,7 +5,6 @@ import {
   tmuxCreateSession,
   tmuxKillSession,
   tmuxCapturePane,
-  cmuxCapturePane,
   queryTerminals,
   cmuxCloseWorkspace,
 } from "../lib/tauri";
@@ -89,12 +88,10 @@ export function useTmuxCapturePane(session: string | undefined) {
   const isCmux = terminal === "cmux";
 
   return useQuery<string>({
-    queryKey: ["tmux", "capture", session, terminal],
-    queryFn: () => {
-      if (isCmux) return cmuxCapturePane(session!);
-      return tmuxCapturePane(session!);
-    },
-    enabled: !!session,
+    queryKey: ["tmux", "capture", session],
+    queryFn: () => tmuxCapturePane(session!),
+    // cmux uses notifications for state detection, not capture-pane
+    enabled: !!session && !isCmux,
     refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
 }
@@ -108,13 +105,12 @@ export function useClaudeSessionStates(sessionNames: string[]) {
   const key = sorted.join(",");
 
   return useQuery<Map<string, ClaudeSessionStatus>>({
-    queryKey: ["tmux", "claude-states", key, terminal],
+    queryKey: ["tmux", "claude-states", key],
     queryFn: async () => {
-      const capture = isCmux ? cmuxCapturePane : tmuxCapturePane;
       const entries = await Promise.all(
         sorted.map(async (name) => {
           try {
-            const content = await capture(name);
+            const content = await tmuxCapturePane(name);
             return [name, content] as const;
           } catch {
             return null;
@@ -131,7 +127,8 @@ export function useClaudeSessionStates(sessionNames: string[]) {
       previousRef.current = current;
       return states;
     },
-    enabled: sorted.length > 0,
+    // cmux uses notifications for state detection, not capture-pane
+    enabled: sorted.length > 0 && !isCmux,
     refetchInterval: LOCAL_REFRESH_INTERVAL,
   });
 }

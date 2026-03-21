@@ -372,18 +372,6 @@ pub async fn cmux_clear_log(app: tauri::AppHandle, workspace_name: String) -> Re
     cmux::clear_log(&app, &workspace_name).await
 }
 
-/// Read the terminal pane content for a cmux workspace.
-///
-/// Looks up the workspace by name, then reads the last 50 lines via `cmux read-screen`.
-/// Returns empty string if cmux is not running or the workspace is not found.
-#[tauri::command]
-pub async fn cmux_capture_pane(
-    app: tauri::AppHandle,
-    workspace_name: String,
-) -> Result<String, String> {
-    cmux::capture_pane(&app, &workspace_name).await
-}
-
 /// Check whether cmux is installed and running via `cmux ping`.
 /// Returns true if cmux is available, false if not installed or not running.
 #[tauri::command]

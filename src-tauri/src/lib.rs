@@ -33,7 +33,6 @@ pub fn run() {
             commands::terminal::cmux_clear_progress,
             commands::terminal::cmux_clear_log,
             commands::terminal::cmux_ping,
-            commands::terminal::cmux_capture_pane,
             commands::terminal::cmux_list_notifications,
             commands::terminal::open_editor,
             commands::config::load_config,
