@@ -25,7 +25,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   EnrichedTask,
-  LinearStatusType,
   PullRequestInfo,
   WorktreeInfo,
   TmuxSession,
@@ -70,41 +69,39 @@ type WorkflowStatus =
   | "in-review"
   | "to-deploy";
 
-const DEFAULT_STATUS_STYLE = "bg-neutral-500/20 text-[var(--text-muted)]";
-
-const LINEAR_STATUS_STYLES: Record<LinearStatusType, string> = {
-  triage: "bg-[var(--linear-triage)]/20 text-[var(--linear-triage)]",
-  backlog: DEFAULT_STATUS_STYLE,
-  unstarted: DEFAULT_STATUS_STYLE,
-  started: "bg-[var(--linear-started)]/20 text-[var(--linear-started)]",
-  completed: "bg-[var(--linear-completed)]/20 text-[var(--linear-completed)]",
-  canceled: DEFAULT_STATUS_STYLE,
-};
-
-type StatusBadge = { label: string; className: string };
+type StatusBadge = { label: string; style: React.CSSProperties };
 
 function getStatusBadge(
   workflowStatus: WorkflowStatus,
   linearStatus: string,
-  linearStatusType: LinearStatusType | null,
+  statusColor: string | null,
 ): StatusBadge {
   if (workflowStatus === "personal-review") {
     return {
       label: "Personal Review",
-      className: "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)]",
+      style: {
+        backgroundColor:
+          "color-mix(in srgb, var(--accent-purple) 20%, transparent)",
+        color: "var(--accent-purple)",
+      },
     };
   }
-  if (workflowStatus === "in-review" || workflowStatus === "to-deploy") {
+  if (!statusColor) {
     return {
       label: linearStatus,
-      className: "bg-[var(--accent-green)]/20 text-[var(--accent-green)]",
+      style: {
+        backgroundColor:
+          "color-mix(in srgb, var(--text-muted) 20%, transparent)",
+        color: "var(--text-muted)",
+      },
     };
   }
   return {
     label: linearStatus,
-    className: linearStatusType
-      ? LINEAR_STATUS_STYLES[linearStatusType]
-      : DEFAULT_STATUS_STYLE,
+    style: {
+      backgroundColor: `color-mix(in srgb, ${statusColor} 20%, transparent)`,
+      color: statusColor,
+    },
   };
 }
 
@@ -253,7 +250,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const statusBadge = getStatusBadge(
     workflowStatus,
     task.status,
-    task.linearStatusType,
+    task.statusColor,
   );
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
@@ -512,7 +509,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       <div className="border-b border-[var(--border-default)] px-3 py-2">
         <div className="flex items-center gap-2">
           <span
-            className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusBadge.className}`}
+            className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+            style={statusBadge.style}
           >
             {statusBadge.label}
           </span>

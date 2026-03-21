@@ -22,11 +22,6 @@
   --accent-amber: #b45309;
   --accent-yellow: #a16207;
   --accent-orange: #c2410c;
-
-  /* Linear status type colors */
-  --linear-triage: #c2410c;
-  --linear-started: #a16207;
-  --linear-completed: #4338ca;
 }
 
 /* Dark theme */
@@ -50,11 +45,6 @@
   --accent-amber: #f59e0b;
   --accent-yellow: #eab308;
   --accent-orange: #f97316;
-
-  /* Linear status type colors */
-  --linear-triage: #f2994a;
-  --linear-started: #f2c94c;
-  --linear-completed: #818cf8;
 }
 
 html {
