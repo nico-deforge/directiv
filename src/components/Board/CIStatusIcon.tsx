@@ -41,29 +41,16 @@ export function CIStatusIcon({
   }
 
   if (url) {
-    if (workspaceName && terminal) {
-      return (
-        <CmuxLink
-          href={url}
-          workspaceName={workspaceName}
-          terminal={terminal}
-          title={tooltip}
-          className="shrink-0 hover:opacity-80"
-        >
-          {icon}
-        </CmuxLink>
-      );
-    }
     return (
-      <a
+      <CmuxLink
         href={url}
-        target="_blank"
-        rel="noopener noreferrer"
+        workspaceName={workspaceName}
+        terminal={terminal}
         title={tooltip}
         className="shrink-0 hover:opacity-80"
       >
         {icon}
-      </a>
+      </CmuxLink>
     );
   }
 

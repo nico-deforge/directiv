@@ -584,18 +584,18 @@ pub async fn browser_open(
     url: &str,
 ) -> Result<bool, String> {
     if !is_cmux_available(app).await {
+        eprintln!("cmux browser_open: cmux not available, deferring to system browser");
         return Ok(false);
     }
 
     let workspaces = list_cmux_workspaces(app).await?;
-    let ws_ref = workspaces
-        .into_iter()
-        .find(|ws| ws.title == workspace_name)
-        .map(|ws| ws.ws_ref);
-
-    let Some(r) = ws_ref else {
+    let Some(ws) = workspaces.into_iter().find(|ws| ws.title == workspace_name) else {
+        eprintln!(
+            "cmux browser_open: no workspace named '{workspace_name}', deferring to system browser"
+        );
         return Ok(false);
     };
+    let r = ws.ws_ref;
 
     run_cmux(
         app,

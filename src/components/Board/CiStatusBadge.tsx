@@ -71,29 +71,16 @@ export function CiStatusBadge({
   );
 
   if (url) {
-    if (workspaceName && terminal) {
-      return (
-        <CmuxLink
-          href={url}
-          workspaceName={workspaceName}
-          terminal={terminal}
-          className="shrink-0 hover:opacity-80"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {badge}
-        </CmuxLink>
-      );
-    }
     return (
-      <a
+      <CmuxLink
         href={url}
-        target="_blank"
-        rel="noopener noreferrer"
+        workspaceName={workspaceName}
+        terminal={terminal}
         className="shrink-0 hover:opacity-80"
         onClick={(e) => e.stopPropagation()}
       >
         {badge}
-      </a>
+      </CmuxLink>
     );
   }
 

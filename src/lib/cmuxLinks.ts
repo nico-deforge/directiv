@@ -6,16 +6,13 @@ import { cmuxBrowserOpen } from "./tauri";
  */
 export async function openDirectivLink(
   url: string,
-  workspaceName: string | null,
-  isCmux: boolean,
+  workspaceName: string,
 ): Promise<void> {
-  if (isCmux && workspaceName) {
-    try {
-      const opened = await cmuxBrowserOpen(workspaceName, url);
-      if (opened) return;
-    } catch (err) {
-      console.warn("[cmuxLinks] browser_open failed, falling back:", err);
-    }
+  try {
+    const opened = await cmuxBrowserOpen(workspaceName, url);
+    if (opened) return;
+  } catch (err) {
+    console.error("[cmuxLinks] browser_open failed, falling back:", err);
   }
   window.open(url, "_blank", "noopener,noreferrer");
 }

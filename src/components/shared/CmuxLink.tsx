@@ -6,8 +6,8 @@ interface CmuxLinkProps extends Omit<
   "href"
 > {
   href: string;
-  workspaceName: string | null;
-  terminal: TerminalEmulator;
+  workspaceName?: string | null;
+  terminal?: TerminalEmulator;
   children: React.ReactNode;
 }
 
@@ -26,17 +26,15 @@ export function CmuxLink({
   onClick,
   ...rest
 }: CmuxLinkProps) {
-  const isCmux = terminal === TERMINAL_EMULATORS.CMUX;
-
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
     onClick?.(e);
     if (e.defaultPrevented) return;
 
-    if (isCmux && workspaceName) {
+    if (terminal === TERMINAL_EMULATORS.CMUX && workspaceName) {
       e.preventDefault();
-      openDirectivLink(href, workspaceName, true);
+      openDirectivLink(href, workspaceName).catch(() => {});
     }
-  };
+  }
 
   return (
     <a
