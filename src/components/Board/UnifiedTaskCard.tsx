@@ -223,14 +223,15 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     mergingWorktree ||
     sendingSkill;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
-  const statusClassName =
-    workflowStatus === "personal-review"
-      ? "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)]"
-      : workflowStatus === "in-review" || workflowStatus === "to-deploy"
-        ? "bg-[var(--accent-green)]/20 text-[var(--accent-green)]"
-        : task.linearStatusType
-          ? LINEAR_STATUS_STYLES[task.linearStatusType]
-          : DEFAULT_STATUS_STYLE;
+  const isPersonalReview = workflowStatus === "personal-review";
+  const statusClassName = isPersonalReview
+    ? "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)]"
+    : workflowStatus === "in-review" || workflowStatus === "to-deploy"
+      ? "bg-[var(--accent-green)]/20 text-[var(--accent-green)]"
+      : task.linearStatusType
+        ? LINEAR_STATUS_STYLES[task.linearStatusType]
+        : DEFAULT_STATUS_STYLE;
+  const statusLabel = isPersonalReview ? "Personal Review" : task.status;
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
 
@@ -490,7 +491,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           <span
             className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusClassName}`}
           >
-            {task.status}
+            {statusLabel}
           </span>
           <span className="text-xs font-medium text-[var(--text-secondary)]">
             {task.identifier}
