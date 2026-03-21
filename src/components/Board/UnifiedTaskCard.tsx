@@ -536,8 +536,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               {cmuxStatus.text}
             </span>
           )}
+          {/* cmux: no notification yet = Claude is actively working */}
+          {!cmuxStatus && terminal === "cmux" && hasSession && (
+            <span className="ml-auto text-[10px] font-medium text-[var(--text-muted)]">
+              Claude is working
+            </span>
+          )}
           {/* Fallback for Ghostty/iTerm2 */}
-          {!cmuxStatus && claudeWaiting && (
+          {!cmuxStatus && terminal !== "cmux" && claudeWaiting && (
             <span className="ml-auto animate-pulse text-[10px] font-medium text-[var(--accent-orange)]">
               Claude is waiting
             </span>
