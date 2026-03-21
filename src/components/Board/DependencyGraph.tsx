@@ -134,7 +134,8 @@ function DependencyGraphInner() {
   } = useGitHubMyOpenPRs();
   const { data: blockedRepos } = useGitHubRepoAccess(repos);
   const { data: allWorktrees } = useAllWorktrees(repos);
-  const { data: myActiveIdentifiers } = useLinearMyActiveIdentifiers();
+  const { data: myActiveIdentifiers, isSuccess: identifiersLoaded } =
+    useLinearMyActiveIdentifiers();
   const { statusMap: terminalStatusMap } = useTerminalStatuses();
 
   const repoNwoById = useMemo(() => {
@@ -225,6 +226,7 @@ function DependencyGraphInner() {
 
   // Find orphan worktrees (not linked to any active issue across all projects)
   const orphanWorktrees = useMemo(() => {
+    if (!identifiersLoaded) return [];
     const knownIdentifiers = myActiveIdentifiers ?? new Set<string>();
 
     const orphans: OrphanWorktree[] = [];
@@ -242,7 +244,7 @@ function DependencyGraphInner() {
       }
     }
     return orphans;
-  }, [myActiveIdentifiers, allWorktrees, sessionByName]);
+  }, [identifiersLoaded, myActiveIdentifiers, allWorktrees, sessionByName]);
 
   const orphanBranchNames = useMemo(
     () => orphanWorktrees.map((o) => o.worktree.branch),

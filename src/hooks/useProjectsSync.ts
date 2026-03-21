@@ -77,7 +77,8 @@ export function useProjectsSync() {
   ]);
 
   const { data: allWorktrees } = useAllWorktrees(repos);
-  const { data: myActiveIdentifiers } = useLinearMyActiveIdentifiers();
+  const { data: myActiveIdentifiers, isSuccess: identifiersLoaded } =
+    useLinearMyActiveIdentifiers();
 
   const projectList = useMemo(() => {
     if (!linearProjects) return [];
@@ -92,13 +93,14 @@ export function useProjectsSync() {
   }, [linearProjects]);
 
   const hasOrphans = useMemo(() => {
+    if (!identifiersLoaded) return false;
     const knownIdentifiers = myActiveIdentifiers ?? new Set<string>();
     return (allWorktrees ?? []).some((rw) =>
       rw.worktrees
         .slice(1)
         .some((wt) => !knownIdentifiers.has(wt.branch.toLowerCase())),
     );
-  }, [myActiveIdentifiers, allWorktrees]);
+  }, [identifiersLoaded, myActiveIdentifiers, allWorktrees]);
 
   const hasOtherIssues = (otherIssues ?? []).length > 0;
 
