@@ -9,7 +9,7 @@
 // External API refresh intervals (Linear, GitHub)
 export const EXTERNAL_API_REFRESH_INTERVAL = 60_000; // 1 minute
 
-// Linear API fetch limit per query (API max is 250; no cursor pagination)
+// Linear API fetch limit per query (API max is 250; we do not paginate beyond this)
 export const LINEAR_FETCH_LIMIT = 250;
 
 // Local operations (tmux, git) - can be more frequent
