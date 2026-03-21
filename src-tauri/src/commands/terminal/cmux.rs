@@ -620,7 +620,10 @@ pub async fn browser_open(
     }
 
     let workspaces = list_cmux_workspaces(app).await?;
-    let Some(ws) = workspaces.into_iter().find(|ws| ws.title == workspace_name) else {
+    let Some(ws) = workspaces
+        .into_iter()
+        .find(|ws| title_matches_identifier(&ws.title, workspace_name))
+    else {
         eprintln!(
             "cmux browser_open: no workspace named '{workspace_name}', deferring to system browser"
         );
