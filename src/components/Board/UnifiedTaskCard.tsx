@@ -25,6 +25,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   EnrichedTask,
+  LinearStatusType,
   PullRequestInfo,
   WorktreeInfo,
   TmuxSession,
@@ -32,7 +33,7 @@ import type {
   ClaudeSessionStatus,
   ClaudeModel,
 } from "../../types";
-import { CI_STATUSES } from "../../types";
+import { CI_STATUSES, LINEAR_STATUS_TYPES } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
 import { CiStatusBadge } from "./CiStatusBadge";
 import { CmuxLink } from "../shared/CmuxLink";
@@ -67,7 +68,8 @@ type WorkflowStatus =
   | "in-dev"
   | "personal-review"
   | "in-review"
-  | "to-deploy";
+  | "to-deploy"
+  | "done";
 
 type StatusBadge = { label: string; style: React.CSSProperties };
 
@@ -109,7 +111,10 @@ function getStatusBadge(
 function getWorkflowStatus(
   session: TmuxSession | null,
   pr: PullRequestInfo | null,
+  linearStatusType: LinearStatusType | null,
 ): WorkflowStatus {
+  if (linearStatusType === LINEAR_STATUS_TYPES.DONE) return "done";
+
   if (!pr) {
     return session ? "in-dev" : "todo";
   }
@@ -214,7 +219,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     onDragStart,
     isBeingTargeted,
   } = data;
-  const isDisabled = !task.isAssignedToMe;
   const terminal = useSettingsStore((s) => s.config.terminal);
   const editor = useSettingsStore((s) => s.config.editor);
   const globalSkills = useSettingsStore((s) => s.config.skills);
@@ -247,7 +251,12 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     deletingWorktree ||
     mergingWorktree ||
     sendingSkill;
-  const workflowStatus = getWorkflowStatus(session, pullRequest);
+  const workflowStatus = getWorkflowStatus(
+    session,
+    pullRequest,
+    task.linearStatusType,
+  );
+  const isDisabled = workflowStatus === "done" || !task.isAssignedToMe;
   const statusBadge = getStatusBadge(
     workflowStatus,
     task.status,
@@ -495,10 +504,12 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         className="!opacity-0 !pointer-events-none"
       />
       {/* Drag handle at bottom center - starts blocked-by edge creation */}
-      <div
-        className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[var(--text-muted)] border border-[var(--bg-tertiary)] cursor-crosshair hover:scale-150 hover:bg-[var(--text-secondary)] transition-transform z-10"
-        onMouseDown={handleDragHandleMouseDown}
-      />
+      {!isDisabled && (
+        <div
+          className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-[var(--text-muted)] border border-[var(--bg-tertiary)] cursor-crosshair hover:scale-150 hover:bg-[var(--text-secondary)] transition-transform z-10"
+          onMouseDown={handleDragHandleMouseDown}
+        />
+      )}
       {/* Hidden source handle for edge connections */}
       <Handle
         type="source"

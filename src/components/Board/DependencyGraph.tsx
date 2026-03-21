@@ -62,6 +62,7 @@ import type {
   WorktreeInfo,
   OrphanWorktree,
 } from "../../types";
+import { LINEAR_STATUS_TYPES } from "../../types";
 
 interface EdgeWithRelation extends Edge {
   data?: {
@@ -584,11 +585,13 @@ function DependencyGraphInner() {
         height: 1,
       });
 
-      // Filter out source node and find valid target
+      // Filter out source node, completed tasks, and find valid target
       const validTarget = intersecting.find(
         (n) =>
           n.id !== dragStateRef.current?.sourceNodeId &&
-          n.type === "unifiedTask",
+          n.type === "unifiedTask" &&
+          taskByIdRef.current.get(n.id)?.linearStatusType !==
+            LINEAR_STATUS_TYPES.DONE,
       );
 
       const newState: DragState = {

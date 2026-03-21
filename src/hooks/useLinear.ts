@@ -10,6 +10,7 @@ import {
   ORPHAN_PROJECT_ID,
   OTHER_ISSUES_PROJECT_ID,
 } from "../stores/projectStore";
+import { LINEAR_STATUS_TYPES } from "../types";
 import type { BlockingIssue, EnrichedTask, LinearStatusType } from "../types";
 
 const UUID_RE =
@@ -202,7 +203,16 @@ export function useLinearProjectIssues(
         filter: {
           project: { id: { eq: projectId } },
           team: { id: { in: resolvedIds } },
-          state: { type: { in: ["triage", "unstarted", "started"] } },
+          state: {
+            type: {
+              in: [
+                LINEAR_STATUS_TYPES.TRIAGE,
+                LINEAR_STATUS_TYPES.TODO,
+                LINEAR_STATUS_TYPES.IN_PROGRESS,
+                LINEAR_STATUS_TYPES.DONE,
+              ],
+            },
+          },
         },
         first: LINEAR_FETCH_LIMIT,
       });
