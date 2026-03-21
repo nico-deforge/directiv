@@ -223,9 +223,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     mergingWorktree ||
     sendingSkill;
   const workflowStatus = getWorkflowStatus(session, pullRequest);
-  const statusClassName = task.linearStatusType
-    ? LINEAR_STATUS_STYLES[task.linearStatusType]
-    : DEFAULT_STATUS_STYLE;
+  const statusClassName =
+    workflowStatus === "personal-review"
+      ? "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)]"
+      : workflowStatus === "in-review" || workflowStatus === "to-deploy"
+        ? "bg-[var(--accent-green)]/20 text-[var(--accent-green)]"
+        : task.linearStatusType
+          ? LINEAR_STATUS_STYLES[task.linearStatusType]
+          : DEFAULT_STATUS_STYLE;
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
 
