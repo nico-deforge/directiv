@@ -246,12 +246,7 @@ impl TerminalController for CmuxController {
         let display_name = format_display_name(&config.identifier, config.title.as_deref());
         run_cmux(
             app,
-            &[
-                "rename-workspace",
-                "--workspace",
-                &ws_ref,
-                &display_name,
-            ],
+            &["rename-workspace", "--workspace", &ws_ref, &display_name],
             "create:rename",
         )
         .await?;
@@ -538,14 +533,7 @@ pub async fn log_entry(
 
     run_cmux(
         app,
-        &[
-            "log",
-            "--workspace",
-            &target,
-            "--level",
-            level,
-            message,
-        ],
+        &["log", "--workspace", &target, "--level", level, message],
         "log",
     )
     .await?;
@@ -587,12 +575,7 @@ pub async fn clear_log(app: &tauri::AppHandle, workspace_name: &str) -> Result<(
         .await
         .unwrap_or_else(|| workspace_name.to_string());
 
-    run_cmux(
-        app,
-        &["clear-log", "--workspace", &target],
-        "clear_log",
-    )
-    .await?;
+    run_cmux(app, &["clear-log", "--workspace", &target], "clear_log").await?;
 
     Ok(())
 }
