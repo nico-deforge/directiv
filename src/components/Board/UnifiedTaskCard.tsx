@@ -20,6 +20,7 @@ import {
   HelpCircle,
   XCircle,
   Clock,
+  RefreshCw,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -52,6 +53,7 @@ import {
   tmuxKillSession,
   cmuxCloseWorkspace,
   wtMerge,
+  gitFetch,
   type CmuxNotification,
   NOTIFICATION_CATEGORIES,
 } from "../../lib/tauri";
@@ -222,6 +224,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     repoPath: string;
   } | null>(null);
   const [sendingSkill, setSendingSkill] = useState(false);
+  const [fetchingRemote, setFetchingRemote] = useState(false);
 
   const hasSession = session !== null;
   const isLoading =
@@ -422,6 +425,19 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       await openEditor(editor, worktree.path);
     } catch (err) {
       toastError(err);
+    }
+  }
+
+  async function handleFetchRemote() {
+    if (!worktreeRepoPath) return;
+    setFetchingRemote(true);
+    try {
+      await gitFetch(worktreeRepoPath);
+      await queryClient.refetchQueries({ queryKey: ["worktrees"] });
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setFetchingRemote(false);
     }
   }
 
@@ -628,15 +644,25 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
             </span>
           )}
-          {worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI && (
-            <span className="ml-auto">
+          <span className="ml-auto flex items-center gap-1">
+            {worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI && (
               <CiStatusBadge
                 status={worktree.ciStatus}
                 url={worktree.ciUrl}
                 stale={worktree.ciStale}
               />
-            </span>
-          )}
+            )}
+            {worktreeRepoPath && (
+              <button
+                onClick={handleFetchRemote}
+                disabled={fetchingRemote}
+                className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
+                title="Fetch remote"
+              >
+                <RefreshCw className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`} />
+              </button>
+            )}
+          </span>
         </div>
       )}
 

@@ -60,6 +60,10 @@ export async function wtMerge(
   return invoke<void>("wt_merge", { repoPath, branchName });
 }
 
+export async function gitFetch(repoPath: string): Promise<void> {
+  return invoke<void>("git_fetch", { repoPath });
+}
+
 export async function wtSwitchCreate(
   repoPath: string,
   branchName: string,

@@ -11,6 +11,7 @@ import {
   ExternalLink,
   X,
   Code2,
+  RefreshCw,
 } from "lucide-react";
 import type { WorktreeInfo, TmuxSession, PullRequestInfo } from "../../types";
 import { CIStatusIcon } from "./CIStatusIcon";
@@ -25,6 +26,7 @@ import {
   openTerminal,
   openEditor,
   cmuxCloseWorkspace,
+  gitFetch,
 } from "../../lib/tauri";
 import { buildClaudeCommand, openTerminalWithToast } from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
@@ -52,6 +54,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [killingSession, setKillingSession] = useState(false);
   const [launchingSession, setLaunchingSession] = useState(false);
+  const [fetchingRemote, setFetchingRemote] = useState(false);
 
   const hasSession = session !== null;
   const isDeleting = removeWorktree.isPending;
@@ -61,6 +64,18 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     const timer = setTimeout(() => setConfirmingDelete(false), 5000);
     return () => clearTimeout(timer);
   }, [confirmingDelete]);
+
+  async function handleFetchRemote() {
+    setFetchingRemote(true);
+    try {
+      await gitFetch(repoPath);
+      await queryClient.refetchQueries({ queryKey: ["worktrees"] });
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setFetchingRemote(false);
+    }
+  }
 
   async function handleLaunchSession() {
     const sessionName = toSessionName(worktree.branch);
@@ -206,6 +221,14 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
           </span>
         )}
+        <button
+          onClick={handleFetchRemote}
+          disabled={fetchingRemote}
+          className="ml-auto rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
+          title="Fetch remote"
+        >
+          <RefreshCw className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`} />
+        </button>
       </div>
 
       {/* PR Section */}

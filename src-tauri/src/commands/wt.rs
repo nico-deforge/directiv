@@ -238,6 +238,27 @@ pub async fn wt_merge(
     Ok(())
 }
 
+// --- git_fetch command ---
+
+/// Run `git fetch origin` inside `repo_path` to refresh remote tracking state.
+#[tauri::command]
+pub async fn git_fetch(app: tauri::AppHandle, repo_path: String) -> Result<(), String> {
+    let output = app
+        .shell()
+        .command("git")
+        .args(["-C", &repo_path, "fetch", "origin"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run git fetch in {repo_path}: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("git fetch failed in {repo_path}: {stderr}"));
+    }
+
+    Ok(())
+}
+
 // --- wt_list command ---
 
 #[tauri::command]
