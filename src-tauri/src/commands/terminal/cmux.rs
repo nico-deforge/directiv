@@ -1,4 +1,5 @@
 use super::controller::TerminalController;
+use super::format_display_name;
 use super::types::{Emulator, TerminalConfig, TerminalRef};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -125,6 +126,43 @@ async fn list_cmux_workspaces(app: &tauri::AppHandle) -> Result<Vec<CmuxWorkspac
         .collect())
 }
 
+/// Check if a workspace title matches an identifier.
+///
+/// Supports both the old format (title == identifier, e.g. "ACQ-145")
+/// and the new format with task title (e.g. "ACQ-145 — Fix login timeout").
+fn title_matches_identifier(title: &str, identifier: &str) -> bool {
+    if title == identifier {
+        return true;
+    }
+    title
+        .strip_prefix(identifier)
+        .is_some_and(|rest| rest.starts_with(" \u{2014} "))
+}
+
+/// Resolve an identifier to its cmux workspace ref by prefix-matching titles.
+///
+/// Used by sidebar operations (set-status, set-progress, log, etc.) that receive
+/// the identifier from the frontend but need the workspace ref (or full name) to
+/// target the workspace after it was renamed to include the task title.
+async fn resolve_workspace_ref_by_identifier(
+    app: &tauri::AppHandle,
+    identifier: &str,
+) -> Option<String> {
+    let workspaces = match list_cmux_workspaces(app).await {
+        Ok(ws) => ws,
+        Err(e) => {
+            eprintln!(
+                "resolve_workspace_ref_by_identifier: failed to list workspaces for '{identifier}': {e}"
+            );
+            return None;
+        }
+    };
+    workspaces
+        .into_iter()
+        .find(|ws| title_matches_identifier(&ws.title, identifier))
+        .map(|ws| ws.ws_ref)
+}
+
 /// Parse a workspace ref from `cmux new-workspace` output.
 /// Output format: "OK workspace:N"
 fn parse_workspace_ref(output: &str) -> Option<String> {
@@ -135,10 +173,10 @@ fn parse_workspace_ref(output: &str) -> Option<String> {
 }
 
 impl TerminalController for CmuxController {
-    /// Find an existing cmux workspace by title (identifier).
+    /// Find an existing cmux workspace by identifier.
     ///
     /// Strategy: list all workspaces via `cmux tree --all --json` and search
-    /// for a match by title (the workspace display name set via rename-workspace).
+    /// for a match by title prefix (supports both "ACQ-145" and "ACQ-145 — Title").
     async fn find_session(
         &self,
         app: &tauri::AppHandle,
@@ -150,7 +188,7 @@ impl TerminalController for CmuxController {
         let workspaces = list_cmux_workspaces(app).await?;
 
         for ws in &workspaces {
-            if ws.title == identifier {
+            if title_matches_identifier(&ws.title, identifier) {
                 return Ok(Some(TerminalRef {
                     identifier: ws.ws_ref.clone(),
                     emulator: Emulator::Cmux,
@@ -199,7 +237,7 @@ impl TerminalController for CmuxController {
     ///
     /// Flow:
     /// 1. `cmux new-workspace --cwd <worktree_path>` → returns "OK workspace:N"
-    /// 2. `cmux rename-workspace --workspace <ref> <identifier>` → set the display name
+    /// 2. `cmux rename-workspace --workspace <ref> <display_name>` → set display name (identifier + optional title)
     /// 3. Inject env vars via `cmux send`
     /// 4. If `config.command` is set: `cmux send --workspace <ref> "<command>\r"` → run it
     async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
@@ -217,15 +255,11 @@ impl TerminalController for CmuxController {
         let ws_ref = parse_workspace_ref(&output)
             .ok_or_else(|| format!("cmux create: unexpected output: {output}"))?;
 
-        // Rename the workspace to the task identifier (e.g., "ACQ-145")
+        // Rename the workspace to include the task title (e.g., "ACQ-145 — Fix login timeout")
+        let display_name = format_display_name(&config.identifier, config.title.as_deref());
         run_cmux(
             app,
-            &[
-                "rename-workspace",
-                "--workspace",
-                &ws_ref,
-                &config.identifier,
-            ],
+            &["rename-workspace", "--workspace", &ws_ref, &display_name],
             "create:rename",
         )
         .await?;
@@ -288,7 +322,7 @@ impl TerminalController for CmuxController {
     }
 }
 
-/// Close a cmux workspace by title. Finds the workspace by title and closes it.
+/// Close a cmux workspace by identifier. Finds the workspace by identifier prefix and closes it.
 /// Used by the `cmux_close_workspace` Tauri command as the cmux equivalent of tmux kill-session.
 pub async fn close_workspace(app: &tauri::AppHandle, name: &str) -> Result<(), String> {
     check_cmux_available(app).await?;
@@ -297,7 +331,7 @@ pub async fn close_workspace(app: &tauri::AppHandle, name: &str) -> Result<(), S
 
     let ws_ref = workspaces
         .into_iter()
-        .find(|ws| ws.title == name)
+        .find(|ws| title_matches_identifier(&ws.title, name))
         .map(|ws| ws.ws_ref);
 
     let Some(r) = ws_ref else {
@@ -433,27 +467,26 @@ pub async fn list_notifications(app: &tauri::AppHandle) -> Result<Vec<CmuxNotifi
 
 /// Set a sidebar status pill in a cmux workspace.
 ///
-/// Calls `cmux set-status --workspace <workspace_name> <key> <value>`.
-///
-/// # Assumptions
-/// - cmux set-status accepts: `--workspace <name_or_id> <key> <value>`
-/// - Errors are surfaced to the caller but treated as best-effort by the Tauri command layer.
-/// - Workspace is targeted by name (the identifier / issue ID used at workspace creation).
+/// Accepts the task identifier (e.g. "ACQ-145") and resolves it to the workspace
+/// ref via prefix matching, supporting both old ("ACQ-145") and new
+/// ("ACQ-145 — Fix login timeout") workspace names.
 pub async fn set_status(
     app: &tauri::AppHandle,
     workspace_name: &str,
     key: &str,
     value: &str,
 ) -> Result<(), String> {
-    // If cmux is not available, skip silently — sidebar status is best-effort.
     if !is_cmux_available(app).await {
         return Ok(());
     }
 
-    // `cmux set-status --workspace <name> <key> <value>`
+    let target = resolve_workspace_ref_by_identifier(app, workspace_name)
+        .await
+        .unwrap_or_else(|| workspace_name.to_string());
+
     run_cmux(
         app,
-        &["set-status", "--workspace", workspace_name, key, value],
+        &["set-status", "--workspace", &target, key, value],
         "set_status",
     )
     .await?;
@@ -469,12 +502,9 @@ async fn is_cmux_available(app: &tauri::AppHandle) -> bool {
 
 /// Set the progress bar in a cmux workspace.
 ///
-/// Calls `cmux set-progress --workspace <workspace_name> <value>`.
-/// Value is a float in the range 0.0–1.0 (e.g. 0.4 = 40%).
-///
-/// # Assumptions
-/// - `cmux set-progress --workspace <name> <value>` accepts a decimal fraction.
-/// - Best-effort: silently no-ops when cmux is not running.
+/// Value is a float 0.0–1.0 (e.g. 0.4 = 40%).
+/// Accepts the task identifier and resolves it to the workspace ref.
+/// Best-effort: no-ops when cmux is not running.
 pub async fn set_progress(
     app: &tauri::AppHandle,
     workspace_name: &str,
@@ -484,10 +514,14 @@ pub async fn set_progress(
         return Ok(());
     }
 
+    let target = resolve_workspace_ref_by_identifier(app, workspace_name)
+        .await
+        .unwrap_or_else(|| workspace_name.to_string());
+
     let value_str = format!("{value:.2}");
     run_cmux(
         app,
-        &["set-progress", "--workspace", workspace_name, &value_str],
+        &["set-progress", "--workspace", &target, &value_str],
         "set_progress",
     )
     .await?;
@@ -497,12 +531,9 @@ pub async fn set_progress(
 
 /// Append a log entry to the cmux workspace log panel.
 ///
-/// Calls `cmux log --workspace <workspace_name> --level <level> <message>`.
 /// Level is one of: info, success, warning, error.
-///
-/// # Assumptions
-/// - `cmux log --workspace <name> --level <level> <message>` appends to the log panel.
-/// - Best-effort: silently no-ops when cmux is not running.
+/// Accepts the task identifier and resolves it to the workspace ref.
+/// Best-effort: no-ops when cmux is not running.
 pub async fn log_entry(
     app: &tauri::AppHandle,
     workspace_name: &str,
@@ -513,16 +544,13 @@ pub async fn log_entry(
         return Ok(());
     }
 
+    let target = resolve_workspace_ref_by_identifier(app, workspace_name)
+        .await
+        .unwrap_or_else(|| workspace_name.to_string());
+
     run_cmux(
         app,
-        &[
-            "log",
-            "--workspace",
-            workspace_name,
-            "--level",
-            level,
-            message,
-        ],
+        &["log", "--workspace", &target, "--level", level, message],
         "log",
     )
     .await?;
@@ -532,16 +560,20 @@ pub async fn log_entry(
 
 /// Clear the progress bar in a cmux workspace.
 ///
-/// Calls `cmux clear-progress --workspace <workspace_name>`.
-/// Used when a task is stopped or completed.
+/// Accepts the task identifier and resolves it to the workspace ref.
+/// Best-effort: no-ops when cmux is not running.
 pub async fn clear_progress(app: &tauri::AppHandle, workspace_name: &str) -> Result<(), String> {
     if !is_cmux_available(app).await {
         return Ok(());
     }
 
+    let target = resolve_workspace_ref_by_identifier(app, workspace_name)
+        .await
+        .unwrap_or_else(|| workspace_name.to_string());
+
     run_cmux(
         app,
-        &["clear-progress", "--workspace", workspace_name],
+        &["clear-progress", "--workspace", &target],
         "clear_progress",
     )
     .await?;
@@ -551,19 +583,18 @@ pub async fn clear_progress(app: &tauri::AppHandle, workspace_name: &str) -> Res
 
 /// Clear the log panel in a cmux workspace.
 ///
-/// Calls `cmux clear-log --workspace <workspace_name>`.
-/// Used when a task is stopped or completed.
+/// Accepts the task identifier and resolves it to the workspace ref.
+/// Best-effort: no-ops when cmux is not running.
 pub async fn clear_log(app: &tauri::AppHandle, workspace_name: &str) -> Result<(), String> {
     if !is_cmux_available(app).await {
         return Ok(());
     }
 
-    run_cmux(
-        app,
-        &["clear-log", "--workspace", workspace_name],
-        "clear_log",
-    )
-    .await?;
+    let target = resolve_workspace_ref_by_identifier(app, workspace_name)
+        .await
+        .unwrap_or_else(|| workspace_name.to_string());
+
+    run_cmux(app, &["clear-log", "--workspace", &target], "clear_log").await?;
 
     Ok(())
 }
@@ -589,7 +620,10 @@ pub async fn browser_open(
     }
 
     let workspaces = list_cmux_workspaces(app).await?;
-    let Some(ws) = workspaces.into_iter().find(|ws| ws.title == workspace_name) else {
+    let Some(ws) = workspaces
+        .into_iter()
+        .find(|ws| title_matches_identifier(&ws.title, workspace_name))
+    else {
         eprintln!(
             "cmux browser_open: no workspace named '{workspace_name}', deferring to system browser"
         );
@@ -793,5 +827,40 @@ mod tests {
         let n = CmuxNotification::from(raw.into_iter().next().unwrap());
         assert!(n.subtitle.is_none());
         assert!(n.body.is_none());
+    }
+
+    // --- Title matching tests ---
+
+    #[test]
+    fn test_title_matches_identifier_exact() {
+        assert!(title_matches_identifier("ACQ-145", "ACQ-145"));
+    }
+
+    #[test]
+    fn test_title_matches_identifier_with_title() {
+        assert!(title_matches_identifier(
+            "ACQ-145 \u{2014} Fix login timeout",
+            "ACQ-145"
+        ));
+    }
+
+    #[test]
+    fn test_title_matches_identifier_no_match() {
+        assert!(!title_matches_identifier("ACQ-146", "ACQ-145"));
+    }
+
+    #[test]
+    fn test_title_matches_identifier_partial_no_match() {
+        // "ACQ-14" should not match "ACQ-145 — ..."
+        assert!(!title_matches_identifier(
+            "ACQ-145 \u{2014} Fix login",
+            "ACQ-14"
+        ));
+    }
+
+    #[test]
+    fn test_title_matches_identifier_prefix_without_separator() {
+        // "ACQ-145X" should not match "ACQ-145"
+        assert!(!title_matches_identifier("ACQ-145X", "ACQ-145"));
     }
 }

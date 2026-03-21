@@ -145,6 +145,7 @@ export async function buildClaudeCommand(
 export interface StartTaskParams {
   issueId: string;
   identifier: string;
+  title?: string;
   repoPath: string;
   terminal: string;
   terminalLayout?: TerminalLayout;
@@ -207,6 +208,7 @@ async function ensureSessionCmux(
   claudeCmd: string,
   terminal: string,
   terminalLayout: TerminalLayout | undefined,
+  title?: string,
 ): Promise<void> {
   await openTerminal(
     terminal,
@@ -214,6 +216,7 @@ async function ensureSessionCmux(
     identifier,
     worktreePath,
     terminalLayout,
+    title,
   );
 }
 
@@ -258,19 +261,26 @@ export function openTerminalWithToast(
   identifier: string,
   worktreePath: string,
   layout?: TerminalLayout,
+  title?: string,
 ): void {
-  openTerminal(terminal, sessionName, identifier, worktreePath, layout).catch(
-    (err) => {
-      toast.warning(
-        `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    },
-  );
+  openTerminal(
+    terminal,
+    sessionName,
+    identifier,
+    worktreePath,
+    layout,
+    title,
+  ).catch((err) => {
+    toast.warning(
+      `Failed to open terminal: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
 }
 
 export async function startTask({
   issueId,
   identifier,
+  title,
   repoPath,
   terminal,
   terminalLayout,
@@ -302,6 +312,7 @@ export async function startTask({
       claudeCmd,
       terminal,
       terminalLayout,
+      title,
     );
     // Step 2: Claude launched — 40% progress
     void pushProgress(identifier, CMUX_PROGRESS.CLAUDE_LAUNCHED);
@@ -315,6 +326,7 @@ export async function startTask({
       identifier,
       worktree.path,
       terminalLayout,
+      title,
     );
   }
 

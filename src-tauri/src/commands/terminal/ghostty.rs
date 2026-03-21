@@ -100,6 +100,9 @@ end tell"#
 }
 
 fn build_create_script(config: &TerminalConfig) -> String {
+    // Ghostty does not support setting a custom window/tab title via AppleScript.
+    // The terminal title is inherited from the shell/tmux session. config.title is
+    // unused here (unlike iTerm2/cmux which set display names with the task title).
     let worktree_path = escape_applescript(&config.worktree_path);
     let session = escape_applescript(&config.session);
     let tmux_cmd = format!("tmux attach -t {session}");
@@ -370,6 +373,7 @@ mod tests {
             identifier: "ACQ-145".to_string(),
             session: "ACQ-145".to_string(),
             command: None,
+            title: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::from([
                 ("DIRECTIV_TASK".to_string(), "ACQ-145".to_string()),
@@ -403,6 +407,7 @@ mod tests {
             identifier: "ACQ-145".to_string(),
             session: "ACQ-145".to_string(),
             command: None,
+            title: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::new(),
         };
@@ -420,6 +425,7 @@ mod tests {
             identifier: "ACQ-145".to_string(),
             session: "ACQ-145".to_string(),
             command: None,
+            title: None,
             worktree_path: "/path/to/worktree".to_string(),
             env_vars: HashMap::from([
                 (
@@ -444,6 +450,7 @@ mod tests {
             identifier: r#"task "special""#.to_string(),
             session: "session-1".to_string(),
             command: None,
+            title: None,
             worktree_path: r#"/path/with "quotes""#.to_string(),
             env_vars: HashMap::new(),
         };

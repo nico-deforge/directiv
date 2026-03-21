@@ -18,6 +18,9 @@ pub struct TerminalConfig {
     /// Optional startup command to run after navigating to the worktree.
     /// For cmux, this is the Claude command. If None, no command is sent.
     pub command: Option<String>,
+    /// Optional task title for display purposes (e.g. "Fix login timeout").
+    /// Used to build a human-readable display name like "ACQ-145 — Fix login timeout".
+    pub title: Option<String>,
     pub worktree_path: String,
     pub env_vars: HashMap<String, String>,
 }
