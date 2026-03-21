@@ -131,7 +131,12 @@ async fn list_cmux_workspaces(app: &tauri::AppHandle) -> Result<Vec<CmuxWorkspac
 /// Supports both the old format (title == identifier, e.g. "ACQ-145")
 /// and the new format with task title (e.g. "ACQ-145 — Fix login timeout").
 fn title_matches_identifier(title: &str, identifier: &str) -> bool {
-    title == identifier || title.starts_with(&format!("{identifier} \u{2014} "))
+    if title == identifier {
+        return true;
+    }
+    title
+        .strip_prefix(identifier)
+        .is_some_and(|rest| rest.starts_with(" \u{2014} "))
 }
 
 /// Resolve an identifier to its cmux workspace ref by prefix-matching titles.

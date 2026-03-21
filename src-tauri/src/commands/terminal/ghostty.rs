@@ -100,6 +100,9 @@ end tell"#
 }
 
 fn build_create_script(config: &TerminalConfig) -> String {
+    // Ghostty does not support setting a custom window/tab title via AppleScript.
+    // The terminal title is inherited from the shell/tmux session. config.title is
+    // unused here (unlike iTerm2/cmux which set display names with the task title).
     let worktree_path = escape_applescript(&config.worktree_path);
     let session = escape_applescript(&config.session);
     let tmux_cmd = format!("tmux attach -t {session}");
