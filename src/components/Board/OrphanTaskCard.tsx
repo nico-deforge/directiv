@@ -205,7 +205,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         <button
           onClick={handleFetchRemote}
           disabled={fetchingRemote}
-          className="ml-auto rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
+          className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
           title="Fetch remote"
         >
           <RefreshCw className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`} />
