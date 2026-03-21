@@ -138,7 +138,7 @@ function getWorkflowStatus(
 function getCmuxStatusText(category: NotificationCategory): {
   text: string;
   colorClass: string;
-  animate?: boolean;
+  animate: boolean;
 } {
   switch (category) {
     case NOTIFICATION_CATEGORIES.PERMISSION:
@@ -151,11 +151,13 @@ function getCmuxStatusText(category: NotificationCategory): {
       return {
         text: "Claude hit an error",
         colorClass: "text-[var(--accent-red)]",
+        animate: false,
       };
     case NOTIFICATION_CATEGORIES.COMPLETED:
       return {
         text: "Claude has finished",
         colorClass: "text-[var(--accent-green)]",
+        animate: false,
       };
     case NOTIFICATION_CATEGORIES.QUESTION:
       return {
@@ -170,7 +172,6 @@ function getCmuxStatusText(category: NotificationCategory): {
         animate: true,
       };
     case NOTIFICATION_CATEGORIES.ATTENTION:
-    default:
       return {
         text: "Claude needs attention",
         colorClass: "text-[var(--accent-amber)]",
@@ -810,7 +811,11 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               onClick={handleKillSession}
               disabled={isLoading}
               className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
-              title="Kill tmux session (keeps worktree)"
+              title={
+                terminal === "cmux"
+                  ? "Close cmux workspace (keeps worktree)"
+                  : "Kill tmux session (keeps worktree)"
+              }
             >
               {killingSession ? (
                 <Loader2 className="size-3.5 animate-spin" />

@@ -407,15 +407,14 @@ impl NotificationCategory {
 
 /// Parsed notification ready for the frontend.
 ///
-/// The `workspace_id` field contains the workspace **title** (= task identifier),
-/// not the raw UUID. This matches the frontend convention where lookups use workspace name.
+/// The `workspace_name` field contains the resolved task identifier (e.g. "ACQ-145"),
+/// not the raw UUID. This matches the frontend convention where lookups use session name.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CmuxNotification {
     pub title: String,
-    pub subtitle: Option<String>,
     pub body: Option<String>,
-    pub workspace_id: String,
+    pub workspace_name: String,
     pub category: NotificationCategory,
 }
 
@@ -434,7 +433,7 @@ struct ParsedNotificationLine {
 fn parse_notification_line(line: &str) -> Option<ParsedNotificationLine> {
     let after_colon = line.split_once(':')?.1;
     let parts: Vec<&str> = after_colon.splitn(7, '|').collect();
-    if parts.len() < 7 {
+    if parts.len() < 7 || parts[1].is_empty() {
         return None;
     }
     Some(ParsedNotificationLine {
@@ -442,6 +441,16 @@ fn parse_notification_line(line: &str) -> Option<ParsedNotificationLine> {
         title: parts[5].to_string(),
         body: parts[6].to_string(),
     })
+}
+
+/// Extract the task identifier from a workspace title.
+///
+/// Supports: "ACQ-145 — Fix login timeout" → "ACQ-145", or just "ACQ-145" → "ACQ-145".
+fn extract_identifier_from_title(title: &str) -> String {
+    title
+        .split_once(" \u{2014} ")
+        .map(|(ident, _)| ident.to_string())
+        .unwrap_or_else(|| title.to_string())
 }
 
 /// Query `cmux list-notifications` and return structured notifications.
@@ -478,19 +487,12 @@ pub async fn list_notifications(app: &tauri::AppHandle) -> Result<Vec<CmuxNotifi
             vec![]
         }
     };
-    // Build UUID → identifier map. Titles follow the format "ACQ-145 — Fix login timeout";
-    // extract just the identifier part so the frontend can look up by session name.
     let uuid_to_identifier: std::collections::HashMap<&str, String> = workspaces
         .iter()
         .filter_map(|ws| {
-            ws.id.as_deref().map(|id| {
-                let identifier = ws
-                    .title
-                    .split_once(" \u{2014} ")
-                    .map(|(ident, _)| ident.to_string())
-                    .unwrap_or_else(|| ws.title.clone());
-                (id, identifier)
-            })
+            ws.id
+                .as_deref()
+                .map(|id| (id, extract_identifier_from_title(&ws.title)))
         })
         .collect();
 
@@ -501,7 +503,7 @@ pub async fn list_notifications(app: &tauri::AppHandle) -> Result<Vec<CmuxNotifi
             continue;
         }
         if let Some(parsed) = parse_notification_line(line) {
-            let workspace_id = uuid_to_identifier
+            let workspace_name = uuid_to_identifier
                 .get(parsed.workspace_uuid.as_str())
                 .cloned()
                 .unwrap_or(parsed.workspace_uuid);
@@ -522,9 +524,8 @@ pub async fn list_notifications(app: &tauri::AppHandle) -> Result<Vec<CmuxNotifi
 
             notifications.push(CmuxNotification {
                 title: parsed.title,
-                subtitle: None,
                 body,
-                workspace_id,
+                workspace_name,
                 category,
             });
         } else {
@@ -923,6 +924,41 @@ mod tests {
             .flat_map(|w| w.workspaces)
             .collect();
         assert_eq!(ws[0].id.as_deref(), Some("UUID-1"));
+    }
+
+    // --- Identifier extraction ---
+
+    #[test]
+    fn test_extract_identifier_with_separator() {
+        assert_eq!(
+            extract_identifier_from_title("ACQ-145 \u{2014} Fix login timeout"),
+            "ACQ-145"
+        );
+    }
+
+    #[test]
+    fn test_extract_identifier_plain() {
+        assert_eq!(extract_identifier_from_title("ACQ-145"), "ACQ-145");
+    }
+
+    #[test]
+    fn test_extract_identifier_multiple_separators() {
+        assert_eq!(
+            extract_identifier_from_title("ACQ-145 \u{2014} Fix \u{2014} timeout"),
+            "ACQ-145"
+        );
+    }
+
+    #[test]
+    fn test_extract_identifier_empty() {
+        assert_eq!(extract_identifier_from_title(""), "");
+    }
+
+    #[test]
+    fn test_parse_notification_line_empty_uuid() {
+        // Empty workspace UUID should be rejected
+        let line = "0:AAAA||CCCC|read|Claude Code|Permission|body";
+        assert!(parse_notification_line(line).is_none());
     }
 
     // --- Title matching tests ---
