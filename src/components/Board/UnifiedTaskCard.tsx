@@ -16,6 +16,7 @@ import {
   Code2,
   ClipboardList,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -44,6 +45,7 @@ import {
   openTerminalWithToast,
   mapPrCiToWtCi,
   isMergeEligible,
+  getMergeBlockReason,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
@@ -672,6 +674,18 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                 workspaceName={task.identifier}
                 terminal={terminal}
               />
+            </span>
+          )}
+          {worktreeRepoPath && getMergeBlockReason(worktree, pullRequest) && (
+            <span
+              className={
+                worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI
+                  ? ""
+                  : "ml-auto"
+              }
+              title={getMergeBlockReason(worktree, pullRequest)!}
+            >
+              <AlertTriangle className="size-3.5 text-[var(--accent-amber)]" />
             </span>
           )}
         </div>

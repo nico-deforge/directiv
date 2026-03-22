@@ -12,6 +12,7 @@ import {
   X,
   Code2,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import type { WorktreeInfo, TmuxSession, PullRequestInfo } from "../../types";
 import { WT_CI_STATUSES } from "../../types";
@@ -37,6 +38,7 @@ import {
   openTerminalWithToast,
   mapPrCiToWtCi,
   isMergeEligible,
+  getMergeBlockReason,
 } from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
@@ -250,6 +252,18 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
               workspaceName={linearIssue?.identifier ?? worktree.branch}
               terminal={terminal}
             />
+          </span>
+        )}
+        {getMergeBlockReason(worktree, pullRequest) && (
+          <span
+            className={
+              worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI
+                ? ""
+                : "ml-auto"
+            }
+            title={getMergeBlockReason(worktree, pullRequest)!}
+          >
+            <AlertTriangle className="size-3.5 text-[var(--accent-amber)]" />
           </span>
         )}
       </div>

@@ -65,6 +65,26 @@ export function isMergeEligible(
   );
 }
 
+export function getMergeBlockReason(
+  worktree: WorktreeInfo,
+  pullRequest: PullRequestInfo | null,
+): string | null {
+  if (worktree.dirty) return "Uncommitted changes";
+  if (worktree.ciStatus === WT_CI_STATUSES.CONFLICTS) return "Merge conflicts";
+  if (!pullRequest) return null;
+  if (
+    pullRequest.ciStatus === CI_STATUSES.SUCCESS ||
+    pullRequest.ciStatus === CI_STATUSES.EXPECTED
+  )
+    return null;
+  if (
+    worktree.ciStatus === WT_CI_STATUSES.PASSED ||
+    worktree.ciStatus === WT_CI_STATUSES.NO_CI
+  )
+    return null;
+  return "CI not passed";
+}
+
 // --- Typed errors for worktree creation ---
 
 export class BranchExistsError extends Error {
