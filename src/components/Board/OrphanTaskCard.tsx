@@ -14,7 +14,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { WorktreeInfo, TmuxSession, PullRequestInfo } from "../../types";
-import { CIStatusIcon } from "./CIStatusIcon";
+import { CI_STATUSES, WT_CI_STATUSES } from "../../types";
+import { CiStatusBadge } from "./CiStatusBadge";
 import { CmuxLink } from "../shared/CmuxLink";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { LinearIssueStub } from "../../hooks/useLinear";
@@ -27,6 +28,7 @@ import {
   openTerminal,
   openEditor,
   cmuxCloseWorkspace,
+  wtMerge,
 } from "../../lib/tauri";
 import { useFetchRemote } from "../../hooks/useWorktrees";
 import { DiffBadge } from "../shared/DiffBadge";
@@ -54,6 +56,8 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   const queryClient = useQueryClient();
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingMerge, setConfirmingMerge] = useState(false);
+  const [mergingWorktree, setMergingWorktree] = useState(false);
   const [killingSession, setKillingSession] = useState(false);
   const [launchingSession, setLaunchingSession] = useState(false);
   const { fetching: fetchingRemote, fetchRemote: handleFetchRemote } =
@@ -150,6 +154,27 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
     queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
   }
 
+  async function handleMerge() {
+    setConfirmingMerge(false);
+    setMergingWorktree(true);
+    try {
+      if (session) {
+        if (terminal === "cmux") {
+          await cmuxCloseWorkspace(toSessionName(worktree.branch));
+        } else {
+          await tmuxKillSession(toSessionName(worktree.branch));
+        }
+      }
+      await wtMerge(repoPath, worktree.branch);
+      await queryClient.refetchQueries({ queryKey: ["worktrees"] });
+      queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setMergingWorktree(false);
+    }
+  }
+
   return (
     <div className="nodrag nopan w-[380px] rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] shadow-lg">
       {/* Header */}
@@ -210,6 +235,17 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`}
           />
         </button>
+        {worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI && (
+          <span className="ml-auto">
+            <CiStatusBadge
+              status={worktree.ciStatus}
+              url={worktree.ciUrl}
+              stale={worktree.ciStale}
+              workspaceName={linearIssue?.identifier ?? worktree.branch}
+              terminal={terminal}
+            />
+          </span>
+        )}
       </div>
 
       {/* PR Section */}
@@ -225,12 +261,21 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             <span className="truncate">PR #{pullRequest.number}</span>
             <ExternalLink className="size-3 shrink-0" />
           </CmuxLink>
-          <CIStatusIcon
-            status={pullRequest.ciStatus}
-            url={pullRequest.ciUrl}
-            workspaceName={linearIssue?.identifier ?? worktree.branch}
-            terminal={terminal}
-          />
+          {pullRequest.ciStatus && (
+            <CiStatusBadge
+              status={
+                pullRequest.ciStatus === CI_STATUSES.SUCCESS
+                  ? WT_CI_STATUSES.PASSED
+                  : pullRequest.ciStatus === CI_STATUSES.FAILURE ||
+                      pullRequest.ciStatus === CI_STATUSES.ERROR
+                    ? WT_CI_STATUSES.FAILED
+                    : WT_CI_STATUSES.RUNNING
+              }
+              url={pullRequest.ciUrl}
+              workspaceName={linearIssue?.identifier ?? worktree.branch}
+              terminal={terminal}
+            />
+          )}
         </div>
       )}
 
@@ -268,6 +313,50 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           <Code2 className="size-3.5" />
           Editor
         </button>
+
+        {/* Merge button — visible when: worktree not dirty, no conflicts, and CI ok (PR CI > wt CI) */}
+        {!worktree.dirty &&
+          worktree.ciStatus !== WT_CI_STATUSES.CONFLICTS &&
+          (!pullRequest ||
+            pullRequest.ciStatus === CI_STATUSES.SUCCESS ||
+            worktree.ciStatus === WT_CI_STATUSES.PASSED ||
+            worktree.ciStatus === WT_CI_STATUSES.NO_CI) &&
+          !confirmingDelete &&
+          !confirmingMerge && (
+            <button
+              onClick={() => setConfirmingMerge(true)}
+              disabled={mergingWorktree}
+              className="flex items-center gap-1 rounded bg-[var(--accent-green)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-green)] hover:bg-[var(--accent-green)]/30 disabled:opacity-50"
+              title="Merge locally via wt merge"
+            >
+              {mergingWorktree ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                "Merge"
+              )}
+            </button>
+          )}
+
+        {/* Merge confirmation */}
+        {confirmingMerge && (
+          <span className="flex items-center gap-2 text-xs">
+            <span className="text-[var(--text-muted)]">Confirm merge?</span>
+            <button
+              onClick={handleMerge}
+              disabled={mergingWorktree}
+              className="text-[var(--accent-green)] hover:opacity-80 disabled:opacity-50"
+            >
+              {mergingWorktree ? "Merging..." : "Yes"}
+            </button>
+            <span className="text-[var(--text-muted)]">/</span>
+            <button
+              onClick={() => setConfirmingMerge(false)}
+              className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            >
+              No
+            </button>
+          </span>
+        )}
 
         {/* Kill session button */}
         {hasSession && (
