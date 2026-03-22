@@ -85,6 +85,9 @@ struct WtListEntry {
 
 #[derive(Debug, Deserialize)]
 struct WtWorkingTree {
+    staged: Option<bool>,
+    modified: Option<bool>,
+    untracked: Option<bool>,
     diff: Option<WtDiff>,
 }
 
@@ -144,6 +147,7 @@ impl WtCiStatus {
 pub struct WtWorktreeInfo {
     pub branch: String,
     pub path: String,
+    pub dirty: bool,
     pub diff_added: u32,
     pub diff_deleted: u32,
     pub ahead: u32,
@@ -277,6 +281,15 @@ pub async fn wt_list(
         .filter_map(|entry| {
             // Filter out detached HEAD worktrees (no branch)
             let branch = entry.branch?;
+            let dirty = entry
+                .working_tree
+                .as_ref()
+                .map(|wt| {
+                    wt.staged.unwrap_or(false)
+                        || wt.modified.unwrap_or(false)
+                        || wt.untracked.unwrap_or(false)
+                })
+                .unwrap_or(false);
             let (diff_added, diff_deleted) = entry
                 .working_tree
                 .and_then(|wt| wt.diff)
@@ -301,6 +314,7 @@ pub async fn wt_list(
             Some(WtWorktreeInfo {
                 branch,
                 path: entry.path,
+                dirty,
                 diff_added,
                 diff_deleted,
                 ahead,

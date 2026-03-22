@@ -762,10 +762,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             </button>
           )}
 
-          {/* Merge button — shown on approved cards with a worktree */}
-          {workflowStatus === "to-deploy" &&
-            worktree &&
+          {/* Merge button — shown when worktree is clean and CI is green (if PR exists) */}
+          {worktree &&
             worktreeRepoPath &&
+            !worktree.dirty &&
+            worktree.ciStatus !== WT_CI_STATUSES.CONFLICTS &&
+            (!pullRequest ||
+              worktree.ciStatus === WT_CI_STATUSES.PASSED ||
+              worktree.ciStatus === WT_CI_STATUSES.NO_CI) &&
             !confirmingDelete &&
             !confirmingMerge && (
               <button
