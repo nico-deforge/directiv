@@ -29,7 +29,6 @@ import type {
   ClaudeModel,
 } from "../../types";
 import { CI_STATUSES, LINEAR_STATUS_TYPES } from "../../types";
-import { CIStatusIcon } from "./CIStatusIcon";
 import { CiStatusBadge } from "./CiStatusBadge";
 import { CmuxLink } from "../shared/CmuxLink";
 import { WT_CI_STATUSES } from "../../types";
@@ -596,12 +595,21 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             <span className="truncate">PR #{pullRequest.number}</span>
             <ExternalLink className="size-3 shrink-0" />
           </CmuxLink>
-          <CIStatusIcon
-            status={pullRequest.ciStatus}
-            url={pullRequest.ciUrl}
-            workspaceName={task.identifier}
-            terminal={terminal}
-          />
+          {pullRequest.ciStatus && (
+            <CiStatusBadge
+              status={
+                pullRequest.ciStatus === CI_STATUSES.SUCCESS
+                  ? WT_CI_STATUSES.PASSED
+                  : pullRequest.ciStatus === CI_STATUSES.FAILURE ||
+                      pullRequest.ciStatus === CI_STATUSES.ERROR
+                    ? WT_CI_STATUSES.FAILED
+                    : WT_CI_STATUSES.RUNNING
+              }
+              url={pullRequest.ciUrl}
+              workspaceName={task.identifier}
+              terminal={terminal}
+            />
+          )}
           {!isDisabled &&
             worktree &&
             (pullRequest.ciStatus === CI_STATUSES.FAILURE ||
