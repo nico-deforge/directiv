@@ -86,8 +86,8 @@ const nodeTypes = {
   groupLabel: GroupLabelNode,
 };
 
-const EDGE_COLOR = { dark: "#737373", light: "#8a8a84" } as const;
-const EDGE_HIGHLIGHT_COLOR = "#ef4444";
+const EDGE_COLOR = { dark: "#737373", light: "#8a8a84" } as const; // --text-muted
+const EDGE_HIGHLIGHT_COLOR = "#ef4444"; // --accent-red (dark)
 const NullConnectionLine = () => null;
 
 export function DependencyGraph() {
@@ -706,7 +706,7 @@ function DependencyGraphInner() {
               href={selectedProjectUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 rounded-lg border border-[#5E6AD2]/30 bg-[#5E6AD2]/10 px-2.5 py-2 text-xs text-[#5E6AD2] shadow-sm transition-colors hover:bg-[#5E6AD2]/20"
+              className="flex items-center gap-1.5 rounded-lg border border-[var(--linear-brand)]/30 bg-[var(--linear-brand)]/10 px-2.5 py-2 text-xs text-[var(--linear-brand)] shadow-sm transition-colors hover:bg-[var(--linear-brand)]/20"
               title="Open project in Linear"
             >
               <ExternalLink size={14} />

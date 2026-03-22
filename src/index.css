@@ -1,53 +1,107 @@
+@font-face {
+  font-family: "Geist";
+  src: url("./assets/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("./assets/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @import "tailwindcss";
 
-/* Light theme (default) - soft/muted for eye comfort */
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+}
+
+/* Light theme (default) — warm olive-tinted neutrals in OKLCH */
 :root {
-  --bg-primary: #f8f8f6;
-  --bg-secondary: #f0f0ed;
-  --bg-tertiary: #e8e8e4;
-  --bg-elevated: #ddddd8;
+  --bg-primary: oklch(97.86% 0.0026 106.4);
+  --bg-secondary: oklch(95.43% 0.004 106.5);
+  --bg-tertiary: oklch(92.99% 0.0053 106.5);
+  --bg-elevated: oklch(89.61% 0.0067 106.5);
 
-  --text-primary: #1a1a18;
-  --text-secondary: #52524e;
-  --text-muted: #8a8a84;
+  --text-primary: oklch(21.7% 0.0038 106.7);
+  --text-secondary: oklch(43.73% 0.0064 106.7);
+  --text-muted: oklch(63.16% 0.0088 106.6);
 
-  --border-default: #d8d8d2;
-  --border-subtle: #e4e4de;
+  --border-default: oklch(88.05% 0.0081 106.6);
+  --border-subtle: oklch(91.72% 0.008 106.6);
 
-  /* Accents - slightly muted for light mode harmony */
-  --accent-green: #15803d;
-  --accent-red: #b91c1c;
-  --accent-blue: #1d4ed8;
-  --accent-purple: #7c3aed;
-  --accent-amber: #b45309;
-  --accent-yellow: #a16207;
-  --accent-orange: #c2410c;
+  /* Accents — slightly muted for light mode harmony */
+  --accent-green: oklch(52.73% 0.1371 150.1);
+  --accent-red: oklch(50.54% 0.1905 27.5);
+  --accent-blue: oklch(48.82% 0.2172 264.4);
+  --accent-purple: oklch(54.13% 0.2466 293);
+  --accent-amber: oklch(55.53% 0.1455 49);
+  --accent-yellow: oklch(55.38% 0.1207 66.4);
+  --accent-orange: oklch(55.34% 0.1739 38.4);
+
+  /* Third-party brand colors */
+  --linear-brand: oklch(56.74% 0.1585 275.2);
+  --linear-brand-hover: oklch(65.11% 0.1395 277.6);
 }
 
 /* Dark theme */
 .dark {
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #141414;
-  --bg-tertiary: #1c1c1c;
-  --bg-elevated: #262626;
+  --bg-primary: oklch(15.39% 0.0021 106.6);
+  --bg-secondary: oklch(19.08% 0.002 106.6);
+  --bg-tertiary: oklch(22.57% 0.0038 106.7);
+  --bg-elevated: oklch(26.79% 0.0036 106.6);
 
-  --text-primary: #fafafa;
-  --text-secondary: #a3a3a3;
-  --text-muted: #737373;
+  --text-primary: oklch(98.51% 0 0);
+  --text-secondary: oklch(71.55% 0 0);
+  --text-muted: oklch(55.55% 0 0);
 
-  --border-default: #262626;
-  --border-subtle: #1c1c1c;
+  --border-default: oklch(26.79% 0.0036 106.6);
+  --border-subtle: oklch(22.57% 0.0038 106.7);
 
-  --accent-green: #22c55e;
-  --accent-red: #ef4444;
-  --accent-blue: #3b82f6;
-  --accent-purple: #a855f7;
-  --accent-amber: #f59e0b;
-  --accent-yellow: #eab308;
-  --accent-orange: #f97316;
+  --accent-green: oklch(72.27% 0.192 149.6);
+  --accent-red: oklch(63.68% 0.2078 25.3);
+  --accent-blue: oklch(62.31% 0.188 259.8);
+  --accent-purple: oklch(62.68% 0.2325 303.9);
+  --accent-amber: oklch(76.86% 0.1647 70.1);
+  --accent-yellow: oklch(79.52% 0.1617 86);
+  --accent-orange: oklch(70.49% 0.1867 47.6);
 }
 
 html {
   background-color: var(--bg-primary);
   color: var(--text-primary);
+}
+
+@layer base {
+  /* Keyboard-only focus ring — interaction-design: 8 mandatory states */
+  :focus-visible {
+    outline: 2px solid var(--accent-blue);
+    outline-offset: 2px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Active (pressed) state — interaction-design: 8 mandatory states */
+  button:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+/* Respect user motion preferences — animate/motion-design skills */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
