@@ -47,7 +47,7 @@ export function CIStatusIcon({
         workspaceName={workspaceName}
         terminal={terminal}
         title={tooltip}
-        className="shrink-0 hover:brightness-110"
+        className="shrink-0 transition-all hover:brightness-110"
       >
         {icon}
       </CmuxLink>

@@ -727,7 +727,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <button
                 onClick={() => openDropdown("CODE")}
                 disabled={isLoading || repos.length === 0}
-                className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:brightness-110 disabled:opacity-50"
+                className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white transition-all hover:brightness-110 disabled:opacity-50"
               >
                 {startTask.isPending && pendingSkillKey === "CODE" ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -742,7 +742,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <button
                 onClick={() => openDropdown("PLAN")}
                 disabled={isLoading || repos.length === 0}
-                className="flex items-center gap-1 rounded bg-[var(--accent-blue)] px-2 py-1 text-xs font-medium text-white hover:brightness-110 disabled:opacity-50"
+                className="flex items-center gap-1 rounded bg-[var(--accent-blue)] px-2 py-1 text-xs font-medium text-white transition-all hover:brightness-110 disabled:opacity-50"
               >
                 {startTask.isPending && pendingSkillKey === "PLAN" ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -806,7 +806,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <button
                 onClick={handleMerge}
                 disabled={mergingWorktree}
-                className="text-[var(--accent-green)] hover:brightness-125 disabled:opacity-50"
+                className="text-[var(--accent-green)] transition-all hover:brightness-125 disabled:opacity-50"
               >
                 {mergingWorktree ? "Merging..." : "Yes"}
               </button>
@@ -863,7 +863,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
               <button
                 onClick={() => handleDeleteWorktree()}
                 disabled={deletingWorktree}
-                className="text-[var(--accent-red)] hover:brightness-125 disabled:opacity-50"
+                className="text-[var(--accent-red)] transition-all hover:brightness-125 disabled:opacity-50"
               >
                 {deletingWorktree ? "Deleting..." : "Yes"}
               </button>

@@ -307,7 +307,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           <button
             onClick={handleLaunchSession}
             disabled={launchingSession}
-            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:brightness-110 disabled:opacity-50"
+            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white transition-all hover:brightness-110 disabled:opacity-50"
           >
             {launchingSession ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -352,7 +352,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             <button
               onClick={handleMerge}
               disabled={mergingWorktree}
-              className="text-[var(--accent-green)] hover:brightness-125 disabled:opacity-50"
+              className="text-[var(--accent-green)] transition-all hover:brightness-125 disabled:opacity-50"
             >
               {mergingWorktree ? "Merging..." : "Yes"}
             </button>
@@ -389,7 +389,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             <button
               onClick={() => handleDelete()}
               disabled={isDeleting}
-              className="text-[var(--accent-red)] hover:brightness-125"
+              className="text-[var(--accent-red)] transition-all hover:brightness-125"
             >
               {isDeleting ? "Deleting..." : "Confirm"}
             </button>
