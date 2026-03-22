@@ -293,7 +293,7 @@ pub async fn wt_list(
                         || wt.renamed.unwrap_or(false)
                         || wt.deleted.unwrap_or(false)
                 })
-                .unwrap_or(false);
+                .unwrap_or(true); // absent working_tree = assume dirty (safe default)
             let (diff_added, diff_deleted) = entry
                 .working_tree
                 .and_then(|wt| wt.diff)

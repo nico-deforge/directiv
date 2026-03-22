@@ -42,6 +42,8 @@ import {
   BranchExistsError,
   removeWorktreeFlow,
   openTerminalWithToast,
+  mapPrCiToWtCi,
+  isMergeEligible,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
@@ -597,14 +599,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           </CmuxLink>
           {pullRequest.ciStatus && (
             <CiStatusBadge
-              status={
-                pullRequest.ciStatus === CI_STATUSES.SUCCESS
-                  ? WT_CI_STATUSES.PASSED
-                  : pullRequest.ciStatus === CI_STATUSES.FAILURE ||
-                      pullRequest.ciStatus === CI_STATUSES.ERROR
-                    ? WT_CI_STATUSES.FAILED
-                    : WT_CI_STATUSES.RUNNING
-              }
+              status={mapPrCiToWtCi(pullRequest.ciStatus)}
               url={pullRequest.ciUrl}
               workspaceName={task.identifier}
               terminal={terminal}
@@ -770,15 +765,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             </button>
           )}
 
-          {/* Merge button — visible when: worktree not dirty, no conflicts, and CI ok (PR CI > wt CI) */}
+          {/* Merge button — visible when: worktree not dirty, no conflicts, and CI ok (PR or wt CI green) */}
           {worktree &&
             worktreeRepoPath &&
-            !worktree.dirty &&
-            worktree.ciStatus !== WT_CI_STATUSES.CONFLICTS &&
-            (!pullRequest ||
-              pullRequest.ciStatus === CI_STATUSES.SUCCESS ||
-              worktree.ciStatus === WT_CI_STATUSES.PASSED ||
-              worktree.ciStatus === WT_CI_STATUSES.NO_CI) &&
+            isMergeEligible(worktree, pullRequest) &&
             !confirmingDelete &&
             !confirmingMerge && (
               <button

@@ -14,7 +14,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import type { WorktreeInfo, TmuxSession, PullRequestInfo } from "../../types";
-import { CI_STATUSES, WT_CI_STATUSES } from "../../types";
+import { WT_CI_STATUSES } from "../../types";
 import { CiStatusBadge } from "./CiStatusBadge";
 import { CmuxLink } from "../shared/CmuxLink";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -32,7 +32,12 @@ import {
 } from "../../lib/tauri";
 import { useFetchRemote } from "../../hooks/useWorktrees";
 import { DiffBadge } from "../shared/DiffBadge";
-import { buildClaudeCommand, openTerminalWithToast } from "../../lib/workflows";
+import {
+  buildClaudeCommand,
+  openTerminalWithToast,
+  mapPrCiToWtCi,
+  isMergeEligible,
+} from "../../lib/workflows";
 import { toSessionName } from "../../lib/tmux-utils";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -168,6 +173,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
       await wtMerge(repoPath, worktree.branch);
       await queryClient.refetchQueries({ queryKey: ["worktrees"] });
       queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["tmux"] });
     } catch (err) {
       toastError(err);
     } finally {
@@ -263,14 +269,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           </CmuxLink>
           {pullRequest.ciStatus && (
             <CiStatusBadge
-              status={
-                pullRequest.ciStatus === CI_STATUSES.SUCCESS
-                  ? WT_CI_STATUSES.PASSED
-                  : pullRequest.ciStatus === CI_STATUSES.FAILURE ||
-                      pullRequest.ciStatus === CI_STATUSES.ERROR
-                    ? WT_CI_STATUSES.FAILED
-                    : WT_CI_STATUSES.RUNNING
-              }
+              status={mapPrCiToWtCi(pullRequest.ciStatus)}
               url={pullRequest.ciUrl}
               workspaceName={linearIssue?.identifier ?? worktree.branch}
               terminal={terminal}
@@ -314,13 +313,8 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           Editor
         </button>
 
-        {/* Merge button — visible when: worktree not dirty, no conflicts, and CI ok (PR CI > wt CI) */}
-        {!worktree.dirty &&
-          worktree.ciStatus !== WT_CI_STATUSES.CONFLICTS &&
-          (!pullRequest ||
-            pullRequest.ciStatus === CI_STATUSES.SUCCESS ||
-            worktree.ciStatus === WT_CI_STATUSES.PASSED ||
-            worktree.ciStatus === WT_CI_STATUSES.NO_CI) &&
+        {/* Merge button — visible when: worktree not dirty, no conflicts, and CI ok (PR or wt CI green) */}
+        {isMergeEligible(worktree, pullRequest) &&
           !confirmingDelete &&
           !confirmingMerge && (
             <button
