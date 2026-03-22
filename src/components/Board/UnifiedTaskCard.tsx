@@ -82,7 +82,7 @@ function getStatusBadge(
       label: "Personal Review",
       style: {
         backgroundColor:
-          "color-mix(in srgb, var(--accent-purple) 15%, var(--bg-tertiary))",
+          "color-mix(in oklch, var(--accent-purple) 15%, var(--bg-tertiary))",
         color:
           "color-mix(in oklch, var(--accent-purple) 70%, var(--text-primary))",
       },
@@ -93,7 +93,7 @@ function getStatusBadge(
       label: linearStatus,
       style: {
         backgroundColor:
-          "color-mix(in srgb, var(--text-muted) 15%, var(--bg-tertiary))",
+          "color-mix(in oklch, var(--text-muted) 15%, var(--bg-tertiary))",
         color: "var(--text-muted)",
       },
     };
@@ -101,7 +101,7 @@ function getStatusBadge(
   return {
     label: linearStatus,
     style: {
-      backgroundColor: `color-mix(in srgb, ${statusColor} 15%, var(--bg-tertiary))`,
+      backgroundColor: `color-mix(in oklch, ${statusColor} 15%, var(--bg-tertiary))`,
       color: `color-mix(in oklch, ${statusColor} 70%, var(--text-primary))`,
     },
   };
@@ -574,12 +574,12 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
 
       {/* Linear Section */}
       <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-        <SquareKanban className="size-4 shrink-0 text-[#5E6AD2]" />
+        <SquareKanban className="size-4 shrink-0 text-[var(--linear-brand)]" />
         <CmuxLink
           href={task.url}
           workspaceName={task.identifier}
           terminal={terminal}
-          className="flex items-center gap-1 min-w-0 text-sm text-[#5E6AD2] hover:text-[#7C85E3]"
+          className="flex items-center gap-1 min-w-0 text-sm text-[var(--linear-brand)] hover:text-[var(--linear-brand-hover)]"
         >
           <span className="truncate">{task.identifier}</span>
           <ExternalLink className="size-3 shrink-0" />
