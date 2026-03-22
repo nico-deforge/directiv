@@ -762,12 +762,13 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             </button>
           )}
 
-          {/* Merge button — visible when: worktree not dirty, no merge conflicts, and (no PR or CI passed/absent) */}
+          {/* Merge button — visible when: worktree not dirty, no conflicts, and CI ok (PR CI > wt CI) */}
           {worktree &&
             worktreeRepoPath &&
             !worktree.dirty &&
             worktree.ciStatus !== WT_CI_STATUSES.CONFLICTS &&
             (!pullRequest ||
+              pullRequest.ciStatus === CI_STATUSES.SUCCESS ||
               worktree.ciStatus === WT_CI_STATUSES.PASSED ||
               worktree.ciStatus === WT_CI_STATUSES.NO_CI) &&
             !confirmingDelete &&
