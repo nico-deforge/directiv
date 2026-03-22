@@ -298,7 +298,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         {hasSession ? (
           <button
             onClick={handleOpenTerminal}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors"
           >
             <Terminal className="size-3.5" />
             Terminal
@@ -307,7 +307,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           <button
             onClick={handleLaunchSession}
             disabled={launchingSession}
-            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+            className="flex items-center gap-1 rounded bg-[var(--accent-green)] px-2 py-1 text-xs font-medium text-white hover:brightness-110 disabled:opacity-50"
           >
             {launchingSession ? (
               <Loader2 className="size-3.5 animate-spin" />
@@ -321,7 +321,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         {/* Editor button */}
         <button
           onClick={handleOpenEditor}
-          className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80"
+          className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors"
         >
           <Code2 className="size-3.5" />
           Editor
@@ -352,7 +352,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             <button
               onClick={handleMerge}
               disabled={mergingWorktree}
-              className="text-[var(--accent-green)] hover:opacity-80 disabled:opacity-50"
+              className="text-[var(--accent-green)] hover:brightness-125 disabled:opacity-50"
             >
               {mergingWorktree ? "Merging..." : "Yes"}
             </button>
@@ -371,7 +371,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           <button
             onClick={handleKillSession}
             disabled={killingSession}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:opacity-80 disabled:opacity-50"
+            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors disabled:opacity-50"
             title="Kill tmux session"
           >
             {killingSession ? (
@@ -389,7 +389,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
             <button
               onClick={() => handleDelete()}
               disabled={isDeleting}
-              className="text-[var(--accent-red)] hover:opacity-80"
+              className="text-[var(--accent-red)] hover:brightness-125"
             >
               {isDeleting ? "Deleting..." : "Confirm"}
             </button>

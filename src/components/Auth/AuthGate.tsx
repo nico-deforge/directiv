@@ -156,7 +156,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             <button
               onClick={startLinearOAuth}
               disabled={isLinearConnecting}
-              className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-colors hover:brightness-110 disabled:opacity-50"
             >
               {isLinearConnecting && (
                 <Loader2 className="size-3 animate-spin" />
@@ -176,7 +176,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               <button
                 onClick={recheckGitHubAuth}
                 disabled={isGitHubConnecting}
-                className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-colors hover:brightness-110 disabled:opacity-50"
               >
                 {isGitHubConnecting ? (
                   <Loader2 className="size-3 animate-spin" />
@@ -200,7 +200,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               <button
                 onClick={recheckWt}
                 disabled={isWtChecking}
-                className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="flex shrink-0 items-center gap-2 rounded-md bg-[var(--text-primary)] px-3 py-1.5 text-xs font-medium text-[var(--bg-primary)] transition-colors hover:brightness-110 disabled:opacity-50"
               >
                 {isWtChecking ? (
                   <Loader2 className="size-3 animate-spin" />
