@@ -88,6 +88,8 @@ struct WtWorkingTree {
     staged: Option<bool>,
     modified: Option<bool>,
     untracked: Option<bool>,
+    renamed: Option<bool>,
+    deleted: Option<bool>,
     diff: Option<WtDiff>,
 }
 
@@ -288,6 +290,8 @@ pub async fn wt_list(
                     wt.staged.unwrap_or(false)
                         || wt.modified.unwrap_or(false)
                         || wt.untracked.unwrap_or(false)
+                        || wt.renamed.unwrap_or(false)
+                        || wt.deleted.unwrap_or(false)
                 })
                 .unwrap_or(false);
             let (diff_added, diff_deleted) = entry
