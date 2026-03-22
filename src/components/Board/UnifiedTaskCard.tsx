@@ -16,6 +16,7 @@ import {
   Code2,
   ClipboardList,
   RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -29,7 +30,6 @@ import type {
   ClaudeModel,
 } from "../../types";
 import { CI_STATUSES, LINEAR_STATUS_TYPES } from "../../types";
-import { CIStatusIcon } from "./CIStatusIcon";
 import { CiStatusBadge } from "./CiStatusBadge";
 import { CmuxLink } from "../shared/CmuxLink";
 import { WT_CI_STATUSES } from "../../types";
@@ -43,6 +43,9 @@ import {
   BranchExistsError,
   removeWorktreeFlow,
   openTerminalWithToast,
+  mapPrCiToWtCi,
+  isMergeEligible,
+  getMergeBlockReason,
 } from "../../lib/workflows";
 import { useSettingsStore } from "../../stores/settingsStore";
 import {
@@ -596,12 +599,14 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             <span className="truncate">PR #{pullRequest.number}</span>
             <ExternalLink className="size-3 shrink-0" />
           </CmuxLink>
-          <CIStatusIcon
-            status={pullRequest.ciStatus}
-            url={pullRequest.ciUrl}
-            workspaceName={task.identifier}
-            terminal={terminal}
-          />
+          {pullRequest.ciStatus && (
+            <CiStatusBadge
+              status={mapPrCiToWtCi(pullRequest.ciStatus)}
+              url={pullRequest.ciUrl}
+              workspaceName={task.identifier}
+              terminal={terminal}
+            />
+          )}
           {!isDisabled &&
             worktree &&
             (pullRequest.ciStatus === CI_STATUSES.FAILURE ||
@@ -669,6 +674,18 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
                 workspaceName={task.identifier}
                 terminal={terminal}
               />
+            </span>
+          )}
+          {worktreeRepoPath && getMergeBlockReason(worktree, pullRequest) && (
+            <span
+              className={
+                worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI
+                  ? ""
+                  : "ml-auto"
+              }
+              title={getMergeBlockReason(worktree, pullRequest)!}
+            >
+              <AlertTriangle className="size-3.5 text-[var(--accent-amber)]" />
             </span>
           )}
         </div>
@@ -762,10 +779,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             </button>
           )}
 
-          {/* Merge button — shown on approved cards with a worktree */}
-          {workflowStatus === "to-deploy" &&
-            worktree &&
+          {/* Merge button — visible when: worktree not dirty, no conflicts, and CI ok (PR or wt CI green) */}
+          {worktree &&
             worktreeRepoPath &&
+            isMergeEligible(worktree, pullRequest) &&
             !confirmingDelete &&
             !confirmingMerge && (
               <button

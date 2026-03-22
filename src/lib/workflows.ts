@@ -25,11 +25,65 @@ import { wtRemove } from "./tauriWt";
 import { toSessionName } from "./tmux-utils";
 import type {
   ActionKey,
+  CIStatus,
   ClaudeModel,
   ModelOverrides,
+  PullRequestInfo,
   SkillOverrides,
   TerminalLayout,
+  WorktreeInfo,
+  WtCiStatus,
 } from "../types";
+import { CI_STATUSES, WT_CI_STATUSES } from "../types";
+
+// --- CI status helpers ---
+
+export function mapPrCiToWtCi(prStatus: CIStatus): WtCiStatus {
+  if (!prStatus) return WT_CI_STATUSES.RUNNING;
+  if (prStatus === CI_STATUSES.SUCCESS || prStatus === CI_STATUSES.EXPECTED)
+    return WT_CI_STATUSES.PASSED;
+  if (prStatus === CI_STATUSES.FAILURE || prStatus === CI_STATUSES.ERROR)
+    return WT_CI_STATUSES.FAILED;
+  return WT_CI_STATUSES.RUNNING;
+}
+
+export function isMergeEligible(
+  worktree: WorktreeInfo,
+  pullRequest: PullRequestInfo | null,
+): boolean {
+  if (worktree.dirty) return false;
+  if (worktree.ciStatus === WT_CI_STATUSES.CONFLICTS) return false;
+  if (!pullRequest) return true;
+  if (
+    pullRequest.ciStatus === CI_STATUSES.SUCCESS ||
+    pullRequest.ciStatus === CI_STATUSES.EXPECTED
+  )
+    return true;
+  return (
+    worktree.ciStatus === WT_CI_STATUSES.PASSED ||
+    worktree.ciStatus === WT_CI_STATUSES.NO_CI
+  );
+}
+
+export function getMergeBlockReason(
+  worktree: WorktreeInfo,
+  pullRequest: PullRequestInfo | null,
+): string | null {
+  if (worktree.dirty) return "Uncommitted changes";
+  if (worktree.ciStatus === WT_CI_STATUSES.CONFLICTS) return "Merge conflicts";
+  if (!pullRequest) return null;
+  if (
+    pullRequest.ciStatus === CI_STATUSES.SUCCESS ||
+    pullRequest.ciStatus === CI_STATUSES.EXPECTED
+  )
+    return null;
+  if (
+    worktree.ciStatus === WT_CI_STATUSES.PASSED ||
+    worktree.ciStatus === WT_CI_STATUSES.NO_CI
+  )
+    return null;
+  return "CI not passed";
+}
 
 // --- Typed errors for worktree creation ---
 

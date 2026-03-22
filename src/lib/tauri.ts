@@ -41,6 +41,7 @@ export async function scanWorkspace(
 interface WtWorktreeInfoRaw {
   branch: string;
   path: string;
+  dirty: boolean;
   diffAdded: number;
   diffDeleted: number;
   ahead: number;
@@ -80,6 +81,7 @@ export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
     issueId: entry.branch.match(/^[A-Z]+-\d+(\.\d+)?$/i)
       ? entry.branch.toUpperCase()
       : null,
+    dirty: entry.dirty,
     diffAdded: entry.diffAdded,
     diffDeleted: entry.diffDeleted,
     ahead: entry.ahead,
