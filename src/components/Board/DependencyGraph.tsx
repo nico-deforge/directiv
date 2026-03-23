@@ -451,9 +451,26 @@ function DependencyGraphInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
-  // Sync computed graph to ReactFlow state
+  // Sync computed graph to ReactFlow state. Preserve node object identity when
+  // nothing changed so ReactFlow's internal store diff skips updating them,
+  // avoiding re-renders that cause visual flickering during polling cycles.
   useEffect(() => {
-    setNodes(nextNodes);
+    setNodes((prev) => {
+      const prevById = new Map(prev.map((n) => [n.id, n]));
+      return nextNodes.map((next) => {
+        const prevNode = prevById.get(next.id);
+        if (
+          prevNode &&
+          prevNode.type === next.type &&
+          prevNode.position.x === next.position.x &&
+          prevNode.position.y === next.position.y &&
+          JSON.stringify(prevNode.data) === JSON.stringify(next.data)
+        ) {
+          return prevNode;
+        }
+        return next;
+      });
+    });
     setEdges(displayEdges);
   }, [nextNodes, displayEdges, setNodes, setEdges]);
 
