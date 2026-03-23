@@ -33,6 +33,7 @@ import {
   tmuxKillSession,
   tmuxListSessions,
   cmuxCloseWorkspace,
+  queryTerminals,
 } from "../../lib/tauri";
 import { removeWorktreeFlow, BranchExistsError } from "../../lib/workflows";
 import type {
@@ -571,12 +572,15 @@ function ReviewRequestItem({ pr }: { pr: ReviewRequestedPR }) {
   );
 }
 
+type OrphanSession = TmuxSession & { source: "cmux" | "tmux" };
+
 function OrphanSessionsSection() {
   const repos = useWorkspaceRepos();
   const queryClient = useQueryClient();
   const terminal = useSettingsStore((s) => s.config.terminal);
+  const isCmux = terminal === "cmux";
 
-  const [orphanSessions, setOrphanSessions] = useState<TmuxSession[]>([]);
+  const [orphanSessions, setOrphanSessions] = useState<OrphanSession[]>([]);
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(
     new Set(),
   );
@@ -601,46 +605,95 @@ function OrphanSessionsSection() {
         }
       }
 
-      // 2. Get all tmux sessions
-      const sessions = await tmuxListSessions();
+      // 2. Always scan tmux sessions — agents spawned outside cmux
+      //    (e.g. Claude Code sub-agents) may create raw tmux sessions
+      //    that cmux doesn't track
+      const tmuxSessions = await tmuxListSessions();
+      const tmuxOrphans: OrphanSession[] = tmuxSessions
+        .filter((s) => !allBranches.has(s.name.toLowerCase()))
+        .map((s) => ({ ...s, source: "tmux" as const }));
 
-      // 3. Find orphan sessions (sessions without corresponding worktree)
-      const orphans = sessions.filter(
-        (s) => !allBranches.has(s.name.toLowerCase()),
-      );
+      let orphans = tmuxOrphans;
+
+      if (isCmux) {
+        // 3. Also scan cmux workspaces and merge with tmux orphans.
+        //    Wrapped in its own try/catch so a cmux failure degrades
+        //    gracefully to tmux-only results.
+        let cmuxOrphans: OrphanSession[] = [];
+        try {
+          const cmuxStatuses = await queryTerminals("cmux");
+          cmuxOrphans = cmuxStatuses
+            .filter((s) => !allBranches.has(s.sessionName.toLowerCase()))
+            .map((s) => ({
+              name: s.sessionName,
+              attached: s.active,
+              windows: 1,
+              created: "",
+              source: "cmux" as const,
+            }));
+        } catch (e) {
+          console.warn(
+            "[OrphanScanner] cmux query failed, showing tmux sessions only:",
+            e,
+          );
+        }
+
+        // Deduplicate by name, preferring cmux source when both exist
+        const cmuxNames = new Set(cmuxOrphans.map((s) => s.name.toLowerCase()));
+        orphans = [
+          ...cmuxOrphans,
+          ...tmuxOrphans.filter((s) => !cmuxNames.has(s.name.toLowerCase())),
+        ];
+      }
 
       setOrphanSessions(orphans);
       setSelectedSessions(new Set(orphans.map((s) => s.name)));
+
       setShowCleanup(true);
     } catch (e) {
       toastError(e);
     } finally {
       setScanning(false);
     }
-  }, [repos]);
+  }, [repos, isCmux]);
 
   const cleanSelectedSessions = useCallback(async () => {
     setCleaning(true);
-    try {
-      for (const session of orphanSessions) {
-        if (!selectedSessions.has(session.name)) continue;
-        if (terminal === "cmux") {
+    const errors: unknown[] = [];
+    const killed = new Set<string>();
+
+    for (const session of orphanSessions) {
+      if (!selectedSessions.has(session.name)) continue;
+      try {
+        if (session.source === "cmux") {
           await cmuxCloseWorkspace(session.name);
         } else {
           await tmuxKillSession(session.name);
         }
+        killed.add(session.name);
+      } catch (e) {
+        errors.push(e);
       }
+    }
+
+    if (killed.size > 0) {
+      const remaining = orphanSessions.filter((s) => !killed.has(s.name));
+      setOrphanSessions(remaining);
+      setSelectedSessions(
+        (prev) => new Set([...prev].filter((n) => !killed.has(n))),
+      );
       queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["tmux"] });
-      setShowCleanup(false);
-      setOrphanSessions([]);
-      setSelectedSessions(new Set());
-    } catch (e) {
-      toastError(e);
-    } finally {
-      setCleaning(false);
     }
-  }, [orphanSessions, selectedSessions, queryClient, terminal]);
+
+    if (errors.length > 0) {
+      toastError(new Error(`Failed to kill ${errors.length} session(s)`));
+    } else {
+      setShowCleanup(false);
+    }
+
+    setCleaning(false);
+  }, [orphanSessions, selectedSessions, queryClient]);
 
   function toggleSessionSelection(name: string) {
     setSelectedSessions((prev) => {
@@ -689,6 +742,11 @@ function OrphanSessionsSection() {
                   <span className="truncate text-[var(--text-secondary)]">
                     {session.name}
                   </span>
+                  {isCmux && (
+                    <span className="shrink-0 rounded px-1 text-[10px] text-[var(--text-muted)] bg-[var(--bg-elevated)]">
+                      {session.source}
+                    </span>
+                  )}
                 </label>
               ))}
               <button
