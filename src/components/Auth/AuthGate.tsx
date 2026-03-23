@@ -3,11 +3,11 @@ import {
   AlertCircle,
   CheckCircle2,
   KanbanSquare,
-  Github,
   RefreshCw,
   Terminal,
   GitBranch,
 } from "lucide-react";
+import { GithubIcon } from "../shared/GithubIcon";
 import {
   useAuthStore,
   AUTH_PROVIDER_STATUS,
@@ -169,7 +169,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <div>
             <ProviderRow
               name="GitHub"
-              icon={<Github className="size-4 text-[var(--text-primary)]" />}
+              icon={<GithubIcon className="size-4 text-[var(--text-primary)]" />}
               status={githubStatus}
               error={githubError}
             >

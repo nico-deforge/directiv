@@ -2,7 +2,7 @@ import type { EnrichedTask } from "../types";
 
 // Card dimensions and gaps
 export const CARD_WIDTH = 380;
-export const CARD_HEIGHT = 180;
+export const CARD_HEIGHT = 150;
 export const H_GAP = 100;
 export const V_GAP = 80;
 

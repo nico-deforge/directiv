@@ -10,13 +10,12 @@ import {
   Loader2,
   ChevronDown,
   GitBranch,
-  Github,
-  SquareKanban,
   ExternalLink,
   Code2,
   ClipboardList,
   RefreshCw,
   AlertTriangle,
+  MoreHorizontal,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
@@ -60,6 +59,7 @@ import type { NotificationCategory } from "../../types";
 import { useFetchRemote } from "../../hooks/useWorktrees";
 import { BranchSelector } from "../shared/BranchSelector";
 import { DiffBadge } from "../shared/DiffBadge";
+import { GithubIcon } from "../shared/GithubIcon";
 import { QuickPeek } from "./QuickPeek";
 
 type WorkflowStatus =
@@ -238,6 +238,8 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     repoPath: string;
   } | null>(null);
   const [sendingSkill, setSendingSkill] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const overflowRef = useRef<HTMLDivElement>(null);
   const { fetching: fetchingRemote, fetchRemote: handleFetchRemote } =
     useFetchRemote(worktreeRepoPath);
 
@@ -262,10 +264,28 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
 
-  // cmux status text for the header
-  const cmuxStatus = cmuxNotification
-    ? getCmuxStatusText(cmuxNotification.category)
-    : null;
+  // Agent status — consolidated from cmux notifications, claude status, and terminal status
+  const agentStatusLine = (() => {
+    if (cmuxNotification) {
+      const s = getCmuxStatusText(cmuxNotification.category);
+      return { text: s.text, colorClass: s.colorClass, animate: s.animate };
+    }
+    if (terminal === "cmux" && hasSession) {
+      return {
+        text: "Claude is working",
+        colorClass: "text-[var(--text-muted)]",
+        animate: false,
+      };
+    }
+    if (terminal !== "cmux" && claudeWaiting) {
+      return {
+        text: "Claude is waiting",
+        colorClass: "text-[var(--accent-orange)]",
+        animate: true,
+      };
+    }
+    return null;
+  })();
 
   useEffect(() => {
     if (!confirmingDelete) return;
@@ -287,6 +307,20 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [dropdownOpen]);
+
+  useEffect(() => {
+    if (!overflowOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        overflowRef.current &&
+        !overflowRef.current.contains(e.target as globalThis.Node)
+      ) {
+        setOverflowOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [overflowOpen]);
 
   async function handleKillSession() {
     if (!session) return;
@@ -404,8 +438,6 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     setBranchError(null);
     const { skill, usePlugin, model } = getRepoSkillParams(pendingSkillKey);
     const { terminalLayout } = useSettingsStore.getState().config;
-    // ensureWorktree inside startTask handles existing branches — no manual
-    // wtSwitchCreate needed.
     startTask.mutate(
       {
         issueId: task.id,
@@ -429,6 +461,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
       handleStart(worktreeRepoPath, key);
       return;
     }
+    setOverflowOpen(false);
     setDropdownOpen((prev) => !prev);
   }
 
@@ -514,7 +547,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         className="!opacity-0 !pointer-events-none"
       />
 
-      {/* Header: Task info with Linear status */}
+      {/* ── HEADER ZONE ── */}
       <div className="border-b border-[var(--border-default)] px-3 py-2">
         <div className="flex items-center gap-2">
           <span
@@ -523,205 +556,175 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           >
             {statusBadge.label}
           </span>
-          <span className="text-xs font-medium text-[var(--text-secondary)]">
+          <CmuxLink
+            href={task.url}
+            workspaceName={task.identifier}
+            terminal={terminal}
+            className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+          >
             {task.identifier}
-          </span>
-          {isDisabled && task.assigneeName && (
-            <span className="text-[10px] text-[var(--text-muted)]">
-              {task.assigneeName}
-            </span>
-          )}
-          {/* cmux status text — right-aligned like CI status */}
-          {cmuxStatus && (
-            <span
-              className={`ml-auto text-[10px] font-medium ${cmuxStatus.colorClass} ${cmuxStatus.animate ? "animate-pulse" : ""}`}
-              title={cmuxNotification?.body ?? cmuxNotification?.title}
-            >
-              {cmuxStatus.text}
-            </span>
-          )}
-          {/* cmux: no notification yet = Claude is actively working */}
-          {!cmuxStatus && terminal === "cmux" && hasSession && (
-            <span className="ml-auto text-[10px] font-medium text-[var(--text-muted)]">
-              Claude is working
-            </span>
-          )}
-          {/* Fallback for Ghostty/iTerm2 */}
-          {!cmuxStatus && terminal !== "cmux" && claudeWaiting && (
-            <span className="ml-auto animate-pulse text-[10px] font-medium text-[var(--accent-orange)]">
-              Claude is waiting
-            </span>
-          )}
-          {hasSession && terminalActive !== null && terminal !== "cmux" && (
-            <span
-              className={`${claudeWaiting ? "" : "ml-auto"} flex items-center`}
-              title={terminalActive ? "Terminal open" : "Terminal closed"}
-            >
-              <Terminal
-                className={`size-3.5 ${
-                  terminalActive
-                    ? "text-[var(--accent-green)]"
-                    : "text-[var(--text-muted)]"
-                }`}
-              />
-            </span>
-          )}
+          </CmuxLink>
         </div>
         <p className="mt-1 line-clamp-2 text-sm text-[var(--text-primary)]">
           {task.title}
         </p>
-      </div>
-
-      {/* Linear Section */}
-      <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-        <SquareKanban className="size-4 shrink-0 text-[var(--linear-brand)]" />
-        <CmuxLink
-          href={task.url}
-          workspaceName={task.identifier}
-          terminal={terminal}
-          className="flex items-center gap-1 min-w-0 text-sm text-[var(--linear-brand)] hover:text-[var(--linear-brand-hover)]"
-        >
-          <span className="truncate">{task.identifier}</span>
-          <ExternalLink className="size-3 shrink-0" />
-        </CmuxLink>
-      </div>
-
-      {/* PR Section */}
-      {pullRequest && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
-          <CmuxLink
-            href={pullRequest.url}
-            workspaceName={task.identifier}
-            terminal={terminal}
-            className="flex items-center gap-1 min-w-0 flex-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        {agentStatusLine && (
+          <p
+            className={`mt-1 text-[11px] font-medium ${agentStatusLine.colorClass} ${agentStatusLine.animate ? "animate-pulse" : ""}`}
+            title={cmuxNotification?.body ?? cmuxNotification?.title}
           >
-            <span className="truncate">PR #{pullRequest.number}</span>
-            <ExternalLink className="size-3 shrink-0" />
-          </CmuxLink>
-          {pullRequest.ciStatus && (
-            <CiStatusBadge
-              status={mapPrCiToWtCi(pullRequest.ciStatus)}
-              url={pullRequest.ciUrl}
-              workspaceName={task.identifier}
-              terminal={terminal}
-            />
-          )}
-          {!isDisabled &&
-            worktree &&
-            (pullRequest.ciStatus === CI_STATUSES.FAILURE ||
-              pullRequest.ciStatus === CI_STATUSES.ERROR) && (
-              <button
-                onClick={handleFixCI}
-                disabled={isLoading}
-                className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
-              >
-                {sendingSkill ? (
-                  <Loader2 className="size-3 animate-spin" />
-                ) : (
-                  "Fix CI"
-                )}
-              </button>
-            )}
-        </div>
-      )}
+            {agentStatusLine.text}
+          </p>
+        )}
+      </div>
 
-      {/* GitHub repo blocked warning */}
-      {worktree && !pullRequest && githubRepoBlocked && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <Github className="size-4 shrink-0 text-[var(--accent-red)]" />
-          <span className="truncate text-xs text-[var(--accent-red)]">
-            Access blocked by organization
-          </span>
-        </div>
-      )}
-
-      {/* Worktree Section */}
-      {worktree && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <GitBranch className="size-4 shrink-0 text-[var(--accent-green)]" />
-          <span className="truncate text-sm text-[var(--text-secondary)]">
-            {worktree.branch}
-          </span>
-          <DiffBadge
-            added={worktree.diffAdded}
-            deleted={worktree.diffDeleted}
-          />
-          {(worktree.ahead > 0 || worktree.behind > 0) && (
-            <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
-              {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
-              {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
-            </span>
-          )}
-          {worktreeRepoPath && (
-            <button
-              onClick={handleFetchRemote}
-              disabled={fetchingRemote}
-              className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
-              title="Fetch remote"
-            >
-              <RefreshCw
-                className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`}
+      {/* ── DETAILS ZONE ── */}
+      {(worktree || pullRequest) && (
+        <div className="border-b border-[var(--border-default)] px-3 py-2 space-y-1">
+          {/* Worktree line */}
+          {worktree && (
+            <div className="flex items-center gap-2">
+              <GitBranch className="size-3.5 shrink-0 text-[var(--accent-green)]" />
+              <span className="truncate text-xs text-[var(--text-secondary)]">
+                {worktree.branch}
+              </span>
+              <DiffBadge
+                added={worktree.diffAdded}
+                deleted={worktree.diffDeleted}
               />
-            </button>
+              {(worktree.ahead > 0 || worktree.behind > 0) && (
+                <span className="flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
+                  {worktree.ahead > 0 && <span>↑{worktree.ahead}</span>}
+                  {worktree.behind > 0 && <span>↓{worktree.behind}</span>}
+                </span>
+              )}
+              {worktreeRepoPath && (
+                <button
+                  onClick={handleFetchRemote}
+                  disabled={fetchingRemote}
+                  className="rounded p-0.5 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors disabled:opacity-50"
+                  title="Fetch remote"
+                >
+                  <RefreshCw
+                    className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`}
+                  />
+                </button>
+              )}
+              {/* Show worktree CI only when no PR CI exists (PR CI supersedes) */}
+              {worktree.ciStatus &&
+                worktree.ciStatus !== WT_CI_STATUSES.NO_CI &&
+                !pullRequest?.ciStatus && (
+                  <span className="ml-auto">
+                    <CiStatusBadge
+                      status={worktree.ciStatus}
+                      url={worktree.ciUrl}
+                      stale={worktree.ciStale}
+                      workspaceName={task.identifier}
+                      terminal={terminal}
+                    />
+                  </span>
+                )}
+              {worktreeRepoPath &&
+                getMergeBlockReason(worktree, pullRequest) && (
+                  <span
+                    className={
+                      worktree.ciStatus &&
+                      worktree.ciStatus !== WT_CI_STATUSES.NO_CI &&
+                      !pullRequest?.ciStatus
+                        ? ""
+                        : "ml-auto"
+                    }
+                    title={getMergeBlockReason(worktree, pullRequest)!}
+                  >
+                    <AlertTriangle className="size-3.5 text-[var(--accent-amber)]" />
+                  </span>
+                )}
+            </div>
           )}
-          {worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI && (
-            <span className="ml-auto">
-              <CiStatusBadge
-                status={worktree.ciStatus}
-                url={worktree.ciUrl}
-                stale={worktree.ciStale}
+
+          {/* PR line */}
+          {pullRequest && (
+            <div className="flex items-center gap-2">
+              <GithubIcon className="size-3.5 shrink-0 text-[var(--accent-purple)]" />
+              <CmuxLink
+                href={pullRequest.url}
                 workspaceName={task.identifier}
                 terminal={terminal}
-              />
-            </span>
+                className="flex items-center gap-1 min-w-0 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                <span className="truncate">PR #{pullRequest.number}</span>
+                <ExternalLink className="size-3 shrink-0" />
+              </CmuxLink>
+              {pullRequest.ciStatus && (
+                <CiStatusBadge
+                  status={mapPrCiToWtCi(pullRequest.ciStatus)}
+                  url={pullRequest.ciUrl}
+                  workspaceName={task.identifier}
+                  terminal={terminal}
+                />
+              )}
+              {!isDisabled &&
+                worktree &&
+                (pullRequest.ciStatus === CI_STATUSES.FAILURE ||
+                  pullRequest.ciStatus === CI_STATUSES.ERROR) && (
+                  <button
+                    onClick={handleFixCI}
+                    disabled={isLoading}
+                    className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
+                  >
+                    {sendingSkill ? (
+                      <Loader2 className="size-3 animate-spin" />
+                    ) : (
+                      "Fix CI"
+                    )}
+                  </button>
+                )}
+            </div>
           )}
-          {worktreeRepoPath && getMergeBlockReason(worktree, pullRequest) && (
-            <span
-              className={
-                worktree.ciStatus && worktree.ciStatus !== WT_CI_STATUSES.NO_CI
-                  ? ""
-                  : "ml-auto"
-              }
-              title={getMergeBlockReason(worktree, pullRequest)!}
-            >
-              <AlertTriangle className="size-3.5 text-[var(--accent-amber)]" />
-            </span>
+
+          {/* GitHub repo blocked warning */}
+          {worktree && !pullRequest && githubRepoBlocked && (
+            <div className="flex items-center gap-2">
+              <GithubIcon className="size-3.5 shrink-0 text-[var(--accent-red)]" />
+              <span className="text-xs text-[var(--accent-red)]">
+                Access blocked by organization
+              </span>
+            </div>
+          )}
+
+          {/* Dev URL */}
+          {worktree?.devUrl && (
+            <div className="flex items-center gap-2">
+              <CmuxLink
+                href={worktree.devUrl}
+                workspaceName={task.identifier}
+                terminal={terminal}
+                className={`flex items-center gap-1 min-w-0 text-xs ${
+                  worktree.devUrlActive
+                    ? "text-[var(--accent-blue)] hover:text-[var(--text-primary)]"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                }`}
+                title={
+                  worktree.devUrlActive
+                    ? "Dev server running"
+                    : "Dev server offline"
+                }
+              >
+                <ExternalLink className="size-3 shrink-0" />
+                <span className="truncate">{worktree.devUrl}</span>
+              </CmuxLink>
+            </div>
           )}
         </div>
       )}
 
-      {/* Dev Server URL Section */}
-      {worktree?.devUrl && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <CmuxLink
-            href={worktree.devUrl}
-            workspaceName={task.identifier}
-            terminal={terminal}
-            className={`flex items-center gap-1 min-w-0 text-xs ${
-              worktree.devUrlActive
-                ? "text-[var(--accent-blue)] hover:text-[var(--text-primary)]"
-                : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-            }`}
-            title={
-              worktree.devUrlActive
-                ? "Dev server running"
-                : "Dev server offline"
-            }
-          >
-            <ExternalLink className="size-3 shrink-0" />
-            <span className="truncate">{worktree.devUrl}</span>
-          </CmuxLink>
-        </div>
-      )}
-
-      {/* Actions */}
+      {/* ── ACTIONS ZONE ── */}
       {!isDisabled && (
         <div
-          className="relative flex items-center gap-2 px-3 py-2"
+          className="relative flex items-center gap-1.5 px-3 py-2"
           ref={dropdownRef}
         >
-          {/* Code / Plan buttons with shared dropdown */}
+          {/* Code / Plan buttons (no session) */}
           {!hasSession && (
             <>
               <button
@@ -757,7 +760,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             </>
           )}
 
-          {/* Terminal button */}
+          {/* Terminal button (active session) */}
           {hasSession && (
             <button
               onClick={handleOpenTerminal}
@@ -768,22 +771,21 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             </button>
           )}
 
-          {/* Editor button */}
+          {/* Editor button — icon only */}
           {worktree && (
             <button
               onClick={handleOpenEditor}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors"
+              className="flex items-center rounded bg-[var(--bg-elevated)] px-1.5 py-1 text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors"
+              title={`Open in ${editor}`}
             >
               <Code2 className="size-3.5" />
-              Editor
             </button>
           )}
 
-          {/* Merge button — visible when: worktree not dirty, no conflicts, and CI ok (PR or wt CI green) */}
+          {/* Merge button */}
           {worktree &&
             worktreeRepoPath &&
             isMergeEligible(worktree, pullRequest) &&
-            !confirmingDelete &&
             !confirmingMerge && (
               <button
                 onClick={() => setConfirmingMerge(true)}
@@ -802,7 +804,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
           {/* Merge confirmation */}
           {confirmingMerge && (
             <span className="flex items-center gap-2 text-xs">
-              <span className="text-[var(--text-muted)]">Confirm merge?</span>
+              <span className="text-[var(--text-muted)]">Merge?</span>
               <button
                 onClick={handleMerge}
                 disabled={mergingWorktree}
@@ -820,61 +822,70 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
             </span>
           )}
 
-          {/* Kill Session button */}
-          {hasSession && !confirmingDelete && (
-            <button
-              onClick={handleKillSession}
-              disabled={isLoading}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
-              title={
-                terminal === "cmux"
-                  ? "Close cmux workspace (keeps worktree)"
-                  : "Kill tmux session (keeps worktree)"
-              }
-            >
-              {killingSession ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <X className="size-3.5" />
-              )}
-            </button>
-          )}
-
-          {/* Delete Worktree button */}
-          {worktree && !confirmingDelete && (
-            <button
-              onClick={() => setConfirmingDelete(true)}
-              disabled={isLoading}
-              className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
-              title="Delete worktree and branch"
-            >
-              {deletingWorktree ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="size-3.5" />
-              )}
-            </button>
-          )}
-
-          {/* Delete confirmation */}
-          {confirmingDelete && (
-            <span className="flex items-center gap-2 text-xs">
-              <span className="text-[var(--text-muted)]">Delete worktree?</span>
+          {/* Overflow menu for destructive actions */}
+          {(hasSession || worktree) && !confirmingMerge && (
+            <div className="ml-auto relative" ref={overflowRef}>
               <button
-                onClick={() => handleDeleteWorktree()}
-                disabled={deletingWorktree}
-                className="text-[var(--accent-red)] transition-all hover:brightness-125 disabled:opacity-50"
+                onClick={() => {
+                  setDropdownOpen(false);
+                  setOverflowOpen(!overflowOpen);
+                }}
+                className="flex items-center rounded p-1 text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-colors"
               >
-                {deletingWorktree ? "Deleting..." : "Yes"}
+                <MoreHorizontal className="size-3.5" />
               </button>
-              <span className="text-[var(--text-muted)]">/</span>
-              <button
-                onClick={() => setConfirmingDelete(false)}
-                className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-              >
-                No
-              </button>
-            </span>
+              {overflowOpen && (
+                <div className="absolute right-0 top-full z-20 mt-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-tertiary)] py-1 shadow-lg min-w-36">
+                  {hasSession && (
+                    <button
+                      onClick={() => {
+                        setOverflowOpen(false);
+                        handleKillSession();
+                      }}
+                      disabled={isLoading}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50"
+                    >
+                      {killingSession ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <X className="size-3" />
+                      )}
+                      Kill session
+                    </button>
+                  )}
+                  {worktree && (
+                    <>
+                      {confirmingDelete ? (
+                        <button
+                          onClick={() => {
+                            setOverflowOpen(false);
+                            handleDeleteWorktree();
+                          }}
+                          disabled={deletingWorktree}
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--accent-red)] hover:bg-[var(--accent-red)]/10 disabled:opacity-50"
+                        >
+                          {deletingWorktree ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-3" />
+                          )}
+                          Confirm delete?
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmingDelete(true)}
+                          disabled={isLoading}
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] disabled:opacity-50"
+                        >
+                          <Trash2 className="size-3" />
+                          Delete worktree
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           )}
 
           {/* Dropdown for repo/branch selection */}
