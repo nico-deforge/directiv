@@ -80,21 +80,35 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
   }, [confirmingDelete]);
 
   async function handleLaunchSession() {
-    const sessionName = toSessionName(worktree.branch);
     setLaunchingSession(true);
     try {
-      await tmuxCreateSession(sessionName, worktree.path);
-      await tmuxWaitForReady(sessionName);
       const cmd = await buildClaudeCommand();
-      await tmuxSendKeys(sessionName, cmd);
       const { terminalLayout } = useSettingsStore.getState().config;
-      await openTerminal(
-        terminal,
-        sessionName,
-        worktree.branch,
-        worktree.path,
-        terminalLayout,
-      );
+
+      if (terminal === "cmux") {
+        // cmux manages its own sessions — openTerminal passes the Claude
+        // command to CmuxController.create() which handles everything.
+        await openTerminal(
+          terminal,
+          cmd,
+          worktree.branch,
+          worktree.path,
+          terminalLayout,
+        );
+      } else {
+        const sessionName = toSessionName(worktree.branch);
+        await tmuxCreateSession(sessionName, worktree.path);
+        await tmuxWaitForReady(sessionName);
+        await tmuxSendKeys(sessionName, cmd);
+        await openTerminal(
+          terminal,
+          sessionName,
+          worktree.branch,
+          worktree.path,
+          terminalLayout,
+        );
+      }
+
       queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
     } catch (err) {
       toastError(err);
@@ -220,6 +234,30 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         </div>
       )}
 
+      {/* PR Section */}
+      {pullRequest && (
+        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
+          <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
+          <CmuxLink
+            href={pullRequest.url}
+            workspaceName={linearIssue?.identifier ?? worktree.branch}
+            terminal={terminal}
+            className="flex items-center gap-1 min-w-0 flex-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          >
+            <span className="truncate">PR #{pullRequest.number}</span>
+            <ExternalLink className="size-3 shrink-0" />
+          </CmuxLink>
+          {pullRequest.ciStatus && (
+            <CiStatusBadge
+              status={mapPrCiToWtCi(pullRequest.ciStatus)}
+              url={pullRequest.ciUrl}
+              workspaceName={linearIssue?.identifier ?? worktree.branch}
+              terminal={terminal}
+            />
+          )}
+        </div>
+      )}
+
       {/* Worktree Section */}
       <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
         <GitBranch className="size-4 shrink-0 text-[var(--accent-green)]" />
@@ -267,30 +305,6 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
           </span>
         )}
       </div>
-
-      {/* PR Section */}
-      {pullRequest && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-default)] px-3 py-2">
-          <Github className="size-4 shrink-0 text-[var(--accent-purple)]" />
-          <CmuxLink
-            href={pullRequest.url}
-            workspaceName={linearIssue?.identifier ?? worktree.branch}
-            terminal={terminal}
-            className="flex items-center gap-1 min-w-0 flex-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          >
-            <span className="truncate">PR #{pullRequest.number}</span>
-            <ExternalLink className="size-3 shrink-0" />
-          </CmuxLink>
-          {pullRequest.ciStatus && (
-            <CiStatusBadge
-              status={mapPrCiToWtCi(pullRequest.ciStatus)}
-              url={pullRequest.ciUrl}
-              workspaceName={linearIssue?.identifier ?? worktree.branch}
-              terminal={terminal}
-            />
-          )}
-        </div>
-      )}
 
       {/* Actions */}
       <div className="flex items-center gap-2 px-3 py-2">
@@ -367,53 +381,60 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         )}
 
         {/* Kill session button */}
-        {hasSession && (
+        {hasSession && !confirmingDelete && (
           <button
             onClick={handleKillSession}
             disabled={killingSession}
-            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--border-subtle)] transition-colors disabled:opacity-50"
-            title="Kill tmux session"
+            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
+            title={
+              terminal === "cmux"
+                ? "Close cmux workspace (keeps worktree)"
+                : "Kill tmux session (keeps worktree)"
+            }
           >
             {killingSession ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
               <X className="size-3.5" />
             )}
-            Kill Session
           </button>
         )}
 
         {/* Delete worktree button */}
-        {confirmingDelete ? (
-          <span className="flex items-center gap-2 text-xs">
-            <button
-              onClick={() => handleDelete()}
-              disabled={isDeleting}
-              className="text-[var(--accent-red)] transition-all hover:brightness-125"
-            >
-              {isDeleting ? "Deleting..." : "Confirm"}
-            </button>
-            <span className="text-[var(--text-muted)]">/</span>
-            <button
-              onClick={() => setConfirmingDelete(false)}
-              className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            >
-              Cancel
-            </button>
-          </span>
-        ) : (
+        {!confirmingDelete && (
           <button
-            onClick={() => handleDelete()}
+            onClick={() => setConfirmingDelete(true)}
             disabled={isDeleting}
-            className="flex items-center gap-1 rounded bg-[var(--accent-red)]/20 px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/30 disabled:opacity-50"
+            className="flex items-center gap-1 rounded bg-[var(--bg-elevated)] px-2 py-1 text-xs font-medium text-[var(--accent-red)] hover:bg-[var(--accent-red)]/20 disabled:opacity-50"
+            title="Delete worktree and branch"
           >
             {isDeleting ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : (
               <Trash2 className="size-3.5" />
             )}
-            Delete
           </button>
+        )}
+
+        {/* Delete confirmation */}
+        {confirmingDelete && (
+          <span className="flex items-center gap-2 text-xs">
+            <span className="text-[var(--text-muted)]">Delete worktree?</span>
+            <button
+              onClick={() => handleDelete()}
+              disabled={isDeleting}
+              className="text-[var(--accent-red)] transition-all hover:brightness-125 disabled:opacity-50"
+            >
+              {isDeleting ? "Deleting..." : "Yes"}
+            </button>
+            <span className="text-[var(--text-muted)]">/</span>
+            <button
+              onClick={() => setConfirmingDelete(false)}
+              className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            >
+              No
+            </button>
+          </span>
         )}
       </div>
     </div>
