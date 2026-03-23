@@ -152,8 +152,8 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         await tmuxKillSession(toSessionName(worktree.branch));
       }
       queryClient.invalidateQueries({ queryKey: ["terminal-sessions"] });
-    } catch {
-      // Session may already be gone
+    } catch (err) {
+      toastError(err);
     } finally {
       setKillingSession(false);
     }
