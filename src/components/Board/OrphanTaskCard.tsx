@@ -92,6 +92,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
         !overflowRef.current.contains(e.target as globalThis.Node)
       ) {
         setOverflowOpen(false);
+        setConfirmingDelete(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -251,7 +252,7 @@ export function OrphanTaskCard({ data }: NodeProps<OrphanTaskNodeType>) {
               className={`size-3 ${fetchingRemote ? "animate-spin" : ""}`}
             />
           </button>
-          {/* Show worktree CI only when no PR CI exists */}
+          {/* Show worktree CI only when no PR CI exists (PR CI supersedes) */}
           {worktree.ciStatus &&
             worktree.ciStatus !== WT_CI_STATUSES.NO_CI &&
             !pullRequest?.ciStatus && (

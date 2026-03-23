@@ -264,11 +264,10 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
   const claudeWaiting =
     claudeStatus === "waiting" && workflowStatus === "in-dev";
 
-  // Agent status — consolidated from cmux notifications, claude status, and terminal status
+  // Agent status — consolidated from cmux notifications and claude session status
   const agentStatusLine = (() => {
     if (cmuxNotification) {
-      const s = getCmuxStatusText(cmuxNotification.category);
-      return { text: s.text, colorClass: s.colorClass, animate: s.animate };
+      return getCmuxStatusText(cmuxNotification.category);
     }
     if (terminal === "cmux" && hasSession) {
       return {
@@ -316,6 +315,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
         !overflowRef.current.contains(e.target as globalThis.Node)
       ) {
         setOverflowOpen(false);
+        setConfirmingDelete(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
