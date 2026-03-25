@@ -228,9 +228,12 @@ export type ActionKey = (typeof ACTION_KEYS)[number];
 export type SkillOverrides = Partial<Record<ActionKey, string>>;
 
 export const CLAUDE_MODELS = {
-  OPUS: "opus",
   SONNET: "sonnet",
+  OPUS: "opus",
   HAIKU: "haiku",
+  SONNET_1M: "sonnet[1m]",
+  OPUS_1M: "opus[1m]",
+  OPUSPLAN: "opusplan",
 } as const;
 
 export type ClaudeModel = (typeof CLAUDE_MODELS)[keyof typeof CLAUDE_MODELS];
