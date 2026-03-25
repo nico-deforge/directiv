@@ -67,7 +67,7 @@ fn build_auth_url(state: &str, code_challenge: &str) -> String {
         .append_pair("client_id", LINEAR_CLIENT_ID)
         .append_pair("redirect_uri", REDIRECT_URI)
         .append_pair("response_type", "code")
-        .append_pair("scope", "read,write,issues:create,comments:create")
+        .append_pair("scope", "read,write")
         .append_pair("state", state)
         .append_pair("code_challenge", code_challenge)
         .append_pair("code_challenge_method", "S256")
