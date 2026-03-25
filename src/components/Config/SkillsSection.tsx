@@ -295,12 +295,23 @@ function SkillMappingRow({
         <select
           value={currentModel}
           onChange={(e) => onModelChange(e.target.value)}
-          className="w-36 rounded-md border border-[var(--border-default)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
+          className="w-56 rounded-md border border-[var(--border-default)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]"
         >
           <option value="">Default</option>
-          <option value={CLAUDE_MODELS.OPUS}>Opus</option>
-          <option value={CLAUDE_MODELS.SONNET}>Sonnet</option>
-          <option value={CLAUDE_MODELS.HAIKU}>Haiku</option>
+          <optgroup label="Standard">
+            <option value={CLAUDE_MODELS.SONNET}>Sonnet</option>
+            <option value={CLAUDE_MODELS.OPUS}>Opus</option>
+            <option value={CLAUDE_MODELS.HAIKU}>Haiku</option>
+          </optgroup>
+          <optgroup label="Extended context (1M)">
+            <option value={CLAUDE_MODELS.SONNET_1M}>Sonnet [1M]</option>
+            <option value={CLAUDE_MODELS.OPUS_1M}>Opus [1M]</option>
+          </optgroup>
+          <optgroup label="Hybrid">
+            <option value={CLAUDE_MODELS.OPUSPLAN}>
+              Opus Plan (Opus→plan, Sonnet→exec)
+            </option>
+          </optgroup>
         </select>
       </div>
       {showCustomInput && (
