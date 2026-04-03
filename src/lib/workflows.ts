@@ -1,6 +1,9 @@
 import { IssueRelationType } from "@linear/sdk";
 import { toast } from "sonner";
 import { getValidLinearClient } from "./linearAuth";
+import { linearQuery } from "./linearGraphQL";
+import { ISSUE_TEAM_ID, type IssueTeamIdData } from "./linearQueries";
+import { teamStatesCache } from "../hooks/useLinear";
 import {
   wtList,
   wtSwitchCreate,
@@ -432,19 +435,36 @@ async function updateLinearStatusToStarted(issueId: string): Promise<void> {
   const client = await getValidLinearClient();
   if (!client) throw new Error("Linear not connected");
 
-  const issue = await client.issue(issueId);
-  const team = await issue.team;
-  if (!team) {
-    throw new Error("Issue has no team");
+  // 1 minimal query to get team ID; states are usually cached (see fallback below)
+  const data = await linearQuery<IssueTeamIdData>(ISSUE_TEAM_ID, {
+    id: issueId,
+  });
+  const teamId = data.issue.team?.id;
+  if (!teamId) throw new Error("Issue has no team");
+
+  // Use cached team states (populated by useLinearViewerData)
+  let states = teamStatesCache.get(teamId);
+  if (!states) {
+    // Fallback: fetch states via SDK (rare — only if cache is cold)
+    console.warn(
+      `[updateLinearStatusToStarted] teamStatesCache miss for team ${teamId}`,
+    );
+    const team = await client.team(teamId);
+    const statesResult = await team.states();
+    const mapped = statesResult.nodes.map((s) => ({
+      id: s.id,
+      name: s.name,
+      type: s.type,
+      color: s.color,
+    }));
+    teamStatesCache.set(teamId, mapped);
+    states = mapped;
   }
 
-  const states = await team.states();
-  const startedState = states.nodes.find(
+  const startedState = states.find(
     (s) => s.type === "started" && s.name === "In Progress",
   );
-  if (!startedState) {
-    throw new Error("No 'started' state found for this team");
-  }
+  if (!startedState) throw new Error("No 'started' state found for this team");
 
   await client.updateIssue(issueId, { stateId: startedState.id });
 }

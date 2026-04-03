@@ -1,107 +1,113 @@
 import { PaginationOrderBy } from "@linear/sdk";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import {
   EXTERNAL_API_REFRESH_INTERVAL,
   LINEAR_FETCH_LIMIT,
 } from "../constants/intervals";
 import { getLinearClient } from "../lib/linear";
+import { linearQuery } from "../lib/linearGraphQL";
+import {
+  VIEWER_WITH_TEAMS,
+  ISSUES_ENRICHED,
+  BRANCH_SEARCH,
+} from "../lib/linearQueries";
+import type {
+  ViewerWithTeamsData,
+  IssuesEnrichedData,
+  IssueNode,
+  BranchSearchData,
+  TeamNode,
+  WorkflowStateNode,
+} from "../lib/linearQueries";
+import { transformIssueNode } from "../lib/linearTransform";
 import { useAuthStore, AUTH_PROVIDER_STATUS } from "../stores/authStore";
 import {
   ORPHAN_PROJECT_ID,
   OTHER_ISSUES_PROJECT_ID,
 } from "../stores/projectStore";
 import { LINEAR_STATUS_TYPES } from "../types";
-import type { BlockingIssue, EnrichedTask, LinearStatusType } from "../types";
+import type { EnrichedTask, LinearStatusType } from "../types";
+
+// ---------------------------------------------------------------------------
+// Module-level cache populated by useLinearViewerData
+// ---------------------------------------------------------------------------
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Team workflow states cache — used by updateLinearStatusToStarted in workflows.ts */
+export const teamStatesCache = new Map<string, WorkflowStateNode[]>();
 
 function useIsLinearConnected() {
   return useAuthStore((s) => s.linearStatus === AUTH_PROVIDER_STATUS.CONNECTED);
 }
 
-async function resolveTeamIds(keys: string[]): Promise<string[]> {
-  const client = getLinearClient();
-  if (!client) return [];
-
-  if (keys.every((k) => UUID_RE.test(k))) return keys;
-
-  const me = await client.viewer;
-  const teams = await me.teams();
+function resolveTeamIdsFromData(keys: string[], teams: TeamNode[]): string[] {
   return keys.map((key) => {
     if (UUID_RE.test(key)) return key;
-    const team = teams.nodes.find((t) => t.key === key);
+    const team = teams.find((t) => t.key === key);
     if (!team) throw new Error(`Team key "${key}" not found in Linear`);
     return team.id;
   });
 }
 
-async function mapIssueToEnrichedTask(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  issue: any,
-  viewerId: string,
-): Promise<EnrichedTask> {
-  const [state, assignee, project, inverseRelations] = await Promise.all([
-    issue.state,
-    issue.assignee,
-    issue.project,
-    issue.inverseRelations(),
-  ]);
+// ---------------------------------------------------------------------------
+// Hook: Viewer + Teams (single query, 5 min stale)
+// ---------------------------------------------------------------------------
 
-  const blockingRelations = inverseRelations.nodes.filter(
-    (r: { type: string }) => r.type === "blocks",
-  );
-
-  const blockedBy: BlockingIssue[] = await Promise.all(
-    blockingRelations.map(
-      async (relation: {
-        issue: Promise<{
-          id: string;
-          identifier: string;
-          title: string;
-          url: string;
-        } | null>;
-        id: string;
-      }) => {
-        const blockingIssue = await relation.issue;
-        if (!blockingIssue) return null;
-        return {
-          id: blockingIssue.id,
-          identifier: blockingIssue.identifier,
-          title: blockingIssue.title,
-          url: blockingIssue.url,
-          relationId: relation.id,
-        };
-      },
-    ),
-  ).then((results) => results.filter((r): r is BlockingIssue => r !== null));
-
-  const isBlocked = blockedBy.length > 0;
-
-  return {
-    id: issue.id,
-    identifier: issue.identifier,
-    title: issue.title,
-    description: issue.description ?? null,
-    priority: issue.priority,
-    status: state?.name ?? "Unknown",
-    linearStatusType: (state?.type as LinearStatusType) ?? null,
-    statusColor: state?.color ?? null,
-    assigneeId: assignee?.id ?? null,
-    projectId: project?.id ?? null,
-    projectName: project?.name ?? null,
-    labels: [],
-    column: "backlog" as const,
-    session: null,
-    worktree: null,
-    pullRequest: null,
-    url: issue.url,
-    isBlocked,
-    blockedBy,
-    isAssignedToMe: assignee?.id === viewerId,
-    assigneeName: assignee?.displayName ?? assignee?.name ?? null,
-  };
+export interface LinearTeam {
+  id: string;
+  name: string;
+  displayName: string;
+  key: string;
 }
+
+interface ViewerData {
+  viewerId: string;
+  teams: TeamNode[];
+}
+
+function useLinearViewerData() {
+  const isConnected = useIsLinearConnected();
+  return useQuery<ViewerData>({
+    queryKey: ["linear", "viewer-data"],
+    queryFn: async () => {
+      const data = await linearQuery<ViewerWithTeamsData>(VIEWER_WITH_TEAMS);
+
+      // Populate team states cache for imperative use in workflows.ts
+      for (const team of data.viewer.teams.nodes) {
+        teamStatesCache.set(team.id, team.states.nodes);
+      }
+
+      return {
+        viewerId: data.viewer.id,
+        teams: data.viewer.teams.nodes,
+      };
+    },
+    enabled: isConnected,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useLinearTeams() {
+  const { data: viewerData, ...rest } = useLinearViewerData();
+  const teams = useMemo<LinearTeam[]>(
+    () =>
+      viewerData?.teams.map((t) => ({
+        id: t.id,
+        name: t.name,
+        displayName: t.displayName,
+        key: t.key,
+      })) ?? [],
+    [viewerData],
+  );
+  return { data: teams, ...rest };
+}
+
+// ---------------------------------------------------------------------------
+// Hook: My Projects (single SDK request, no N+1 risk)
+// ---------------------------------------------------------------------------
 
 export interface LinearProject {
   id: string;
@@ -117,34 +123,6 @@ export const LINEAR_PROJECT_STATUS_TYPE = {
 
 export type LinearProjectStatusType =
   (typeof LINEAR_PROJECT_STATUS_TYPE)[keyof typeof LINEAR_PROJECT_STATUS_TYPE];
-
-export interface LinearTeam {
-  id: string;
-  name: string;
-  displayName: string;
-  key: string;
-}
-
-export function useLinearTeams() {
-  const isConnected = useIsLinearConnected();
-  return useQuery<LinearTeam[]>({
-    queryKey: ["linear", "teams"],
-    queryFn: async () => {
-      const client = getLinearClient();
-      if (!client) return [];
-      const me = await client.viewer;
-      const result = await me.teams();
-      return result.nodes.map((t) => ({
-        id: t.id,
-        name: t.name,
-        displayName: t.displayName,
-        key: t.key,
-      }));
-    },
-    enabled: isConnected,
-    staleTime: 5 * 60 * 1000,
-  });
-}
 
 export function useLinearMyProjects() {
   const isConnected = useIsLinearConnected();
@@ -176,30 +154,23 @@ export function useLinearMyProjects() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Hook: Project Issues (1 GraphQL query replaces N+1 lazy-loaded SDK calls)
+// ---------------------------------------------------------------------------
+
 export function useLinearProjectIssues(
   projectId: string | null,
   teamIds: string[],
 ) {
   const isConnected = useIsLinearConnected();
+  const { data: viewerData } = useLinearViewerData();
 
   return useQuery<EnrichedTask[]>({
     queryKey: ["linear", "project-issues", projectId, teamIds],
     queryFn: async () => {
-      const client = getLinearClient();
-      if (
-        !client ||
-        !projectId ||
-        projectId === ORPHAN_PROJECT_ID ||
-        projectId === OTHER_ISSUES_PROJECT_ID ||
-        teamIds.length === 0
-      )
-        return [];
+      const resolvedIds = resolveTeamIdsFromData(teamIds, viewerData!.teams);
 
-      const resolvedIds = await resolveTeamIds(teamIds);
-      const me = await client.viewer;
-      const viewerId = me.id;
-
-      const issues = await client.issues({
+      const data = await linearQuery<IssuesEnrichedData>(ISSUES_ENRICHED, {
         filter: {
           project: { id: { eq: projectId } },
           team: { id: { in: resolvedIds } },
@@ -217,18 +188,13 @@ export function useLinearProjectIssues(
         first: LINEAR_FETCH_LIMIT,
       });
 
-      const results = await Promise.allSettled(
-        issues.nodes.map((issue) => mapIssueToEnrichedTask(issue, viewerId)),
+      return data.issues.nodes.map((node) =>
+        transformIssueNode(node, viewerData!.viewerId),
       );
-      return results
-        .filter(
-          (r): r is PromiseFulfilledResult<EnrichedTask> =>
-            r.status === "fulfilled",
-        )
-        .map((r) => r.value);
     },
     enabled:
       isConnected &&
+      !!viewerData &&
       !!projectId &&
       projectId !== ORPHAN_PROJECT_ID &&
       projectId !== OTHER_ISSUES_PROJECT_ID &&
@@ -236,6 +202,76 @@ export function useLinearProjectIssues(
     refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Shared internal hook: My Assigned Issues (single query, shared by two hooks)
+// ---------------------------------------------------------------------------
+
+interface MyAssignedIssuesResult {
+  nodes: IssueNode[];
+  viewerId: string;
+}
+
+function useLinearMyAssignedIssues() {
+  const isConnected = useIsLinearConnected();
+  const { data: viewerData } = useLinearViewerData();
+
+  return useQuery<MyAssignedIssuesResult>({
+    queryKey: ["linear", "my-assigned-issues"],
+    queryFn: async () => {
+      const data = await linearQuery<IssuesEnrichedData>(ISSUES_ENRICHED, {
+        filter: {
+          assignee: { isMe: { eq: true } },
+          state: { type: { in: ["triage", "unstarted", "started"] } },
+        },
+        first: LINEAR_FETCH_LIMIT,
+      });
+
+      return { nodes: data.issues.nodes, viewerId: viewerData!.viewerId };
+    },
+    enabled: isConnected && !!viewerData,
+    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Hook: My Active Identifiers (derived from shared query — 0 extra requests)
+// ---------------------------------------------------------------------------
+
+export function useLinearMyActiveIdentifiers() {
+  const queryResult = useLinearMyAssignedIssues();
+
+  const identifiers = useMemo(() => {
+    if (!queryResult.data) return new Set<string>();
+    return new Set(
+      queryResult.data.nodes.map((n) => n.identifier.toLowerCase()),
+    );
+  }, [queryResult.data]);
+
+  return { ...queryResult, data: identifiers };
+}
+
+// ---------------------------------------------------------------------------
+// Hook: Other Issues (derived from shared query — 0 extra requests)
+// ---------------------------------------------------------------------------
+
+export function useLinearOtherIssues(memberProjectIds: string[] | undefined) {
+  const queryResult = useLinearMyAssignedIssues();
+
+  const otherIssues = useMemo(() => {
+    if (!queryResult.data || !memberProjectIds) return undefined;
+    const memberSet = new Set(memberProjectIds);
+    return queryResult.data.nodes
+      .filter((n) => !n.project?.id || !memberSet.has(n.project.id))
+      .map((n) => transformIssueNode(n, queryResult.data!.viewerId));
+  }, [queryResult.data, memberProjectIds]);
+
+  return { ...queryResult, data: otherIssues };
+}
+
+// ---------------------------------------------------------------------------
+// Hook: Issues by Branches (1 GraphQL request per branch)
+// ---------------------------------------------------------------------------
 
 export interface LinearIssueStub {
   id: string;
@@ -247,96 +283,40 @@ export interface LinearIssueStub {
   statusColor: string | null;
 }
 
-export function useLinearMyActiveIdentifiers() {
-  const isConnected = useIsLinearConnected();
-
-  return useQuery<Set<string>>({
-    queryKey: ["linear", "my-active-identifiers"],
-    queryFn: async () => {
-      const client = getLinearClient();
-      if (!client) return new Set();
-      const issues = await client.issues({
-        filter: {
-          assignee: { isMe: { eq: true } },
-          state: { type: { in: ["triage", "unstarted", "started"] } },
-        },
-        first: LINEAR_FETCH_LIMIT,
-      });
-      return new Set(issues.nodes.map((i) => i.identifier.toLowerCase()));
-    },
-    enabled: isConnected,
-    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
-  });
-}
-
-export function useLinearOtherIssues(memberProjectIds: string[] | undefined) {
-  const isConnected = useIsLinearConnected();
-  const hasProjects = memberProjectIds !== undefined;
-
-  return useQuery<EnrichedTask[]>({
-    queryKey: ["linear", "other-issues", memberProjectIds ?? []],
-    queryFn: async () => {
-      const client = getLinearClient();
-      if (!client || !memberProjectIds) return [];
-
-      const me = await client.viewer;
-      const viewerId = me.id;
-
-      const issues = await client.issues({
-        filter: {
-          assignee: { isMe: { eq: true } },
-          state: { type: { in: ["triage", "unstarted", "started"] } },
-        },
-        first: LINEAR_FETCH_LIMIT,
-      });
-
-      // Filter before expensive mapping: keep issues with no project or project not in member list
-      const memberSet = new Set(memberProjectIds);
-      const filtered = issues.nodes.filter((issue) => {
-        const projId = issue.projectId;
-        return !projId || !memberSet.has(projId);
-      });
-
-      const results = await Promise.allSettled(
-        filtered.map((issue) => mapIssueToEnrichedTask(issue, viewerId)),
-      );
-      return results
-        .filter(
-          (r): r is PromiseFulfilledResult<EnrichedTask> =>
-            r.status === "fulfilled",
-        )
-        .map((r) => r.value);
-    },
-    enabled: isConnected && hasProjects,
-    refetchInterval: EXTERNAL_API_REFRESH_INTERVAL,
-  });
-}
-
 export function useLinearIssuesByBranches(branchNames: string[]) {
   const isConnected = useIsLinearConnected();
 
   return useQuery<Map<string, LinearIssueStub>>({
     queryKey: ["linear", "issues-by-branches", branchNames],
     queryFn: async () => {
-      const client = getLinearClient();
-      if (!client || branchNames.length === 0) return new Map();
+      if (branchNames.length === 0) return new Map();
       const map = new Map<string, LinearIssueStub>();
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         branchNames.map(async (branch) => {
-          const issue = await client.issueVcsBranchSearch(branch);
+          const data = await linearQuery<BranchSearchData>(BRANCH_SEARCH, {
+            branchName: branch,
+          });
+          const issue = data.issueVcsBranchSearch;
           if (!issue) return;
-          const state = await issue.state;
           map.set(branch.toLowerCase(), {
             id: issue.id,
             identifier: issue.identifier,
             title: issue.title,
             url: issue.url,
-            status: state?.name ?? "Unknown",
-            statusType: (state?.type as LinearStatusType) ?? null,
-            statusColor: state?.color ?? null,
+            status: issue.state?.name ?? "Unknown",
+            statusType: (issue.state?.type as LinearStatusType) ?? null,
+            statusColor: issue.state?.color ?? null,
           });
         }),
       );
+      const failures = results.filter(
+        (r): r is PromiseRejectedResult => r.status === "rejected",
+      );
+      if (failures.length > 0) {
+        console.warn(
+          `[useLinearIssuesByBranches] ${failures.length}/${branchNames.length} lookups failed`,
+        );
+      }
       return map;
     },
     enabled: isConnected && branchNames.length > 0,
