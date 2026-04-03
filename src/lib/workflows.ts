@@ -445,7 +445,10 @@ async function updateLinearStatusToStarted(issueId: string): Promise<void> {
   // Use cached team states (populated by useLinearViewerData)
   let states = teamStatesCache.get(teamId);
   if (!states) {
-    // Fallback: fetch states directly (rare — only if cache is cold)
+    // Fallback: fetch states via SDK (rare — only if cache is cold)
+    console.warn(
+      `[updateLinearStatusToStarted] teamStatesCache miss for team ${teamId}`,
+    );
     const team = await client.team(teamId);
     const statesResult = await team.states();
     const mapped = statesResult.nodes.map((s) => ({

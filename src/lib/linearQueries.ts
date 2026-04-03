@@ -30,11 +30,14 @@ export const VIEWER_WITH_TEAMS = `
   }
 `;
 
-export interface WorkflowStateNode {
-  id: string;
+export interface WorkflowStateRef {
   name: string;
   type: string;
   color: string;
+}
+
+export interface WorkflowStateNode extends WorkflowStateRef {
+  id: string;
 }
 
 export interface TeamNode {
@@ -103,7 +106,7 @@ export interface IssueRelationNode {
     identifier: string;
     title: string;
     url: string;
-  };
+  } | null;
 }
 
 export interface IssueNode {
@@ -113,7 +116,7 @@ export interface IssueNode {
   description: string | null;
   priority: number;
   url: string;
-  state: { name: string; type: string; color: string } | null;
+  state: WorkflowStateRef | null;
   assignee: { id: string; name: string; displayName: string } | null;
   project: { id: string; name: string } | null;
   inverseRelations: { nodes: IssueRelationNode[] } | null;
@@ -147,7 +150,7 @@ export interface BranchSearchData {
     identifier: string;
     title: string;
     url: string;
-    state: { name: string; type: string; color: string } | null;
+    state: WorkflowStateRef | null;
   } | null;
 }
 

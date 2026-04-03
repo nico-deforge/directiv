@@ -239,14 +239,16 @@ function useLinearMyAssignedIssues() {
 // ---------------------------------------------------------------------------
 
 export function useLinearMyActiveIdentifiers() {
-  const { data, isSuccess } = useLinearMyAssignedIssues();
+  const queryResult = useLinearMyAssignedIssues();
 
   const identifiers = useMemo(() => {
-    if (!data) return new Set<string>();
-    return new Set(data.nodes.map((n) => n.identifier.toLowerCase()));
-  }, [data]);
+    if (!queryResult.data) return new Set<string>();
+    return new Set(
+      queryResult.data.nodes.map((n) => n.identifier.toLowerCase()),
+    );
+  }, [queryResult.data]);
 
-  return { data: identifiers, isSuccess };
+  return { ...queryResult, data: identifiers };
 }
 
 // ---------------------------------------------------------------------------
@@ -254,17 +256,17 @@ export function useLinearMyActiveIdentifiers() {
 // ---------------------------------------------------------------------------
 
 export function useLinearOtherIssues(memberProjectIds: string[] | undefined) {
-  const { data, isLoading, error } = useLinearMyAssignedIssues();
+  const queryResult = useLinearMyAssignedIssues();
 
   const otherIssues = useMemo(() => {
-    if (!data || !memberProjectIds) return undefined;
+    if (!queryResult.data || !memberProjectIds) return undefined;
     const memberSet = new Set(memberProjectIds);
-    return data.nodes
+    return queryResult.data.nodes
       .filter((n) => !n.project?.id || !memberSet.has(n.project.id))
-      .map((n) => transformIssueNode(n, data.viewerId));
-  }, [data, memberProjectIds]);
+      .map((n) => transformIssueNode(n, queryResult.data!.viewerId));
+  }, [queryResult.data, memberProjectIds]);
 
-  return { data: otherIssues, isLoading, error };
+  return { ...queryResult, data: otherIssues };
 }
 
 // ---------------------------------------------------------------------------
@@ -289,7 +291,7 @@ export function useLinearIssuesByBranches(branchNames: string[]) {
     queryFn: async () => {
       if (branchNames.length === 0) return new Map();
       const map = new Map<string, LinearIssueStub>();
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         branchNames.map(async (branch) => {
           const data = await linearQuery<BranchSearchData>(BRANCH_SEARCH, {
             branchName: branch,
@@ -307,6 +309,14 @@ export function useLinearIssuesByBranches(branchNames: string[]) {
           });
         }),
       );
+      const failures = results.filter(
+        (r): r is PromiseRejectedResult => r.status === "rejected",
+      );
+      if (failures.length > 0) {
+        console.warn(
+          `[useLinearIssuesByBranches] ${failures.length}/${branchNames.length} lookups failed`,
+        );
+      }
       return map;
     },
     enabled: isConnected && branchNames.length > 0,
