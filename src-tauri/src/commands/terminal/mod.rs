@@ -151,10 +151,16 @@ async fn dispatch_terminal(
 
     let terminal_ref = match created_ref {
         Some(r) => Some(r),
-        None => controller
+        None => match controller
             .find_session(app, identifier, worktree_path)
             .await
-            .unwrap_or(None),
+        {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("post-create find_session failed (non-fatal): {e}");
+                None
+            }
+        },
     };
 
     // Focus the session to bring the terminal app to the foreground
@@ -176,10 +182,16 @@ async fn dispatch_terminal(
         // Reuse the ref from create/focus; only re-find for backends that didn't return one
         let split_ref = match &terminal_ref {
             Some(_) => terminal_ref.clone(),
-            None => controller
+            None => match controller
                 .find_session(app, identifier, worktree_path)
                 .await
-                .unwrap_or(None),
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    eprintln!("split: find_session failed (non-fatal): {e}");
+                    None
+                }
+            },
         };
 
         if let Some(ref tr) = split_ref {

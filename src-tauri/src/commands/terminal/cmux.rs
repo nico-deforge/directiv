@@ -75,8 +75,8 @@ const CMUX_PING_CACHE_SECS: u64 = 5;
 /// Results are cached for [`CMUX_PING_CACHE_SECS`] seconds to avoid
 /// redundant subprocess spawns during rapid sequences of cmux operations.
 async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
-    {
-        let guard = CMUX_LAST_PING.lock().unwrap();
+    // Treat a poisoned mutex as a cache miss — just re-ping.
+    if let Ok(guard) = CMUX_LAST_PING.lock() {
         if let Some(last) = *guard {
             if last.elapsed().as_secs() < CMUX_PING_CACHE_SECS {
                 return Ok(());
@@ -103,8 +103,7 @@ async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
         );
     }
 
-    {
-        let mut guard = CMUX_LAST_PING.lock().unwrap();
+    if let Ok(mut guard) = CMUX_LAST_PING.lock() {
         *guard = Some(Instant::now());
     }
 
@@ -268,7 +267,7 @@ impl TerminalController for CmuxController {
         Ok(())
     }
 
-    /// Create a new cmux workspace, rename it, cd into the worktree, and launch the startup command.
+    /// Create a new cmux workspace (starting in the worktree directory), rename it, and launch the startup command.
     ///
     /// Returns the workspace ref so callers can skip redundant `find_session` lookups.
     ///
@@ -306,14 +305,7 @@ impl TerminalController for CmuxController {
         .await?;
 
         // Batch-inject DIRECTIV env vars in a single cmux send (avoids 3 subprocess spawns)
-        if !config.env_vars.is_empty() {
-            let exports: String = config
-                .env_vars
-                .iter()
-                .map(|(key, value)| format!("export {}={}", shell_escape(key), shell_escape(value)))
-                .collect::<Vec<_>>()
-                .join(" && ");
-            let batch_cmd = format!("{exports}\r");
+        if let Some(batch_cmd) = build_env_batch_cmd(&config.env_vars) {
             run_cmux(
                 app,
                 &["send", "--workspace", &ws_ref, &batch_cmd],
@@ -783,6 +775,23 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+/// Build a batch `export` command from a map of env vars.
+/// Returns `None` when the map is empty, or `Some("export K1=V1 && export K2=V2\r")`.
+/// Keys are sorted for deterministic output (HashMap iteration order is random).
+fn build_env_batch_cmd(env_vars: &std::collections::HashMap<String, String>) -> Option<String> {
+    if env_vars.is_empty() {
+        return None;
+    }
+    let mut entries: Vec<_> = env_vars.iter().collect();
+    entries.sort_by_key(|(k, _)| k.as_str());
+    let exports: String = entries
+        .iter()
+        .map(|(key, value)| format!("export {}={}", shell_escape(key), shell_escape(value)))
+        .collect::<Vec<_>>()
+        .join(" && ");
+    Some(format!("{exports}\r"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1037,5 +1046,47 @@ mod tests {
     fn test_title_matches_identifier_prefix_without_separator() {
         // "ACQ-145X" should not match "ACQ-145"
         assert!(!title_matches_identifier("ACQ-145X", "ACQ-145"));
+    }
+
+    // --- Batch env var command tests ---
+
+    #[test]
+    fn test_build_env_batch_cmd_multiple() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("A_KEY".to_string(), "value1".to_string());
+        env.insert("B_KEY".to_string(), "value2".to_string());
+        let cmd = build_env_batch_cmd(&env).unwrap();
+        // Keys are sorted, so A_KEY comes before B_KEY
+        assert_eq!(cmd, "export 'A_KEY'='value1' && export 'B_KEY'='value2'\r");
+    }
+
+    #[test]
+    fn test_build_env_batch_cmd_single() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("ONLY".to_string(), "val".to_string());
+        let cmd = build_env_batch_cmd(&env).unwrap();
+        assert_eq!(cmd, "export 'ONLY'='val'\r");
+    }
+
+    #[test]
+    fn test_build_env_batch_cmd_empty() {
+        let env = std::collections::HashMap::new();
+        assert!(build_env_batch_cmd(&env).is_none());
+    }
+
+    #[test]
+    fn test_build_env_batch_cmd_special_chars() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("PATH".to_string(), "/usr/it's/bin".to_string());
+        let cmd = build_env_batch_cmd(&env).unwrap();
+        assert_eq!(cmd, "export 'PATH'='/usr/it'\\''s/bin'\r");
+    }
+
+    #[test]
+    fn test_build_env_batch_cmd_with_spaces() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("DIR".to_string(), "/path with spaces".to_string());
+        let cmd = build_env_batch_cmd(&env).unwrap();
+        assert_eq!(cmd, "export 'DIR'='/path with spaces'\r");
     }
 }

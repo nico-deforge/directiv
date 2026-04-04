@@ -274,7 +274,7 @@ async function ensureSessionCmux(
     worktreePath,
     terminalLayout,
     title,
-    true, // force_create: skip pre-create find_session since we just created the worktree
+    true, // force_create: skip find_session — we're creating a fresh workspace, not re-attaching
   );
 }
 
