@@ -235,7 +235,11 @@ impl TerminalController for GhosttyController {
         Ok(())
     }
 
-    async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
+    async fn create(
+        &self,
+        app: &tauri::AppHandle,
+        config: &TerminalConfig,
+    ) -> Result<Option<TerminalRef>, String> {
         check_ghostty_version(app).await?;
         let script = build_create_script(config);
         let output = app
@@ -253,7 +257,7 @@ impl TerminalController for GhosttyController {
             ));
         }
 
-        Ok(())
+        Ok(None)
     }
 
     async fn split(

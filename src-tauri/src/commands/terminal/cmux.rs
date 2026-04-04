@@ -3,7 +3,8 @@ use super::format_display_name;
 use super::types::{Emulator, TerminalConfig, TerminalRef};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 use tauri_plugin_shell::ShellExt;
 
 pub struct CmuxController;
@@ -62,10 +63,27 @@ async fn run_cmux(
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// Cached timestamp of the last successful `cmux ping`.
+/// Avoids redundant subprocess spawns when multiple controller methods are
+/// called in quick succession (e.g. the create → focus → split flow).
+static CMUX_LAST_PING: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// How long a successful ping result is considered valid.
+const CMUX_PING_CACHE_SECS: u64 = 5;
+
 /// Check that cmux is installed and running via `cmux ping`.
-/// Used as a precondition guard in TerminalController methods and cmux commands
-/// to surface a clear error instead of a cryptic "command not found".
+/// Results are cached for [`CMUX_PING_CACHE_SECS`] seconds to avoid
+/// redundant subprocess spawns during rapid sequences of cmux operations.
 async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
+    {
+        let guard = CMUX_LAST_PING.lock().unwrap();
+        if let Some(last) = *guard {
+            if last.elapsed().as_secs() < CMUX_PING_CACHE_SECS {
+                return Ok(());
+            }
+        }
+    }
+
     let output = app
         .shell()
         .command(resolve_cmux_path())
@@ -83,6 +101,11 @@ async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
             "cmux is not running. Please launch cmux before using it as a terminal backend."
                 .to_string(),
         );
+    }
+
+    {
+        let mut guard = CMUX_LAST_PING.lock().unwrap();
+        *guard = Some(Instant::now());
     }
 
     Ok(())
@@ -247,12 +270,18 @@ impl TerminalController for CmuxController {
 
     /// Create a new cmux workspace, rename it, cd into the worktree, and launch the startup command.
     ///
+    /// Returns the workspace ref so callers can skip redundant `find_session` lookups.
+    ///
     /// Flow:
     /// 1. `cmux new-workspace --cwd <worktree_path>` → returns "OK workspace:N"
-    /// 2. `cmux rename-workspace --workspace <ref> <display_name>` → set display name (identifier + optional title)
-    /// 3. Inject env vars via `cmux send`
+    /// 2. `cmux rename-workspace --workspace <ref> <display_name>` → set display name
+    /// 3. Batch-inject env vars via single `cmux send`
     /// 4. If `config.command` is set: `cmux send --workspace <ref> "<command>\r"` → run it
-    async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
+    async fn create(
+        &self,
+        app: &tauri::AppHandle,
+        config: &TerminalConfig,
+    ) -> Result<Option<TerminalRef>, String> {
         check_cmux_available(app).await?;
 
         // Create the workspace with --cwd to start in the worktree directory
@@ -276,12 +305,18 @@ impl TerminalController for CmuxController {
         )
         .await?;
 
-        // Inject DIRECTIV env vars before launching the command
-        for (key, value) in &config.env_vars {
-            let export_cmd = format!("export {}={}\r", shell_escape(key), shell_escape(value));
+        // Batch-inject DIRECTIV env vars in a single cmux send (avoids 3 subprocess spawns)
+        if !config.env_vars.is_empty() {
+            let exports: String = config
+                .env_vars
+                .iter()
+                .map(|(key, value)| format!("export {}={}", shell_escape(key), shell_escape(value)))
+                .collect::<Vec<_>>()
+                .join(" && ");
+            let batch_cmd = format!("{exports}\r");
             run_cmux(
                 app,
-                &["send", "--workspace", &ws_ref, &export_cmd],
+                &["send", "--workspace", &ws_ref, &batch_cmd],
                 "create:env",
             )
             .await?;
@@ -299,7 +334,10 @@ impl TerminalController for CmuxController {
             .await?;
         }
 
-        Ok(())
+        Ok(Some(TerminalRef {
+            identifier: ws_ref,
+            emulator: Emulator::Cmux,
+        }))
     }
 
     /// Split a cmux workspace by creating a new pane to the right.

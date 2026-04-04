@@ -38,6 +38,7 @@ pub fn format_display_name(identifier: &str, title: Option<&str>) -> String {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn open_terminal(
     app: tauri::AppHandle,
@@ -47,8 +48,10 @@ pub async fn open_terminal(
     worktree_path: String,
     title: Option<String>,
     layout: Option<types::TerminalLayout>,
+    force_create: Option<bool>,
 ) -> Result<bool, String> {
     let layout = layout.unwrap_or_default();
+    let force = force_create.unwrap_or(false);
 
     match emulator {
         Emulator::Ghostty => {
@@ -61,6 +64,7 @@ pub async fn open_terminal(
                 title.as_deref(),
                 layout,
                 &emulator,
+                force,
             )
             .await
         }
@@ -74,6 +78,7 @@ pub async fn open_terminal(
                 title.as_deref(),
                 layout,
                 &emulator,
+                force,
             )
             .await
         }
@@ -87,6 +92,7 @@ pub async fn open_terminal(
                 title.as_deref(),
                 layout,
                 &emulator,
+                force,
             )
             .await
         }
@@ -103,15 +109,19 @@ async fn dispatch_terminal(
     title: Option<&str>,
     layout: types::TerminalLayout,
     emulator: &Emulator,
+    force_create: bool,
 ) -> Result<bool, String> {
-    if let Some(terminal_ref) = controller
-        .find_session(app, identifier, worktree_path)
-        .await?
-    {
-        match controller.focus(app, &terminal_ref).await {
-            Ok(()) => return Ok(true),
-            Err(e) => {
-                eprintln!("Focus failed (stale ref?), creating new: {e}");
+    // When force_create is false (re-attach flow), try to find and focus an existing session.
+    if !force_create {
+        if let Some(terminal_ref) = controller
+            .find_session(app, identifier, worktree_path)
+            .await?
+        {
+            match controller.focus(app, &terminal_ref).await {
+                Ok(()) => return Ok(true),
+                Err(e) => {
+                    eprintln!("Focus failed (stale ref?), creating new: {e}");
+                }
             }
         }
     }
@@ -135,24 +145,25 @@ async fn dispatch_terminal(
         env_vars,
     };
 
-    controller.create(app, &config).await?;
+    // create() returns Some(ref) for backends that provide a direct handle (cmux),
+    // or None when a post-create find_session is needed (Ghostty, iTerm2).
+    let created_ref = controller.create(app, &config).await?;
 
-    // After creation, find and focus the new session (brings the app to the foreground)
-    match controller
-        .find_session(app, identifier, worktree_path)
-        .await
-    {
-        Ok(Some(terminal_ref)) => {
-            if let Err(e) = controller.focus(app, &terminal_ref).await {
-                eprintln!("post-create focus failed (non-fatal): {e}");
-            }
+    let terminal_ref = match created_ref {
+        Some(r) => Some(r),
+        None => controller
+            .find_session(app, identifier, worktree_path)
+            .await
+            .unwrap_or(None),
+    };
+
+    // Focus the session to bring the terminal app to the foreground
+    if let Some(ref tr) = terminal_ref {
+        if let Err(e) = controller.focus(app, tr).await {
+            eprintln!("post-create focus failed (non-fatal): {e}");
         }
-        Ok(None) => {
-            eprintln!("post-create find_session returned None for {identifier}");
-        }
-        Err(e) => {
-            eprintln!("post-create find_session failed (non-fatal): {e}");
-        }
+    } else {
+        eprintln!("post-create: no terminal ref for {identifier}");
     }
 
     if should_split {
@@ -162,21 +173,21 @@ async fn dispatch_terminal(
             tokio::time::sleep(std::time::Duration::from_millis(150)).await;
         }
 
-        match controller
-            .find_session(app, identifier, worktree_path)
-            .await
-        {
-            Ok(Some(terminal_ref)) => {
-                if let Err(e) = controller.split(app, &terminal_ref, worktree_path).await {
-                    eprintln!("split failed (non-fatal): {e}");
-                }
+        // Reuse the ref from create/focus; only re-find for backends that didn't return one
+        let split_ref = match &terminal_ref {
+            Some(_) => terminal_ref.clone(),
+            None => controller
+                .find_session(app, identifier, worktree_path)
+                .await
+                .unwrap_or(None),
+        };
+
+        if let Some(ref tr) = split_ref {
+            if let Err(e) = controller.split(app, tr, worktree_path).await {
+                eprintln!("split failed (non-fatal): {e}");
             }
-            Ok(None) => {
-                eprintln!("split: session not found, skipping for {identifier}");
-            }
-            Err(e) => {
-                eprintln!("split: find_session failed (non-fatal): {e}");
-            }
+        } else {
+            eprintln!("split: session not found, skipping for {identifier}");
         }
     }
 

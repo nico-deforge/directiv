@@ -247,7 +247,11 @@ impl TerminalController for ITermController {
         Ok(())
     }
 
-    async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
+    async fn create(
+        &self,
+        app: &tauri::AppHandle,
+        config: &TerminalConfig,
+    ) -> Result<Option<TerminalRef>, String> {
         let check = app
             .shell()
             .command("tmux")
@@ -261,7 +265,7 @@ impl TerminalController for ITermController {
 
         let script = build_create_script(config);
         run_osascript(app, &script, "create").await?;
-        Ok(())
+        Ok(None)
     }
 
     async fn split(

@@ -138,6 +138,7 @@ export function openTerminal(
   worktreePath: string,
   layout?: string,
   title?: string,
+  forceCreate?: boolean,
 ): Promise<boolean> {
   return invoke<boolean>("open_terminal", {
     emulator,
@@ -146,6 +147,7 @@ export function openTerminal(
     worktreePath,
     title,
     layout,
+    forceCreate,
   });
 }
 
