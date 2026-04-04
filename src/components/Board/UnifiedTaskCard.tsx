@@ -405,7 +405,7 @@ export function UnifiedTaskCard({ id, data }: NodeProps<UnifiedTaskNodeType>) {
     const { skill, usePlugin, model } = getRepoSkillParams(pendingSkillKey);
     const { terminalLayout } = useSettingsStore.getState().config;
     // ensureWorktree inside startTask handles existing branches — no manual
-    // wtSwitchCreate needed.
+    // worktree creation needed.
     startTask.mutate(
       {
         issueId: task.id,

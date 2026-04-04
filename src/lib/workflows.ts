@@ -5,8 +5,8 @@ import { linearQuery } from "./linearGraphQL";
 import { ISSUE_TEAM_ID, type IssueTeamIdData } from "./linearQueries";
 import { teamStatesCache } from "../hooks/useLinear";
 import {
-  wtList,
-  wtSwitchCreate,
+  wtListLite,
+  wtSwitchCreateNoHooks,
   tmuxCreateSession,
   tmuxKillSession,
   tmuxListSessions,
@@ -215,7 +215,7 @@ async function ensureWorktree(
   repoPath: string,
   branchName: string,
 ): Promise<{ path: string }> {
-  const worktrees = await wtList(repoPath);
+  const worktrees = await wtListLite(repoPath);
   const existing = worktrees.find((w) => w.branch === branchName);
   if (existing) {
     if (worktrees.indexOf(existing) === 0) {
@@ -224,7 +224,7 @@ async function ensureWorktree(
     return existing;
   }
   try {
-    return await wtSwitchCreate(repoPath, branchName);
+    return await wtSwitchCreateNoHooks(repoPath, branchName);
   } catch (err) {
     throw parseWorktreeError(err, repoPath);
   }
@@ -274,6 +274,7 @@ async function ensureSessionCmux(
     worktreePath,
     terminalLayout,
     title,
+    true, // force_create: skip find_session — we're creating a fresh workspace, not re-attaching
   );
 }
 
@@ -345,20 +346,17 @@ export async function startTask({
   usePlugin,
   model,
 }: StartTaskParams): Promise<void> {
-  const worktree = await ensureWorktree(repoPath, identifier);
+  // Parallelize worktree creation and Claude command building (no dependency between them)
+  const [worktree, claudeCmd] = await Promise.all([
+    ensureWorktree(repoPath, identifier),
+    buildClaudeCommand(skill, identifier, usePlugin, model),
+  ]);
 
   // Step 1: worktree created — 20% progress
   if (terminal === "cmux") {
     void pushProgress(identifier, CMUX_PROGRESS.WORKTREE_CREATED);
     void pushLog(identifier, CMUX_LOG_LEVELS.INFO, "Worktree created");
   }
-
-  const claudeCmd = await buildClaudeCommand(
-    skill,
-    identifier,
-    usePlugin,
-    model,
-  );
 
   if (terminal === "cmux") {
     // cmux manages its own sessions — no tmux required.
@@ -387,7 +385,8 @@ export async function startTask({
     );
   }
 
-  await updateLinearStatusToStarted(issueId).catch((err) => {
+  // Fire-and-forget: Linear status update is non-critical and shouldn't block the UI
+  void updateLinearStatusToStarted(issueId).catch((err) => {
     toast.warning(
       `Failed to update Linear status: ${err instanceof Error ? err.message : String(err)}`,
     );

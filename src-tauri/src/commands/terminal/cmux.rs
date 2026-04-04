@@ -2,8 +2,10 @@ use super::controller::TerminalController;
 use super::format_display_name;
 use super::types::{Emulator, TerminalConfig, TerminalRef};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 use tauri_plugin_shell::ShellExt;
 
 pub struct CmuxController;
@@ -62,10 +64,32 @@ async fn run_cmux(
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+/// Cached timestamp of the last successful `cmux ping`.
+/// Avoids redundant subprocess spawns when multiple controller methods are
+/// called in quick succession (e.g. the create → focus → split flow).
+static CMUX_LAST_PING: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// How long a successful ping result is considered valid.
+const CMUX_PING_CACHE_SECS: u64 = 5;
+
+/// Cache of identifier → workspace ref, populated by `create()`, consumed by `close_workspace()`.
+/// Avoids a costly `cmux tree --all --json` call (~190ms) when closing a workspace
+/// whose ref was already known at creation time.
+static WORKSPACE_REF_CACHE: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
+
 /// Check that cmux is installed and running via `cmux ping`.
-/// Used as a precondition guard in TerminalController methods and cmux commands
-/// to surface a clear error instead of a cryptic "command not found".
+/// Results are cached for [`CMUX_PING_CACHE_SECS`] seconds to avoid
+/// redundant subprocess spawns during rapid sequences of cmux operations.
 async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
+    // Treat a poisoned mutex as a cache miss — just re-ping.
+    if let Ok(guard) = CMUX_LAST_PING.lock() {
+        if let Some(last) = *guard {
+            if last.elapsed().as_secs() < CMUX_PING_CACHE_SECS {
+                return Ok(());
+            }
+        }
+    }
+
     let output = app
         .shell()
         .command(resolve_cmux_path())
@@ -83,6 +107,10 @@ async fn check_cmux_available(app: &tauri::AppHandle) -> Result<(), String> {
             "cmux is not running. Please launch cmux before using it as a terminal backend."
                 .to_string(),
         );
+    }
+
+    if let Ok(mut guard) = CMUX_LAST_PING.lock() {
+        *guard = Some(Instant::now());
     }
 
     Ok(())
@@ -245,27 +273,43 @@ impl TerminalController for CmuxController {
         Ok(())
     }
 
-    /// Create a new cmux workspace, rename it, cd into the worktree, and launch the startup command.
+    /// Create a new cmux workspace (starting in the worktree directory), rename it, and launch the startup command.
     ///
-    /// Flow:
-    /// 1. `cmux new-workspace --cwd <worktree_path>` → returns "OK workspace:N"
-    /// 2. `cmux rename-workspace --workspace <ref> <display_name>` → set display name (identifier + optional title)
-    /// 3. Inject env vars via `cmux send`
-    /// 4. If `config.command` is set: `cmux send --workspace <ref> "<command>\r"` → run it
-    async fn create(&self, app: &tauri::AppHandle, config: &TerminalConfig) -> Result<(), String> {
+    /// Returns the workspace ref so callers can skip redundant `find_session` lookups.
+    ///
+    /// Flow (optimized — 3 cmux calls instead of 4, with focus inlined):
+    /// 1. `cmux new-workspace --cwd <path> --command "<env_exports> && <startup_cmd>"` → create + launch
+    /// 2. `cmux rename-workspace --workspace <ref> <display_name>` → set display name
+    /// 3. `cmux select-workspace --workspace <ref>` + `open -a cmux` → focus (inlined from dispatch_terminal)
+    async fn create(
+        &self,
+        app: &tauri::AppHandle,
+        config: &TerminalConfig,
+    ) -> Result<Option<TerminalRef>, String> {
         check_cmux_available(app).await?;
 
-        // Create the workspace with --cwd to start in the worktree directory
-        let output = run_cmux(
-            app,
-            &["new-workspace", "--cwd", &config.worktree_path],
-            "create",
-        )
-        .await?;
+        // Build a single --command string that sets env vars and launches the startup command.
+        // This replaces the previous 2 separate `cmux send` calls with the --command flag.
+        let startup_command = build_startup_command(&config.env_vars, config.command.as_deref());
+
+        let mut args = vec!["new-workspace", "--cwd", &config.worktree_path];
+        if let Some(ref cmd) = startup_command {
+            args.push("--command");
+            args.push(cmd);
+        }
+
+        let output = run_cmux(app, &args, "create").await?;
 
         // Parse workspace ref from "OK workspace:N" output
         let ws_ref = parse_workspace_ref(&output)
             .ok_or_else(|| format!("cmux create: unexpected output: {output}"))?;
+
+        // Cache identifier → ref so close_workspace() can skip the listing
+        if let Ok(mut guard) = WORKSPACE_REF_CACHE.lock() {
+            guard
+                .get_or_insert_with(HashMap::new)
+                .insert(config.identifier.clone(), ws_ref.clone());
+        }
 
         // Rename the workspace to include the task title (e.g., "ACQ-145 — Fix login timeout")
         let display_name = format_display_name(&config.identifier, config.title.as_deref());
@@ -276,30 +320,34 @@ impl TerminalController for CmuxController {
         )
         .await?;
 
-        // Inject DIRECTIV env vars before launching the command
-        for (key, value) in &config.env_vars {
-            let export_cmd = format!("export {}={}\r", shell_escape(key), shell_escape(value));
-            run_cmux(
-                app,
-                &["send", "--workspace", &ws_ref, &export_cmd],
-                "create:env",
-            )
-            .await?;
+        // Focus the new workspace and bring cmux to the foreground.
+        // Done here instead of dispatch_terminal's post-create focus() to avoid
+        // an extra check_cmux_available() + 2 subprocess calls.
+        run_cmux(
+            app,
+            &["select-workspace", "--workspace", &ws_ref],
+            "create:focus",
+        )
+        .await?;
+        match app
+            .shell()
+            .command("open")
+            .args(["-a", "cmux"])
+            .output()
+            .await
+        {
+            Ok(out) if !out.status.success() => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                eprintln!("cmux create:focus: 'open -a cmux' failed: {stderr}");
+            }
+            Err(e) => eprintln!("cmux create:focus: failed to run 'open': {e}"),
+            _ => {}
         }
 
-        // Send the startup command if provided.
-        // cmux send passes raw text to the terminal — no shell escaping needed.
-        if let Some(cmd) = &config.command {
-            let cmd_with_enter = format!("{cmd}\r");
-            run_cmux(
-                app,
-                &["send", "--workspace", &ws_ref, &cmd_with_enter],
-                "create:command",
-            )
-            .await?;
-        }
-
-        Ok(())
+        Ok(Some(TerminalRef {
+            identifier: ws_ref,
+            emulator: Emulator::Cmux,
+        }))
     }
 
     /// Split a cmux workspace by creating a new pane to the right.
@@ -344,6 +392,44 @@ impl TerminalController for CmuxController {
 pub async fn close_workspace(app: &tauri::AppHandle, name: &str) -> Result<(), String> {
     check_cmux_available(app).await?;
 
+    // Fast path: try cached ref from create() to skip the ~190ms listing.
+    // If the cached ref is stale (workspace closed externally, ref reused),
+    // fall back to the slow path instead of closing the wrong workspace.
+    let cached_ref = WORKSPACE_REF_CACHE
+        .lock()
+        .ok()
+        .and_then(|cache| cache.as_ref().and_then(|map| map.get(name).cloned()));
+
+    if let Some(r) = cached_ref {
+        match run_cmux(
+            app,
+            &["close-workspace", "--workspace", &r],
+            "close_workspace",
+        )
+        .await
+        {
+            Ok(_) => {
+                // Clean up cache entry on success
+                if let Ok(mut guard) = WORKSPACE_REF_CACHE.lock() {
+                    if let Some(map) = guard.as_mut() {
+                        map.remove(name);
+                    }
+                }
+                return Ok(());
+            }
+            Err(e) => {
+                // Stale ref — clean cache and fall through to slow path
+                eprintln!("close_workspace: cached ref {r} failed ({e}), falling back to listing");
+                if let Ok(mut guard) = WORKSPACE_REF_CACHE.lock() {
+                    if let Some(map) = guard.as_mut() {
+                        map.remove(name);
+                    }
+                }
+            }
+        }
+    }
+
+    // Slow path: list workspaces and find by title
     let workspaces = list_cmux_workspaces(app).await?;
 
     let ws_ref = workspaces
@@ -745,6 +831,45 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+/// Build a batch `export` command from a map of env vars.
+/// Returns `None` when the map is empty, or `Some("export K1=V1 && export K2=V2\r")`.
+/// Keys are sorted for deterministic output (HashMap iteration order is random).
+fn build_env_batch_cmd(env_vars: &std::collections::HashMap<String, String>) -> Option<String> {
+    if env_vars.is_empty() {
+        return None;
+    }
+    let mut entries: Vec<_> = env_vars.iter().collect();
+    entries.sort_by_key(|(k, _)| k.as_str());
+    let exports: String = entries
+        .iter()
+        .map(|(key, value)| format!("export {}={}", shell_escape(key), shell_escape(value)))
+        .collect::<Vec<_>>()
+        .join(" && ");
+    Some(format!("{exports}\r"))
+}
+
+/// Build a single command string that sets env vars and runs the startup command.
+/// Used with `cmux new-workspace --command` to avoid separate `cmux send` calls.
+///
+/// Returns `None` when there are no env vars and no startup command.
+/// Returns `"export A=1 && export B=2 && claude '...'"` when both are present.
+fn build_startup_command(
+    env_vars: &std::collections::HashMap<String, String>,
+    startup_cmd: Option<&str>,
+) -> Option<String> {
+    let env_part = build_env_batch_cmd(env_vars).map(|s| {
+        // Strip the trailing \r — cmux --command sends Enter automatically
+        s.trim_end_matches('\r').to_string()
+    });
+
+    match (env_part, startup_cmd) {
+        (Some(env), Some(cmd)) => Some(format!("{env} && {cmd}")),
+        (Some(env), None) => Some(env),
+        (None, Some(cmd)) => Some(cmd.to_string()),
+        (None, None) => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -999,5 +1124,78 @@ mod tests {
     fn test_title_matches_identifier_prefix_without_separator() {
         // "ACQ-145X" should not match "ACQ-145"
         assert!(!title_matches_identifier("ACQ-145X", "ACQ-145"));
+    }
+
+    // --- Batch env var command tests ---
+
+    #[test]
+    fn test_build_env_batch_cmd_multiple() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("A_KEY".to_string(), "value1".to_string());
+        env.insert("B_KEY".to_string(), "value2".to_string());
+        let cmd = build_env_batch_cmd(&env).unwrap();
+        // Keys are sorted, so A_KEY comes before B_KEY
+        assert_eq!(cmd, "export 'A_KEY'='value1' && export 'B_KEY'='value2'\r");
+    }
+
+    #[test]
+    fn test_build_env_batch_cmd_single() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("ONLY".to_string(), "val".to_string());
+        let cmd = build_env_batch_cmd(&env).unwrap();
+        assert_eq!(cmd, "export 'ONLY'='val'\r");
+    }
+
+    #[test]
+    fn test_build_env_batch_cmd_empty() {
+        let env = std::collections::HashMap::new();
+        assert!(build_env_batch_cmd(&env).is_none());
+    }
+
+    #[test]
+    fn test_build_env_batch_cmd_special_chars() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("PATH".to_string(), "/usr/it's/bin".to_string());
+        let cmd = build_env_batch_cmd(&env).unwrap();
+        assert_eq!(cmd, "export 'PATH'='/usr/it'\\''s/bin'\r");
+    }
+
+    #[test]
+    fn test_build_env_batch_cmd_with_spaces() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("DIR".to_string(), "/path with spaces".to_string());
+        let cmd = build_env_batch_cmd(&env).unwrap();
+        assert_eq!(cmd, "export 'DIR'='/path with spaces'\r");
+    }
+
+    #[test]
+    fn test_build_startup_command_both() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("A".to_string(), "1".to_string());
+        let result = build_startup_command(&env, Some("claude --help"));
+        assert_eq!(result, Some("export 'A'='1' && claude --help".to_string()));
+    }
+
+    #[test]
+    fn test_build_startup_command_env_only() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("A".to_string(), "1".to_string());
+        let result = build_startup_command(&env, None);
+        // No trailing \r — cmux --command sends Enter automatically
+        assert_eq!(result, Some("export 'A'='1'".to_string()));
+    }
+
+    #[test]
+    fn test_build_startup_command_cmd_only() {
+        let env = std::collections::HashMap::new();
+        let result = build_startup_command(&env, Some("claude --help"));
+        assert_eq!(result, Some("claude --help".to_string()));
+    }
+
+    #[test]
+    fn test_build_startup_command_neither() {
+        let env = std::collections::HashMap::new();
+        let result = build_startup_command(&env, None);
+        assert!(result.is_none());
     }
 }

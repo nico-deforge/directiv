@@ -170,12 +170,40 @@ pub struct WtSwitchCreateResult {
     pub path: String,
 }
 
-// --- wt_switch_create command ---
+// --- Helpers ---
 
-/// Create a worktree for `branch_name` rooted at `repo_path` using `wt switch --create`.
-/// Returns the path of the newly created worktree.
+/// Resolve the worktree path from `wt switch --create --no-cd` stdout.
+/// If stdout is empty (older wt versions), falls back to `wt list --format=json`.
+async fn resolve_worktree_path(
+    app: &tauri::AppHandle,
+    repo_path: &str,
+    branch_name: &str,
+    stdout: &[u8],
+) -> Result<String, String> {
+    let path = String::from_utf8_lossy(stdout).trim().to_string();
+    if !path.is_empty() {
+        return Ok(path);
+    }
+
+    // Fallback: resolve the path via `wt list --format=json`.
+    let list_stdout = run_wt(app, &["list", "--format=json", "-C", repo_path]).await?;
+    let entries: Vec<WtListEntry> = serde_json::from_slice(&list_stdout)
+        .map_err(|e| format!("Failed to parse wt list output: {e}"))?;
+
+    entries
+        .into_iter()
+        .find(|e| e.branch.as_deref() == Some(branch_name))
+        .map(|e| e.path)
+        .ok_or_else(|| format!("Worktree for branch '{branch_name}' not found after creation"))
+}
+
+// --- wt_switch_create_no_hooks command ---
+
+/// Create a worktree without blocking on post-create hooks.
+/// Uses `--no-verify` to skip hooks, then spawns `wt hook post-create` in the background.
+/// Returns immediately after the worktree directory is created (~200ms instead of 1-5s).
 #[tauri::command]
-pub async fn wt_switch_create(
+pub async fn wt_switch_create_no_hooks(
     app: tauri::AppHandle,
     repo_path: String,
     branch_name: String,
@@ -187,6 +215,7 @@ pub async fn wt_switch_create(
             "--create",
             "--yes",
             "--no-cd",
+            "--no-verify",
             "-C",
             &repo_path,
             &branch_name,
@@ -194,24 +223,24 @@ pub async fn wt_switch_create(
     )
     .await?;
 
-    // wt switch --create --no-cd prints the worktree path on stdout.
-    let path = String::from_utf8_lossy(&stdout).trim().to_string();
+    let result_path = resolve_worktree_path(&app, &repo_path, &branch_name, &stdout).await?;
 
-    if !path.is_empty() {
-        return Ok(WtSwitchCreateResult { path });
-    }
+    // Spawn post-create hooks in the background — they'll run while Claude starts up.
+    let app_clone = app.clone();
+    let repo_clone = repo_path.clone();
+    let branch_clone = branch_name.clone();
+    tokio::spawn(async move {
+        if let Err(e) = run_wt(
+            &app_clone,
+            &["hook", "post-create", "--yes", "-C", &repo_clone],
+        )
+        .await
+        {
+            log::warn!("Background post-create hooks failed for branch '{branch_clone}': {e}");
+        }
+    });
 
-    // Fallback: resolve the path via `wt list --format=json`.
-    let list_stdout = run_wt(&app, &["list", "--format=json", "-C", &repo_path]).await?;
-    let entries: Vec<WtListEntry> = serde_json::from_slice(&list_stdout)
-        .map_err(|e| format!("Failed to parse wt list output: {e}"))?;
-
-    let entry = entries
-        .into_iter()
-        .find(|e| e.branch.as_deref() == Some(&branch_name))
-        .ok_or_else(|| format!("Worktree for branch '{branch_name}' not found after creation"))?;
-
-    Ok(WtSwitchCreateResult { path: entry.path })
+    Ok(WtSwitchCreateResult { path: result_path })
 }
 
 // --- wt_remove command ---
@@ -329,6 +358,42 @@ pub async fn wt_list(
                 ci_stale,
                 dev_url,
                 dev_url_active,
+            })
+        })
+        .collect();
+
+    Ok(worktrees)
+}
+
+// --- Lightweight worktree list (branch + path only, no git status/diff/CI) ---
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WtWorktreeInfoLite {
+    pub branch: String,
+    pub path: String,
+}
+
+/// List worktrees with only branch name and path (no `--full`).
+/// Much faster than `wt_list` because it skips git status, diff, ahead/behind, and CI checks.
+/// Used by `ensureWorktree()` which only needs to check if a branch exists.
+#[tauri::command]
+pub async fn wt_list_lite(
+    app: tauri::AppHandle,
+    repo_path: String,
+) -> Result<Vec<WtWorktreeInfoLite>, String> {
+    let stdout = run_wt(&app, &["list", "--format=json", "-C", &repo_path]).await?;
+
+    let entries: Vec<WtListEntry> = serde_json::from_slice(&stdout)
+        .map_err(|e| format!("Failed to parse wt list output: {e}"))?;
+
+    let worktrees = entries
+        .into_iter()
+        .filter_map(|entry| {
+            let branch = entry.branch?;
+            Some(WtWorktreeInfoLite {
+                branch,
+                path: entry.path,
             })
         })
         .collect();
