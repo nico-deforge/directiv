@@ -271,9 +271,10 @@ impl TerminalController for CmuxController {
     ///
     /// Returns the workspace ref so callers can skip redundant `find_session` lookups.
     ///
-    /// Flow (optimized — 2 subprocess calls instead of 4):
+    /// Flow (optimized — 3 cmux calls instead of 4, with focus inlined):
     /// 1. `cmux new-workspace --cwd <path> --command "<env_exports> && <startup_cmd>"` → create + launch
     /// 2. `cmux rename-workspace --workspace <ref> <display_name>` → set display name
+    /// 3. `cmux select-workspace --workspace <ref>` + `open -a cmux` → focus (inlined from dispatch_terminal)
     async fn create(
         &self,
         app: &tauri::AppHandle,
@@ -315,12 +316,20 @@ impl TerminalController for CmuxController {
             "create:focus",
         )
         .await?;
-        let _ = app
+        match app
             .shell()
             .command("open")
             .args(["-a", "cmux"])
             .output()
-            .await;
+            .await
+        {
+            Ok(out) if !out.status.success() => {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                eprintln!("cmux create:focus: 'open -a cmux' failed: {stderr}");
+            }
+            Err(e) => eprintln!("cmux create:focus: failed to run 'open': {e}"),
+            _ => {}
+        }
 
         Ok(Some(TerminalRef {
             identifier: ws_ref,
@@ -1106,5 +1115,36 @@ mod tests {
         env.insert("DIR".to_string(), "/path with spaces".to_string());
         let cmd = build_env_batch_cmd(&env).unwrap();
         assert_eq!(cmd, "export 'DIR'='/path with spaces'\r");
+    }
+
+    #[test]
+    fn test_build_startup_command_both() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("A".to_string(), "1".to_string());
+        let result = build_startup_command(&env, Some("claude --help"));
+        assert_eq!(result, Some("export 'A'='1' && claude --help".to_string()));
+    }
+
+    #[test]
+    fn test_build_startup_command_env_only() {
+        let mut env = std::collections::HashMap::new();
+        env.insert("A".to_string(), "1".to_string());
+        let result = build_startup_command(&env, None);
+        // No trailing \r — cmux --command sends Enter automatically
+        assert_eq!(result, Some("export 'A'='1'".to_string()));
+    }
+
+    #[test]
+    fn test_build_startup_command_cmd_only() {
+        let env = std::collections::HashMap::new();
+        let result = build_startup_command(&env, Some("claude --help"));
+        assert_eq!(result, Some("claude --help".to_string()));
+    }
+
+    #[test]
+    fn test_build_startup_command_neither() {
+        let env = std::collections::HashMap::new();
+        let result = build_startup_command(&env, None);
+        assert!(result.is_none());
     }
 }

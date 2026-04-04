@@ -54,7 +54,6 @@ pub fn run() {
             commands::wt::wt_version,
             commands::wt::wt_list,
             commands::wt::wt_list_lite,
-            commands::wt::wt_switch_create,
             commands::wt::wt_switch_create_no_hooks,
             commands::wt::wt_remove,
             commands::wt::wt_merge,

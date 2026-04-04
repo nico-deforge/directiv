@@ -170,48 +170,31 @@ pub struct WtSwitchCreateResult {
     pub path: String,
 }
 
-// --- wt_switch_create command ---
+// --- Helpers ---
 
-/// Create a worktree for `branch_name` rooted at `repo_path` using `wt switch --create`.
-/// Returns the path of the newly created worktree.
-#[tauri::command]
-pub async fn wt_switch_create(
-    app: tauri::AppHandle,
-    repo_path: String,
-    branch_name: String,
-) -> Result<WtSwitchCreateResult, String> {
-    let stdout = run_wt(
-        &app,
-        &[
-            "switch",
-            "--create",
-            "--yes",
-            "--no-cd",
-            "-C",
-            &repo_path,
-            &branch_name,
-        ],
-    )
-    .await?;
-
-    // wt switch --create --no-cd prints the worktree path on stdout.
-    let path = String::from_utf8_lossy(&stdout).trim().to_string();
-
+/// Resolve the worktree path from `wt switch --create --no-cd` stdout.
+/// If stdout is empty (older wt versions), falls back to `wt list --format=json`.
+async fn resolve_worktree_path(
+    app: &tauri::AppHandle,
+    repo_path: &str,
+    branch_name: &str,
+    stdout: &[u8],
+) -> Result<String, String> {
+    let path = String::from_utf8_lossy(stdout).trim().to_string();
     if !path.is_empty() {
-        return Ok(WtSwitchCreateResult { path });
+        return Ok(path);
     }
 
     // Fallback: resolve the path via `wt list --format=json`.
-    let list_stdout = run_wt(&app, &["list", "--format=json", "-C", &repo_path]).await?;
+    let list_stdout = run_wt(app, &["list", "--format=json", "-C", repo_path]).await?;
     let entries: Vec<WtListEntry> = serde_json::from_slice(&list_stdout)
         .map_err(|e| format!("Failed to parse wt list output: {e}"))?;
 
-    let entry = entries
+    entries
         .into_iter()
-        .find(|e| e.branch.as_deref() == Some(&branch_name))
-        .ok_or_else(|| format!("Worktree for branch '{branch_name}' not found after creation"))?;
-
-    Ok(WtSwitchCreateResult { path: entry.path })
+        .find(|e| e.branch.as_deref() == Some(branch_name))
+        .map(|e| e.path)
+        .ok_or_else(|| format!("Worktree for branch '{branch_name}' not found after creation"))
 }
 
 // --- wt_switch_create_no_hooks command ---
@@ -240,27 +223,12 @@ pub async fn wt_switch_create_no_hooks(
     )
     .await?;
 
-    let path = String::from_utf8_lossy(&stdout).trim().to_string();
-
-    let result_path = if !path.is_empty() {
-        path
-    } else {
-        // Fallback: resolve the path via `wt list --format=json`.
-        let list_stdout = run_wt(&app, &["list", "--format=json", "-C", &repo_path]).await?;
-        let entries: Vec<WtListEntry> = serde_json::from_slice(&list_stdout)
-            .map_err(|e| format!("Failed to parse wt list output: {e}"))?;
-        entries
-            .into_iter()
-            .find(|e| e.branch.as_deref() == Some(&branch_name))
-            .ok_or_else(|| {
-                format!("Worktree for branch '{branch_name}' not found after creation")
-            })?
-            .path
-    };
+    let result_path = resolve_worktree_path(&app, &repo_path, &branch_name, &stdout).await?;
 
     // Spawn post-create hooks in the background — they'll run while Claude starts up.
     let app_clone = app.clone();
     let repo_clone = repo_path.clone();
+    let branch_clone = branch_name.clone();
     tokio::spawn(async move {
         if let Err(e) = run_wt(
             &app_clone,
@@ -268,7 +236,7 @@ pub async fn wt_switch_create_no_hooks(
         )
         .await
         {
-            eprintln!("[wt_switch_create_no_hooks] background hooks failed: {e}");
+            log::warn!("Background post-create hooks failed for branch '{branch_clone}': {e}");
         }
     });
 
