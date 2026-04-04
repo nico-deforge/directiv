@@ -163,10 +163,13 @@ async fn dispatch_terminal(
         },
     };
 
-    // Focus the session to bring the terminal app to the foreground
+    // Focus the session to bring the terminal app to the foreground.
+    // cmux handles focus inside create() — skip redundant focus call.
     if let Some(ref tr) = terminal_ref {
-        if let Err(e) = controller.focus(app, tr).await {
-            eprintln!("post-create focus failed (non-fatal): {e}");
+        if !matches!(emulator, Emulator::Cmux) {
+            if let Err(e) = controller.focus(app, tr).await {
+                eprintln!("post-create focus failed (non-fatal): {e}");
+            }
         }
     } else {
         eprintln!("post-create: no terminal ref for {identifier}");

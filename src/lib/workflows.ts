@@ -5,8 +5,8 @@ import { linearQuery } from "./linearGraphQL";
 import { ISSUE_TEAM_ID, type IssueTeamIdData } from "./linearQueries";
 import { teamStatesCache } from "../hooks/useLinear";
 import {
-  wtList,
-  wtSwitchCreate,
+  wtListLite,
+  wtSwitchCreateNoHooks,
   tmuxCreateSession,
   tmuxKillSession,
   tmuxListSessions,
@@ -215,7 +215,7 @@ async function ensureWorktree(
   repoPath: string,
   branchName: string,
 ): Promise<{ path: string }> {
-  const worktrees = await wtList(repoPath);
+  const worktrees = await wtListLite(repoPath);
   const existing = worktrees.find((w) => w.branch === branchName);
   if (existing) {
     if (worktrees.indexOf(existing) === 0) {
@@ -224,7 +224,7 @@ async function ensureWorktree(
     return existing;
   }
   try {
-    return await wtSwitchCreate(repoPath, branchName);
+    return await wtSwitchCreateNoHooks(repoPath, branchName);
   } catch (err) {
     throw parseWorktreeError(err, repoPath);
   }

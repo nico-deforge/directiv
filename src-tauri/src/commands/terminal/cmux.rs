@@ -271,11 +271,9 @@ impl TerminalController for CmuxController {
     ///
     /// Returns the workspace ref so callers can skip redundant `find_session` lookups.
     ///
-    /// Flow:
-    /// 1. `cmux new-workspace --cwd <worktree_path>` → returns "OK workspace:N"
+    /// Flow (optimized — 2 subprocess calls instead of 4):
+    /// 1. `cmux new-workspace --cwd <path> --command "<env_exports> && <startup_cmd>"` → create + launch
     /// 2. `cmux rename-workspace --workspace <ref> <display_name>` → set display name
-    /// 3. Batch-inject env vars via single `cmux send`
-    /// 4. If `config.command` is set: `cmux send --workspace <ref> "<command>\r"` → run it
     async fn create(
         &self,
         app: &tauri::AppHandle,
@@ -283,13 +281,17 @@ impl TerminalController for CmuxController {
     ) -> Result<Option<TerminalRef>, String> {
         check_cmux_available(app).await?;
 
-        // Create the workspace with --cwd to start in the worktree directory
-        let output = run_cmux(
-            app,
-            &["new-workspace", "--cwd", &config.worktree_path],
-            "create",
-        )
-        .await?;
+        // Build a single --command string that sets env vars and launches the startup command.
+        // This replaces the previous 2 separate `cmux send` calls with the --command flag.
+        let startup_command = build_startup_command(&config.env_vars, config.command.as_deref());
+
+        let mut args = vec!["new-workspace", "--cwd", &config.worktree_path];
+        if let Some(ref cmd) = startup_command {
+            args.push("--command");
+            args.push(cmd);
+        }
+
+        let output = run_cmux(app, &args, "create").await?;
 
         // Parse workspace ref from "OK workspace:N" output
         let ws_ref = parse_workspace_ref(&output)
@@ -304,27 +306,21 @@ impl TerminalController for CmuxController {
         )
         .await?;
 
-        // Batch-inject DIRECTIV env vars in a single cmux send (avoids 3 subprocess spawns)
-        if let Some(batch_cmd) = build_env_batch_cmd(&config.env_vars) {
-            run_cmux(
-                app,
-                &["send", "--workspace", &ws_ref, &batch_cmd],
-                "create:env",
-            )
-            .await?;
-        }
-
-        // Send the startup command if provided.
-        // cmux send passes raw text to the terminal — no shell escaping needed.
-        if let Some(cmd) = &config.command {
-            let cmd_with_enter = format!("{cmd}\r");
-            run_cmux(
-                app,
-                &["send", "--workspace", &ws_ref, &cmd_with_enter],
-                "create:command",
-            )
-            .await?;
-        }
+        // Focus the new workspace and bring cmux to the foreground.
+        // Done here instead of dispatch_terminal's post-create focus() to avoid
+        // an extra check_cmux_available() + 2 subprocess calls.
+        run_cmux(
+            app,
+            &["select-workspace", "--workspace", &ws_ref],
+            "create:focus",
+        )
+        .await?;
+        let _ = app
+            .shell()
+            .command("open")
+            .args(["-a", "cmux"])
+            .output()
+            .await;
 
         Ok(Some(TerminalRef {
             identifier: ws_ref,
@@ -790,6 +786,28 @@ fn build_env_batch_cmd(env_vars: &std::collections::HashMap<String, String>) -> 
         .collect::<Vec<_>>()
         .join(" && ");
     Some(format!("{exports}\r"))
+}
+
+/// Build a single command string that sets env vars and runs the startup command.
+/// Used with `cmux new-workspace --command` to avoid separate `cmux send` calls.
+///
+/// Returns `None` when there are no env vars and no startup command.
+/// Returns `"export A=1 && export B=2 && claude '...'"` when both are present.
+fn build_startup_command(
+    env_vars: &std::collections::HashMap<String, String>,
+    startup_cmd: Option<&str>,
+) -> Option<String> {
+    let env_part = build_env_batch_cmd(env_vars).map(|s| {
+        // Strip the trailing \r — cmux --command sends Enter automatically
+        s.trim_end_matches('\r').to_string()
+    });
+
+    match (env_part, startup_cmd) {
+        (Some(env), Some(cmd)) => Some(format!("{env} && {cmd}")),
+        (Some(env), None) => Some(env),
+        (None, Some(cmd)) => Some(cmd.to_string()),
+        (None, None) => None,
+    }
 }
 
 #[cfg(test)]

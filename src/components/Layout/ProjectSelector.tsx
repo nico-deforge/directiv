@@ -46,7 +46,7 @@ import {
   useIsGitHubConnected,
 } from "../../hooks/useGitHub";
 import { useStartFreeTask } from "../../hooks/useStartTask";
-import { wtSwitchCreate } from "../../lib/tauri";
+import { wtSwitchCreateNoHooks } from "../../lib/tauri";
 import { toSessionName } from "../../lib/tmux-utils";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 import { BranchSelector } from "../shared/BranchSelector";
@@ -299,7 +299,7 @@ function NewWorktreeSection() {
     const { repoPath } = branchExistsPrompt;
     setBranchExistsPrompt(null);
     try {
-      await wtSwitchCreate(repoPath, branchName.trim());
+      await wtSwitchCreateNoHooks(repoPath, branchName.trim());
       startFreeTask.mutate(
         {
           branchName: branchName.trim(),

@@ -65,11 +65,22 @@ export async function gitFetch(repoPath: string): Promise<void> {
   return invoke<void>("git_fetch", { repoPath });
 }
 
-export async function wtSwitchCreate(
+export async function wtSwitchCreateNoHooks(
   repoPath: string,
   branchName: string,
 ): Promise<{ path: string }> {
-  return invoke<{ path: string }>("wt_switch_create", { repoPath, branchName });
+  return invoke<{ path: string }>("wt_switch_create_no_hooks", {
+    repoPath,
+    branchName,
+  });
+}
+
+export async function wtListLite(
+  repoPath: string,
+): Promise<{ branch: string; path: string }[]> {
+  return invoke<{ branch: string; path: string }[]>("wt_list_lite", {
+    repoPath,
+  });
 }
 
 export async function wtList(repoPath: string): Promise<WorktreeInfo[]> {
