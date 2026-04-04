@@ -3,6 +3,7 @@ use super::format_display_name;
 use super::types::{Emulator, TerminalConfig, TerminalRef};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 use tauri_plugin_shell::ShellExt;
@@ -70,6 +71,11 @@ static CMUX_LAST_PING: Mutex<Option<Instant>> = Mutex::new(None);
 
 /// How long a successful ping result is considered valid.
 const CMUX_PING_CACHE_SECS: u64 = 5;
+
+/// Cache of identifier → workspace ref, populated by `create()`, consumed by `close_workspace()`.
+/// Avoids a costly `cmux tree --all --json` call (~190ms) when closing a workspace
+/// whose ref was already known at creation time.
+static WORKSPACE_REF_CACHE: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
 
 /// Check that cmux is installed and running via `cmux ping`.
 /// Results are cached for [`CMUX_PING_CACHE_SECS`] seconds to avoid
@@ -298,6 +304,13 @@ impl TerminalController for CmuxController {
         let ws_ref = parse_workspace_ref(&output)
             .ok_or_else(|| format!("cmux create: unexpected output: {output}"))?;
 
+        // Cache identifier → ref so close_workspace() can skip the listing
+        if let Ok(mut guard) = WORKSPACE_REF_CACHE.lock() {
+            guard
+                .get_or_insert_with(HashMap::new)
+                .insert(config.identifier.clone(), ws_ref.clone());
+        }
+
         // Rename the workspace to include the task title (e.g., "ACQ-145 — Fix login timeout")
         let display_name = format_display_name(&config.identifier, config.title.as_deref());
         run_cmux(
@@ -379,6 +392,44 @@ impl TerminalController for CmuxController {
 pub async fn close_workspace(app: &tauri::AppHandle, name: &str) -> Result<(), String> {
     check_cmux_available(app).await?;
 
+    // Fast path: try cached ref from create() to skip the ~190ms listing.
+    // If the cached ref is stale (workspace closed externally, ref reused),
+    // fall back to the slow path instead of closing the wrong workspace.
+    let cached_ref = WORKSPACE_REF_CACHE
+        .lock()
+        .ok()
+        .and_then(|cache| cache.as_ref().and_then(|map| map.get(name).cloned()));
+
+    if let Some(r) = cached_ref {
+        match run_cmux(
+            app,
+            &["close-workspace", "--workspace", &r],
+            "close_workspace",
+        )
+        .await
+        {
+            Ok(_) => {
+                // Clean up cache entry on success
+                if let Ok(mut guard) = WORKSPACE_REF_CACHE.lock() {
+                    if let Some(map) = guard.as_mut() {
+                        map.remove(name);
+                    }
+                }
+                return Ok(());
+            }
+            Err(e) => {
+                // Stale ref — clean cache and fall through to slow path
+                eprintln!("close_workspace: cached ref {r} failed ({e}), falling back to listing");
+                if let Ok(mut guard) = WORKSPACE_REF_CACHE.lock() {
+                    if let Some(map) = guard.as_mut() {
+                        map.remove(name);
+                    }
+                }
+            }
+        }
+    }
+
+    // Slow path: list workspaces and find by title
     let workspaces = list_cmux_workspaces(app).await?;
 
     let ws_ref = workspaces
