@@ -1,6 +1,6 @@
 ---
 name: adapt
-description: Adapt designs to work across different screen sizes, devices, contexts, or platforms. Ensures consistent experience across varied environments.
+description: "Adapt UI designs to work across different screen sizes, devices, or platforms. Use when porting a desktop layout to mobile, adding tablet support, creating print stylesheets, or making email-compatible versions of web components."
 user-invokable: true
 args:
   - name: target
@@ -11,188 +11,79 @@ args:
     required: false
 ---
 
-Adapt existing designs to work effectively across different contexts - different screen sizes, devices, platforms, or use cases.
+Adapt existing designs to work effectively across different contexts. Adaptation is not scaling — it's rethinking the experience for the new context.
 
-## Assess Adaptation Challenge
+## Phase 1: Assess
 
-Understand what needs adaptation and why:
+1. **Source context**: What was it designed for? What assumptions (screen size, input method, connection speed)?
+2. **Target context**: Device, input method, screen constraints, connection, usage context (on-the-go vs focused)
+3. **Challenges**: What won't fit, won't work (hover on touch), or feels inappropriate?
 
-1. **Identify the source context**:
-   - What was it designed for originally? (Desktop web? Mobile app?)
-   - What assumptions were made? (Large screen? Mouse input? Fast connection?)
-   - What works well in current context?
+## Phase 2: Strategy by Target
 
-2. **Understand target context**:
-   - **Device**: Mobile, tablet, desktop, TV, watch, print?
-   - **Input method**: Touch, mouse, keyboard, voice, gamepad?
-   - **Screen constraints**: Size, resolution, orientation?
-   - **Connection**: Fast wifi, slow 3G, offline?
-   - **Usage context**: On-the-go vs desk, quick glance vs focused reading?
-   - **User expectations**: What do users expect on this platform?
+### Mobile (Desktop → Mobile)
 
-3. **Identify adaptation challenges**:
-   - What won't fit? (Content, navigation, features)
-   - What won't work? (Hover states on touch, tiny touch targets)
-   - What's inappropriate? (Desktop patterns on mobile, mobile patterns on desktop)
+| Dimension | Strategy |
+|-----------|----------|
+| Layout | Single column, vertical stacking, full-width, bottom navigation |
+| Interaction | 44x44px touch targets, swipe gestures, bottom sheets, thumbs-first |
+| Content | Progressive disclosure, 16px minimum text, concise copy |
+| Navigation | Hamburger/bottom nav, sticky headers, back button flows |
 
-**CRITICAL**: Adaptation is not just scaling - it's rethinking the experience for the new context.
+### Tablet (Hybrid)
+- Two-column or master-detail layouts, adaptive to orientation
+- Support both touch and pointer, side navigation drawers
 
-## Plan Adaptation Strategy
+### Desktop (Mobile → Desktop)
+- Multi-column layouts with max-width constraints
+- Hover states, keyboard shortcuts, right-click menus, drag-and-drop
+- Show more information upfront, richer data tables and visualizations
 
-Create context-appropriate strategy:
+### Print (Screen → Print)
+- Page breaks at logical points, remove interactive elements
+- Expand hidden content, add page numbers/metadata, print-friendly colors
 
-### Mobile Adaptation (Desktop → Mobile)
+### Email (Web → Email)
+- 600px max width, single column, inline CSS, table-based layouts
+- Large obvious CTAs (no hover states), deep links for complex interactions
 
-**Layout Strategy**:
-- Single column instead of multi-column
-- Vertical stacking instead of side-by-side
-- Full-width components instead of fixed widths
-- Bottom navigation instead of top/side navigation
+## Phase 3: Implement
 
-**Interaction Strategy**:
-- Touch targets 44x44px minimum (not hover-dependent)
-- Swipe gestures where appropriate (lists, carousels)
-- Bottom sheets instead of dropdowns
-- Thumbs-first design (controls within thumb reach)
-- Larger tap areas with more spacing
+### CSS Techniques
 
-**Content Strategy**:
-- Progressive disclosure (don't show everything at once)
-- Prioritize primary content (secondary content in tabs/accordions)
-- Shorter text (more concise)
-- Larger text (16px minimum)
+```css
+/* Fluid sizing with clamp() */
+.heading { font-size: clamp(1.5rem, 4vw, 3rem); }
 
-**Navigation Strategy**:
-- Hamburger menu or bottom navigation
-- Reduce navigation complexity
-- Sticky headers for context
-- Back button in navigation flow
+/* Container queries for component-level adaptation */
+@container (min-width: 600px) {
+  .card { grid-template-columns: 1fr 1fr; }
+}
+```
 
-### Tablet Adaptation (Hybrid Approach)
-
-**Layout Strategy**:
-- Two-column layouts (not single or three-column)
-- Side panels for secondary content
-- Master-detail views (list + detail)
-- Adaptive based on orientation (portrait vs landscape)
-
-**Interaction Strategy**:
-- Support both touch and pointer
-- Touch targets 44x44px but allow denser layouts than phone
-- Side navigation drawers
-- Multi-column forms where appropriate
-
-### Desktop Adaptation (Mobile → Desktop)
-
-**Layout Strategy**:
-- Multi-column layouts (use horizontal space)
-- Side navigation always visible
-- Multiple information panels simultaneously
-- Fixed widths with max-width constraints (don't stretch to 4K)
-
-**Interaction Strategy**:
-- Hover states for additional information
-- Keyboard shortcuts
-- Right-click context menus
-- Drag and drop where helpful
-- Multi-select with Shift/Cmd
-
-**Content Strategy**:
-- Show more information upfront (less progressive disclosure)
-- Data tables with many columns
-- Richer visualizations
-- More detailed descriptions
-
-### Print Adaptation (Screen → Print)
-
-**Layout Strategy**:
-- Page breaks at logical points
-- Remove navigation, footer, interactive elements
-- Black and white (or limited color)
-- Proper margins for binding
-
-**Content Strategy**:
-- Expand shortened content (show full URLs, hidden sections)
-- Add page numbers, headers, footers
-- Include metadata (print date, page title)
-- Convert charts to print-friendly versions
-
-### Email Adaptation (Web → Email)
-
-**Layout Strategy**:
-- Narrow width (600px max)
-- Single column only
-- Inline CSS (no external stylesheets)
-- Table-based layouts (for email client compatibility)
-
-**Interaction Strategy**:
-- Large, obvious CTAs (buttons not text links)
-- No hover states (not reliable)
-- Deep links to web app for complex interactions
-
-## Implement Adaptations
-
-Apply changes systematically:
-
-### Responsive Breakpoints
-
-Choose appropriate breakpoints:
-- Mobile: 320px-767px
-- Tablet: 768px-1023px
-- Desktop: 1024px+
-- Or content-driven breakpoints (where design breaks)
-
-### Layout Adaptation Techniques
-
-- **CSS Grid/Flexbox**: Reflow layouts automatically
-- **Container Queries**: Adapt based on container, not viewport
-- **`clamp()`**: Fluid sizing between min and max
-- **Media queries**: Different styles for different contexts
-- **Display properties**: Show/hide elements per context
+- **CSS Grid/Flexbox** for automatic reflow
+- **Container Queries** to adapt based on container, not viewport
+- **Media queries** for context-specific overrides
+- Content-driven breakpoints (where design breaks) over generic ones (320/768/1024)
 
 ### Touch Adaptation
-
-- Increase touch target sizes (44x44px minimum)
-- Add more spacing between interactive elements
-- Remove hover-dependent interactions
-- Add touch feedback (ripples, highlights)
-- Consider thumb zones (easier to reach bottom than top)
+- 44x44px minimum targets with spacing between interactive elements
+- Remove hover-dependent interactions, add touch feedback (ripples)
+- Consider thumb zones (bottom of screen is easier to reach)
 
 ### Content Adaptation
-
-- Use `display: none` sparingly (still downloads)
-- Progressive enhancement (core content first, enhancements on larger screens)
+- Progressive enhancement: core content first, enhancements on larger screens
+- Responsive images (`srcset`, `<picture>`)
 - Lazy loading for off-screen content
-- Responsive images (`srcset`, `picture` element)
+- Use `display: none` sparingly (hidden elements still download)
 
-### Navigation Adaptation
+## Phase 4: Verify
 
-- Transform complex nav to hamburger/drawer on mobile
-- Bottom nav bar for mobile apps
-- Persistent side navigation on desktop
-- Breadcrumbs on smaller screens for context
+Test on real devices (not just DevTools emulation):
+- Multiple screen sizes including 320px and 4K extremes
+- Portrait and landscape orientations
+- Touch, mouse, and keyboard input
+- Throttled network connections
+- Safari, Chrome, Firefox, Edge across iOS, Android, macOS, Windows
 
-**IMPORTANT**: Test on real devices, not just browser DevTools. Device emulation is helpful but not perfect.
-
-**NEVER**:
-- Hide core functionality on mobile (if it matters, make it work)
-- Assume desktop = powerful device (consider accessibility, older machines)
-- Use different information architecture across contexts (confusing)
-- Break user expectations for platform (mobile users expect mobile patterns)
-- Forget landscape orientation on mobile/tablet
-- Use generic breakpoints blindly (use content-driven breakpoints)
-- Ignore touch on desktop (many desktop devices have touch)
-
-## Verify Adaptations
-
-Test thoroughly across contexts:
-
-- **Real devices**: Test on actual phones, tablets, desktops
-- **Different orientations**: Portrait and landscape
-- **Different browsers**: Safari, Chrome, Firefox, Edge
-- **Different OS**: iOS, Android, Windows, macOS
-- **Different input methods**: Touch, mouse, keyboard
-- **Edge cases**: Very small screens (320px), very large screens (4K)
-- **Slow connections**: Test on throttled network
-
-Remember: You're a cross-platform design expert. Make experiences that feel native to each context while maintaining brand and functionality consistency. Adapt intentionally, test thoroughly.
+**NEVER**: hide core functionality on mobile, use different information architecture across contexts, break platform expectations, forget landscape orientation, or ignore touch on desktop devices.

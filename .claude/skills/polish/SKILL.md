@@ -1,6 +1,6 @@
 ---
 name: polish
-description: Final quality pass before shipping. Fixes alignment, spacing, consistency, and detail issues that separate good from great.
+description: "Perform a final quality pass on a feature before shipping. Use when a component is functionally complete but needs alignment fixes, missing interaction states, spacing inconsistencies, copy cleanup, or transition smoothing to reach production quality."
 user-invokable: true
 args:
   - name: target
@@ -8,194 +8,73 @@ args:
     required: false
 ---
 
-**First**: Use the frontend-design skill for design principles and anti-patterns.
+Meticulous final pass to catch details that separate good work from great. Polish is the last step — do not polish work that isn't functionally complete.
 
-Perform a meticulous final pass to catch all the small details that separate good work from great work. The difference between shipped and polished.
+**First**: Review the `frontend-design` skill for design principles and anti-patterns.
 
-## Pre-Polish Assessment
+## Phase 1: Assess
 
-Understand the current state and goals:
+1. Confirm the feature is functionally complete
+2. Identify polish areas: visual inconsistencies, spacing issues, missing interaction states, copy problems, edge cases, transition smoothness
 
-1. **Review completeness**:
-   - Is it functionally complete?
-   - Are there known issues to preserve (mark with TODOs)?
-   - What's the quality bar? (MVP vs flagship feature?)
-   - When does it ship? (How much time for polish?)
-
-2. **Identify polish areas**:
-   - Visual inconsistencies
-   - Spacing and alignment issues
-   - Interaction state gaps
-   - Copy inconsistencies
-   - Edge cases and error states
-   - Loading and transition smoothness
-
-**CRITICAL**: Polish is the last step, not the first. Don't polish work that's not functionally complete.
-
-## Polish Systematically
-
-Work through these dimensions methodically:
+## Phase 2: Polish Systematically
 
 ### Visual Alignment & Spacing
+- All elements snap to grid — no arbitrary gaps (e.g. random 13px)
+- Optical alignment for icons (may need offset for visual centering)
+- Consistent spacing at all breakpoints
 
-- **Pixel-perfect alignment**: Everything lines up to grid
-- **Consistent spacing**: All gaps use spacing scale (no random 13px gaps)
-- **Optical alignment**: Adjust for visual weight (icons may need offset for optical centering)
-- **Responsive consistency**: Spacing and alignment work at all breakpoints
-- **Grid adherence**: Elements snap to baseline grid
-
-**Check**:
-- Enable grid overlay and verify alignment
-- Check spacing with browser inspector
-- Test at multiple viewport sizes
-- Look for elements that "feel" off
-
-### Typography Refinement
-
-- **Hierarchy consistency**: Same elements use same sizes/weights throughout
-- **Line length**: 45-75 characters for body text
-- **Line height**: Appropriate for font size and context
-- **Widows & orphans**: No single words on last line
-- **Hyphenation**: Appropriate for language and column width
-- **Kerning**: Adjust letter spacing where needed (especially headlines)
-- **Font loading**: No FOUT/FOIT flashes
+### Typography
+- Same elements use same sizes/weights throughout
+- Body text: 45-75 character line length
+- No FOUT/FOIT font loading flashes
 
 ### Color & Contrast
-
-- **Contrast ratios**: All text meets WCAG standards
-- **Consistent token usage**: No hard-coded colors, all use design tokens
-- **Theme consistency**: Works in all theme variants
-- **Color meaning**: Same colors mean same things throughout
-- **Accessible focus**: Focus indicators visible with sufficient contrast
-- **Tinted neutrals**: No pure gray or pure black—add subtle color tint (0.01 chroma)
-- **Gray on color**: Never put gray text on colored backgrounds—use a shade of that color or transparency
+- All text meets WCAG AA contrast ratios
+- No hard-coded colors — all use design tokens
+- Tinted neutrals (no pure gray/black — add 0.01 chroma)
+- Never gray text on colored backgrounds — use a shade of that color
 
 ### Interaction States
 
-Every interactive element needs all states:
+Every interactive element needs all of: default, hover, focus, active, disabled, loading, error, success. Missing states create broken experiences.
 
-- **Default**: Resting state
-- **Hover**: Subtle feedback (color, scale, shadow)
-- **Focus**: Keyboard focus indicator (never remove without replacement)
-- **Active**: Click/tap feedback
-- **Disabled**: Clearly non-interactive
-- **Loading**: Async action feedback
-- **Error**: Validation or error state
-- **Success**: Successful completion
-
-**Missing states create confusion and broken experiences**.
-
-### Micro-interactions & Transitions
-
-- **Smooth transitions**: All state changes animated appropriately (150-300ms)
-- **Consistent easing**: Use ease-out-quart/quint/expo for natural deceleration. Never bounce or elastic—they feel dated.
-- **No jank**: 60fps animations, only animate transform and opacity
-- **Appropriate motion**: Motion serves purpose, not decoration
-- **Reduced motion**: Respects `prefers-reduced-motion`
+- Transitions: 150-300ms, ease-out-quart/quint/expo (never bounce/elastic)
+- Only animate `transform` and `opacity` for 60fps
+- Respect `prefers-reduced-motion`
 
 ### Content & Copy
+- Consistent terminology and capitalization throughout
+- No typos, appropriate length, consistent punctuation
 
-- **Consistent terminology**: Same things called same names throughout
-- **Consistent capitalization**: Title Case vs Sentence case applied consistently
-- **Grammar & spelling**: No typos
-- **Appropriate length**: Not too wordy, not too terse
-- **Punctuation consistency**: Periods on sentences, not on labels (unless all labels have them)
+### Icons, Images & Forms
+- All icons from same family, optically aligned with adjacent text
+- All images have alt text, no layout shift on load
+- All inputs labeled, logical tab order, consistent validation timing
 
-### Icons & Images
-
-- **Consistent style**: All icons from same family or matching style
-- **Appropriate sizing**: Icons sized consistently for context
-- **Proper alignment**: Icons align with adjacent text optically
-- **Alt text**: All images have descriptive alt text
-- **Loading states**: Images don't cause layout shift, proper aspect ratios
-- **Retina support**: 2x assets for high-DPI screens
-
-### Forms & Inputs
-
-- **Label consistency**: All inputs properly labeled
-- **Required indicators**: Clear and consistent
-- **Error messages**: Helpful and consistent
-- **Tab order**: Logical keyboard navigation
-- **Auto-focus**: Appropriate (don't overuse)
-- **Validation timing**: Consistent (on blur vs on submit)
-
-### Edge Cases & Error States
-
-- **Loading states**: All async actions have loading feedback
-- **Empty states**: Helpful empty states, not just blank space
-- **Error states**: Clear error messages with recovery paths
-- **Success states**: Confirmation of successful actions
-- **Long content**: Handles very long names, descriptions, etc.
-- **No content**: Handles missing data gracefully
-- **Offline**: Appropriate offline handling (if applicable)
-
-### Responsiveness
-
-- **All breakpoints**: Test mobile, tablet, desktop
-- **Touch targets**: 44x44px minimum on touch devices
-- **Readable text**: No text smaller than 14px on mobile
-- **No horizontal scroll**: Content fits viewport
-- **Appropriate reflow**: Content adapts logically
-
-### Performance
-
-- **Fast initial load**: Optimize critical path
-- **No layout shift**: Elements don't jump after load (CLS)
-- **Smooth interactions**: No lag or jank
-- **Optimized images**: Appropriate formats and sizes
-- **Lazy loading**: Off-screen content loads lazily
+### Edge Cases
+- Loading, empty, error, and success states all handled
+- Long content and missing data handled gracefully
+- Touch targets 44x44px minimum, no text < 14px on mobile
 
 ### Code Quality
+- Remove console.logs, commented code, unused imports
+- No TypeScript `any`, proper ARIA labels and semantic HTML
 
-- **Remove console logs**: No debug logging in production
-- **Remove commented code**: Clean up dead code
-- **Remove unused imports**: Clean up unused dependencies
-- **Consistent naming**: Variables and functions follow conventions
-- **Type safety**: No TypeScript `any` or ignored errors
-- **Accessibility**: Proper ARIA labels and semantic HTML
+## Phase 3: Verify
 
-## Polish Checklist
+Run through this checklist:
 
-Go through systematically:
-
-- [ ] Visual alignment perfect at all breakpoints
+- [ ] Alignment perfect at all breakpoints
 - [ ] Spacing uses design tokens consistently
-- [ ] Typography hierarchy consistent
-- [ ] All interactive states implemented
+- [ ] All interaction states implemented
 - [ ] All transitions smooth (60fps)
-- [ ] Copy is consistent and polished
-- [ ] Icons are consistent and properly sized
-- [ ] All forms properly labeled and validated
-- [ ] Error states are helpful
-- [ ] Loading states are clear
-- [ ] Empty states are welcoming
-- [ ] Touch targets are 44x44px minimum
-- [ ] Contrast ratios meet WCAG AA
-- [ ] Keyboard navigation works
-- [ ] Focus indicators visible
-- [ ] No console errors or warnings
+- [ ] Contrast meets WCAG AA
+- [ ] Keyboard navigation and focus indicators work
 - [ ] No layout shift on load
-- [ ] Works in all supported browsers
 - [ ] Respects reduced motion preference
-- [ ] Code is clean (no TODOs, console.logs, commented code)
+- [ ] Code is clean
 
-**IMPORTANT**: Polish is about details. Zoom in. Squint at it. Use it yourself. The little things add up.
+Test by actually using the feature, on real devices, across supported browsers. Check all states — not just the happy path.
 
-**NEVER**:
-- Polish before it's functionally complete
-- Spend hours on polish if it ships in 30 minutes (triage)
-- Introduce bugs while polishing (test thoroughly)
-- Ignore systematic issues (if spacing is off everywhere, fix the system)
-- Perfect one thing while leaving others rough (consistent quality level)
-
-## Final Verification
-
-Before marking as done:
-
-- **Use it yourself**: Actually interact with the feature
-- **Test on real devices**: Not just browser DevTools
-- **Ask someone else to review**: Fresh eyes catch things
-- **Compare to design**: Match intended design
-- **Check all states**: Don't just test happy path
-
-Remember: You have impeccable attention to detail and exquisite taste. Polish until it feels effortless, looks intentional, and works flawlessly. Sweat the details - they matter.
+**NEVER**: polish before functionally complete, introduce bugs while polishing, ignore systematic issues (fix the system, not individual symptoms), or perfect one area while leaving others rough.
