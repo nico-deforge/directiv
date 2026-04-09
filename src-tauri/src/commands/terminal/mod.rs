@@ -131,14 +131,14 @@ async fn dispatch_terminal(
     let env_vars = std::collections::HashMap::from([
         ("DIRECTIV_TASK".to_string(), identifier.to_string()),
         ("DIRECTIV_WORKTREE".to_string(), worktree_path.to_string()),
-        ("DIRECTIV_SESSION".to_string(), session.to_string()),
+        ("DIRECTIV_SESSION".to_string(), identifier.to_string()),
     ]);
 
     let config = TerminalConfig {
         identifier: identifier.to_string(),
         session: session.to_string(),
         // The session string doubles as a startup command for cmux workspaces.
-        // Other controllers (Ghostty, iTerm2) use the session field directly.
+        // For Ghostty/iTerm2, it is the tmux session name (used in the tmux attach command).
         command: Some(session.to_string()),
         title: title.map(|t| t.to_string()),
         worktree_path: worktree_path.to_string(),
