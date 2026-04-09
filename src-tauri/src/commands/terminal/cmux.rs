@@ -277,10 +277,11 @@ impl TerminalController for CmuxController {
     ///
     /// Returns the workspace ref so callers can skip redundant `find_session` lookups.
     ///
-    /// Flow (optimized — 3 cmux calls instead of 4, with focus inlined):
-    /// 1. `cmux new-workspace --cwd <path> --command "<env_exports> && <startup_cmd>"` → create + launch
-    /// 2. `cmux rename-workspace --workspace <ref> <display_name>` → set display name
-    /// 3. `cmux select-workspace --workspace <ref>` + `open -a cmux` → focus (inlined from dispatch_terminal)
+    /// Flow (4 cmux calls, with focus inlined):
+    /// 1. `cmux new-workspace --cwd <path>` → create workspace
+    /// 2. `cmux send --workspace <ref> "<env_exports> && <startup_cmd>\r"` → launch command
+    /// 3. `cmux rename-workspace --workspace <ref> <display_name>` → set display name
+    /// 4. `cmux select-workspace --workspace <ref>` + `open -a cmux` → focus
     async fn create(
         &self,
         app: &tauri::AppHandle,
@@ -288,17 +289,14 @@ impl TerminalController for CmuxController {
     ) -> Result<Option<TerminalRef>, String> {
         check_cmux_available(app).await?;
 
-        // Build a single --command string that sets env vars and launches the startup command.
-        // This replaces the previous 2 separate `cmux send` calls with the --command flag.
-        let startup_command = build_startup_command(&config.env_vars, config.command.as_deref());
-
-        let mut args = vec!["new-workspace", "--cwd", &config.worktree_path];
-        if let Some(ref cmd) = startup_command {
-            args.push("--command");
-            args.push(cmd);
-        }
-
-        let output = run_cmux(app, &args, "create").await?;
+        // Create workspace first, then send startup command via `cmux send`.
+        // Using --command caused truncation with long env+claude command strings.
+        let output = run_cmux(
+            app,
+            &["new-workspace", "--cwd", &config.worktree_path],
+            "create",
+        )
+        .await?;
 
         // Parse workspace ref from "OK workspace:N" output
         let ws_ref = parse_workspace_ref(&output)
@@ -309,6 +307,34 @@ impl TerminalController for CmuxController {
             guard
                 .get_or_insert_with(HashMap::new)
                 .insert(config.identifier.clone(), ws_ref.clone());
+        }
+
+        // Send env vars + startup command as a single `cmux send` (raw text to terminal).
+        // This avoids the --command flag which truncates long strings.
+        let startup_command = build_startup_command(&config.env_vars, config.command.as_deref());
+        if let Some(cmd) = startup_command {
+            let cmd_with_enter = format!("{cmd}\r");
+            if let Err(e) = run_cmux(
+                app,
+                &["send", "--workspace", &ws_ref, &cmd_with_enter],
+                "create:command",
+            )
+            .await
+            {
+                // Clean up the orphaned workspace — it was created but never received the command.
+                let _ = run_cmux(
+                    app,
+                    &["close-workspace", "--workspace", &ws_ref],
+                    "create:command:cleanup",
+                )
+                .await;
+                if let Ok(mut guard) = WORKSPACE_REF_CACHE.lock() {
+                    if let Some(map) = guard.as_mut() {
+                        map.remove(&config.identifier);
+                    }
+                }
+                return Err(e);
+            }
         }
 
         // Rename the workspace to include the task title (e.g., "ACQ-145 — Fix login timeout")
@@ -832,7 +858,8 @@ fn shell_escape(s: &str) -> String {
 }
 
 /// Build a batch `export` command from a map of env vars.
-/// Returns `None` when the map is empty, or `Some("export K1=V1 && export K2=V2\r")`.
+/// Returns `None` when the map is empty, or `Some("export K1='V1' K2='V2'")`.
+/// Uses a single `export` with space-separated assignments to minimize command length.
 /// Keys are sorted for deterministic output (HashMap iteration order is random).
 fn build_env_batch_cmd(env_vars: &std::collections::HashMap<String, String>) -> Option<String> {
     if env_vars.is_empty() {
@@ -840,27 +867,24 @@ fn build_env_batch_cmd(env_vars: &std::collections::HashMap<String, String>) -> 
     }
     let mut entries: Vec<_> = env_vars.iter().collect();
     entries.sort_by_key(|(k, _)| k.as_str());
-    let exports: String = entries
+    let assignments: String = entries
         .iter()
-        .map(|(key, value)| format!("export {}={}", shell_escape(key), shell_escape(value)))
+        .map(|(key, value)| format!("{}={}", key, shell_escape(value)))
         .collect::<Vec<_>>()
-        .join(" && ");
-    Some(format!("{exports}\r"))
+        .join(" ");
+    Some(format!("export {assignments}"))
 }
 
 /// Build a single command string that sets env vars and runs the startup command.
-/// Used with `cmux new-workspace --command` to avoid separate `cmux send` calls.
+/// Sent via `cmux send` after workspace creation.
 ///
 /// Returns `None` when there are no env vars and no startup command.
-/// Returns `"export A=1 && export B=2 && claude '...'"` when both are present.
+/// Returns `"export A='1' B='2' && claude '...'"` when both are present.
 fn build_startup_command(
     env_vars: &std::collections::HashMap<String, String>,
     startup_cmd: Option<&str>,
 ) -> Option<String> {
-    let env_part = build_env_batch_cmd(env_vars).map(|s| {
-        // Strip the trailing \r — cmux --command sends Enter automatically
-        s.trim_end_matches('\r').to_string()
-    });
+    let env_part = build_env_batch_cmd(env_vars);
 
     match (env_part, startup_cmd) {
         (Some(env), Some(cmd)) => Some(format!("{env} && {cmd}")),
@@ -1135,7 +1159,7 @@ mod tests {
         env.insert("B_KEY".to_string(), "value2".to_string());
         let cmd = build_env_batch_cmd(&env).unwrap();
         // Keys are sorted, so A_KEY comes before B_KEY
-        assert_eq!(cmd, "export 'A_KEY'='value1' && export 'B_KEY'='value2'\r");
+        assert_eq!(cmd, "export A_KEY='value1' B_KEY='value2'");
     }
 
     #[test]
@@ -1143,7 +1167,7 @@ mod tests {
         let mut env = std::collections::HashMap::new();
         env.insert("ONLY".to_string(), "val".to_string());
         let cmd = build_env_batch_cmd(&env).unwrap();
-        assert_eq!(cmd, "export 'ONLY'='val'\r");
+        assert_eq!(cmd, "export ONLY='val'");
     }
 
     #[test]
@@ -1157,7 +1181,7 @@ mod tests {
         let mut env = std::collections::HashMap::new();
         env.insert("PATH".to_string(), "/usr/it's/bin".to_string());
         let cmd = build_env_batch_cmd(&env).unwrap();
-        assert_eq!(cmd, "export 'PATH'='/usr/it'\\''s/bin'\r");
+        assert_eq!(cmd, "export PATH='/usr/it'\\''s/bin'");
     }
 
     #[test]
@@ -1165,7 +1189,7 @@ mod tests {
         let mut env = std::collections::HashMap::new();
         env.insert("DIR".to_string(), "/path with spaces".to_string());
         let cmd = build_env_batch_cmd(&env).unwrap();
-        assert_eq!(cmd, "export 'DIR'='/path with spaces'\r");
+        assert_eq!(cmd, "export DIR='/path with spaces'");
     }
 
     #[test]
@@ -1173,7 +1197,7 @@ mod tests {
         let mut env = std::collections::HashMap::new();
         env.insert("A".to_string(), "1".to_string());
         let result = build_startup_command(&env, Some("claude --help"));
-        assert_eq!(result, Some("export 'A'='1' && claude --help".to_string()));
+        assert_eq!(result, Some("export A='1' && claude --help".to_string()));
     }
 
     #[test]
@@ -1181,8 +1205,8 @@ mod tests {
         let mut env = std::collections::HashMap::new();
         env.insert("A".to_string(), "1".to_string());
         let result = build_startup_command(&env, None);
-        // No trailing \r — cmux --command sends Enter automatically
-        assert_eq!(result, Some("export 'A'='1'".to_string()));
+        // No trailing \r — build_startup_command returns a clean string
+        assert_eq!(result, Some("export A='1'".to_string()));
     }
 
     #[test]
